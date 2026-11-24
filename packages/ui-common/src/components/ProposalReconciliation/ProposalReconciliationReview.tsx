@@ -1,9 +1,7 @@
 import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
-import {
-  EditOutlined,
-  HelpOutlineOutlined,
-  SmartToyOutlined,
-} from "@mui/icons-material";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import HelpOutlineOutlined from "@mui/icons-material/HelpOutlineOutlined";
+import SmartToyOutlined from "@mui/icons-material/SmartToyOutlined";
 import { ConversationCard } from "../Conversation/Card";
 import { ThreeWayReview } from "./ThreeWayReview";
 import React, {

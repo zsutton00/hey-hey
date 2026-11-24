@@ -1,4 +1,5 @@
-import { CheckCircle, SyncAlt } from "@mui/icons-material";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import SyncAlt from "@mui/icons-material/SyncAlt";
 import {
   Box,
   Chip,

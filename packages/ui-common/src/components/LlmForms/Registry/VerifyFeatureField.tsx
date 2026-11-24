@@ -1,4 +1,4 @@
-import { SyncAlt } from "@mui/icons-material";
+import SyncAlt from "@mui/icons-material/SyncAlt";
 import { Chip } from "@mui/material";
 import { useMemo } from "react";
 import type {

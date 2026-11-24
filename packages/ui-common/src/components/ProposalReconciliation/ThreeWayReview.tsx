@@ -1,6 +1,6 @@
 import { ReconciliationReference } from "./ReconciliationReference";
 import { Fragment } from "react";
-import { InfoOutlined } from "@mui/icons-material";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import { ConversationCard } from "../Conversation/Card";
 import { Alert, Box, Link, Stack, Typography } from "@mui/material";
 import { format, formatDistanceToNow } from "date-fns";

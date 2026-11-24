@@ -16,7 +16,7 @@ import FlagIcon from "@mui/icons-material/Flag";
 import TrendingUp from "@mui/icons-material/TrendingUp";
 import Warning from "@mui/icons-material/Warning";
 import Summarize from "@mui/icons-material/Summarize";
-import { type SvgIconComponent } from "@mui/icons-material";
+import type { SvgIconComponent } from "@mui/icons-material";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
