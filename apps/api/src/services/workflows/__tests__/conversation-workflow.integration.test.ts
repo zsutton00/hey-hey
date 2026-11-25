@@ -27,8 +27,10 @@ describe('ConversationWorkflowService Integration', () => {
   let flowExecutionService: FlowExecutionService;
   let nodeExecutionService: NodeExecutionService;
   let messageService: MessageService;
+  const appContext = { get: jest.fn() };
 
   beforeEach(async () => {
+    appContext.get.mockReset();
     const mockConversationService = TestUtils.createMockConversationService();
     const mockWorkflowTypeRegistry =
       TestUtils.createMockWorkflowTypeRegistryService();
@@ -87,7 +89,7 @@ describe('ConversationWorkflowService Integration', () => {
         },
         {
           provide: 'APP_CONTEXT',
-          useValue: {},
+          useValue: appContext,
         },
       ],
     }).compile();
@@ -207,6 +209,72 @@ describe('ConversationWorkflowService Integration', () => {
           flowState: expect.objectContaining({ executionOwner: 'CLI' }),
         }),
       );
+    } finally {
+      process.env = previousEnvironment;
+    }
+  });
+
+  it('starts a local repository import on its local runner and never starts Temporal', async () => {
+    const previousEnvironment = process.env;
+    process.env = {
+      ...previousEnvironment,
+      DEPLOYMENT_ENVIRONMENT: 'local',
+      HEYHEY_LOCAL_APPLICATION: 'true',
+    };
+    try {
+      const conversation = TestUtils.createMockConversation({
+        workflowName: WorkflowName.RepositoryImport,
+        workflowAboutType: 'project',
+        workflowAboutId: TestUtils.testIds.project,
+        workflowId: TestUtils.testIds.workflow,
+      });
+      jest
+        .spyOn(conversationService, 'createConversation')
+        .mockResolvedValue(conversation);
+      jest
+        .spyOn(workflowTypeRegistry, 'validateWorkflowName')
+        .mockReturnValue(WorkflowName.RepositoryImport);
+      jest.spyOn(nodeExecutionService, 'getFlow').mockReturnValue({
+        id: 'repository-import',
+        terminalPromptType: LocalPromptType.free_form,
+        name: 'Repository Import',
+        description: '',
+        version: 1,
+        startNode: 'prerequisites',
+        nodes: { prerequisites: {} },
+      });
+      const begin = jest.fn().mockResolvedValue('WAITING_FOR_USER');
+      appContext.get.mockReturnValue({ begin });
+
+      const result = await conversationWorkflowService.createConversation(
+        {
+          projectId: TestUtils.testIds.project,
+          organizationId: TestUtils.testIds.organization,
+          workflowName: 'repository-import',
+          workflowId: TestUtils.testIds.workflow,
+          workflowAboutType: 'project',
+          workflowAboutId: TestUtils.testIds.project,
+          initiatedBy: InitiationType.User,
+          context: {
+            repositoryGrounding: { entryMode: 'existing_project' },
+          },
+        },
+        TestUtils.testIds.organization,
+        { userId: TestUtils.testIds.user },
+      );
+
+      expect(result.workflowStarted).toBe(true);
+      expect(workflowTypeRegistry.startWorkflowByType).not.toHaveBeenCalled();
+      expect(begin).toHaveBeenCalledWith({
+        userId: TestUtils.testIds.user,
+        context: expect.objectContaining({
+          flowId: 'repository-import',
+          core: expect.objectContaining({
+            conversationId: conversation.id,
+            user: expect.objectContaining({ id: TestUtils.testIds.user }),
+          }),
+        }),
+      });
     } finally {
       process.env = previousEnvironment;
     }
