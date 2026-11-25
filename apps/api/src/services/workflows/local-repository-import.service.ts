@@ -5,7 +5,6 @@ import {
   Injectable,
   INestApplicationContext,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
 import { FlowExecutionStatus, Prisma } from '@prisma/client';
 import {
@@ -51,9 +50,6 @@ import { ZodError } from 'zod';
 import { JsonExtractionUtil } from '../../utils/json-extraction.util';
 import { featureGenerationResponseSchema } from '../../flows/utils/shared-schemas';
 import { isLocalRepositoryImportExecutionOwner } from './repository-import-execution-owner';
-import { NodeRegistry } from '../../flows/nodes/node-registry.service';
-import { RepositoryImportGenerateFeaturesNode } from '../../flows/nodes/repository-import/repository-import-generate-features.node';
-import { LocalRepositoryOutlineRefinementNode } from './local-repository-outline-refinement.node';
 import { LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE } from '../../flows/constants/node-ids';
 import { randomUUID } from 'node:crypto';
 import { isTimelineMessage } from '../../mappers/message.mapper';
@@ -81,7 +77,7 @@ export type LocalRepositoryImportProgress =
  * every step runs under a lock on that row.
  */
 @Injectable()
-export class LocalRepositoryImportService implements OnModuleInit {
+export class LocalRepositoryImportService {
   private readonly logger = new Logger(LocalRepositoryImportService.name);
 
   constructor(
@@ -91,15 +87,6 @@ export class LocalRepositoryImportService implements OnModuleInit {
     private readonly messages: MessageService,
     @Inject('APP_CONTEXT') private readonly appContext: INestApplicationContext,
   ) {}
-
-  onModuleInit(): void {
-    const registry = this.appContext.get(NodeRegistry, { strict: false });
-    registry.register(
-      this.appContext.get(LocalRepositoryOutlineRefinementNode, {
-        strict: false,
-      }),
-    );
-  }
 
   /** Saves a new import's execution and shows its first form, atomically. */
   async begin(input: {
@@ -386,11 +373,10 @@ export class LocalRepositoryImportService implements OnModuleInit {
         return 'WAITING_FOR_USER';
       }
 
-      if (node instanceof RepositoryImportGenerateFeaturesNode) {
-        await node.processUserResponse(tracker, message, true);
-      } else {
-        await node.processUserResponse?.(tracker, message);
-      }
+      const lifecycleNode: INode = entry.node;
+      await lifecycleNode.processUserResponse?.(tracker, message, {
+        deferDraftRetirement: true,
+      });
       reply = message;
       state.context = tracker.getContext();
       state.lastUserMessageId = message.id as MessageId;
@@ -550,7 +536,7 @@ export class LocalRepositoryImportService implements OnModuleInit {
       FLOW_ID,
       REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
     )?.node;
-    if (!(outline instanceof RepositoryImportGenerateFeaturesNode)) {
+    if (!outline?.processLlmResponse) {
       throw new Error('Repository import outline node is unavailable');
     }
     const tracker = createMutableContextHandle(state.context);
@@ -581,7 +567,7 @@ export class LocalRepositoryImportService implements OnModuleInit {
             { ...parsed, nodeId: outline.id },
             undefined,
             tracker,
-            true,
+            { deferDraftRetirement: true },
           )
         ).modifiedResult;
       }

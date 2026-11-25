@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ProposalStatus } from '@prisma/client';
 import {
   EntityType,
   FeatureListProposalNode,
@@ -87,6 +88,7 @@ export class FeatureListLifecycleService {
     featureData: FeatureGenerationResponse,
     tracker: MutableContextHandle<RepositoryImportFlowContext>,
     nodeId: string,
+    retireReplacedDraft = false,
   ): Promise<OnboardingFeatureProposalState> {
     const context = tracker.getContext();
     const existingState = context.onboardingFeatureProposal;
@@ -295,6 +297,10 @@ export class FeatureListLifecycleService {
       structuredRefinement: undefined,
     };
 
+    if (retireReplacedDraft && existingState?.structuredRefinement) {
+      await this.rejectStaleDrafts(existingState, context, nodeId, true);
+    }
+
     tracker.mutate((draft) => {
       draft.onboardingFeatureProposal = newState;
     });
@@ -352,11 +358,12 @@ export class FeatureListLifecycleService {
     refinement: OnboardingFeatureRefinement,
     tracker: MutableContextHandle<RepositoryImportFlowContext>,
     nodeId: string,
+    keepDraftDuringRefinement = false,
   ): Promise<void> {
     const context = tracker.getContext();
     const existingState = context.onboardingFeatureProposal;
 
-    if (existingState) {
+    if (existingState && !keepDraftDuringRefinement) {
       await this.rejectStaleDrafts(existingState, context, nodeId);
     }
 
@@ -771,6 +778,7 @@ export class FeatureListLifecycleService {
     state: OnboardingFeatureProposalState,
     context: Readonly<RepositoryImportFlowContext>,
     nodeId: string,
+    replacingInTransaction = false,
   ): Promise<void> {
     if (state.topLevels.length === 0) {
       return;
@@ -788,6 +796,16 @@ export class FeatureListLifecycleService {
 
     for (const topLevel of state.topLevels) {
       try {
+        if (replacingInTransaction) {
+          const proposal = await this.prisma.db.proposal.findUnique({
+            where: { id: topLevel.proposalId },
+            select: { status: true },
+          });
+          if (proposal?.status === ProposalStatus.REJECTED) {
+            continue;
+          }
+        }
+
         await this.proposalApprovalService.reject(
           topLevel.proposalId,
           organizationId,
@@ -801,6 +819,9 @@ export class FeatureListLifecycleService {
           proposalId: topLevel.proposalId,
           error: error instanceof Error ? error.message : String(error),
         });
+        if (replacingInTransaction) {
+          throw error;
+        }
       }
     }
   }

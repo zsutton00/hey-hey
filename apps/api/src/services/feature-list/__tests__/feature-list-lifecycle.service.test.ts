@@ -162,15 +162,42 @@ describe('FeatureListLifecycleService placement', () => {
         },
       },
     };
+    const proposals = { reject: jest.fn() };
     const service = new FeatureListLifecycleService(
-      { reject: jest.fn() } as never,
+      proposals as never,
       authoring as never,
       finalization as never,
       decision as never,
       prisma as never,
     );
-    return { service, authoring, finalization, decision, prisma };
+    return { service, authoring, finalization, decision, prisma, proposals };
   };
+
+  it('keeps the saved hierarchy approvable if a local revision returns no replacement', async () => {
+    const { service, proposals, decision } = makeService();
+    const context = makeExistingProjectContext();
+    const tracker = createMutableContextHandle(context);
+    const savedDraft = context.onboardingFeatureProposal!;
+    const feedback = { overall: 'Group refunds with orders', sections: {} };
+
+    await service.recordRefinement(
+      feedback,
+      tracker,
+      'repository-import',
+      true,
+    );
+
+    expect(proposals.reject).not.toHaveBeenCalled();
+    expect(tracker.getContext().onboardingFeatureProposal).toMatchObject({
+      proposalGroupId: savedDraft.proposalGroupId,
+      proposalGroupRevision: savedDraft.proposalGroupRevision,
+      structuredRefinement: feedback,
+    });
+    await service.approve(tracker, 'repository-import');
+    expect(decision.approveAll).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: savedDraft.proposalGroupId }),
+    );
+  });
 
   it('preserves an in-flight enriched review from before structured intent without inventing requirements', async () => {
     const { service, authoring } = makeService();

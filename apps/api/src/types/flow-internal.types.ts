@@ -842,6 +842,7 @@ export interface INode<TContext extends FlowContext = FlowContext> {
   processUserResponse?(
     context: MutableContextHandle<TContext>,
     userMessage: FlowUserMessage,
+    options?: { deferDraftRetirement?: boolean },
   ): Promise<void>;
 
   /**
@@ -859,6 +860,7 @@ export interface INode<TContext extends FlowContext = FlowContext> {
     systemMessageData: IntermediateSystemMessageData,
     userMessage: FlowUserMessage | undefined,
     context: MutableContextHandle<TContext>,
+    options?: { deferDraftRetirement?: boolean },
   ): Promise<{
     modifiedResult?: SystemMessageData;
     routingOverride?: string;

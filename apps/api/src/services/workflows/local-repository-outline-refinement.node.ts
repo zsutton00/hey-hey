@@ -1,5 +1,8 @@
-import { LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE } from '../../flows/constants/node-ids';
-import { Injectable } from '@nestjs/common';
+import {
+  LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE,
+  REPOSITORY_IMPORT_NODES,
+} from '../../flows/constants/node-ids';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import type { RepositoryOutlineRefinementRequest } from '@hey-hey/contracts/api/models';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -9,13 +12,17 @@ import {
   ExternalAgentTriggerMessage,
   MutableContextHandle,
   RepositoryImportFlowContext,
+  isGenerateNode,
 } from '../../types/flow-internal.types';
 import { featureGenerationResponseSchema } from '../../flows/utils/shared-schemas';
-import { RepositoryImportGenerateFeaturesNode } from '../../flows/nodes/repository-import/repository-import-generate-features.node';
+import { NodeRegistry } from '../../flows/nodes/node-registry.service';
 import { PromptBuilderService } from '../llm/prompt-builder.service';
 
 @Injectable()
-export class LocalRepositoryOutlineRefinementNode extends ExternalAgentNodeBase<RepositoryImportFlowContext> {
+export class LocalRepositoryOutlineRefinementNode
+  extends ExternalAgentNodeBase<RepositoryImportFlowContext>
+  implements OnModuleInit
+{
   readonly id = LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE;
   readonly title = 'Revise Feature outline';
   readonly promptType = LocalPromptType.repository_outline_refinement;
@@ -34,9 +41,13 @@ export class LocalRepositoryOutlineRefinementNode extends ExternalAgentNodeBase<
 
   constructor(
     private readonly prompts: PromptBuilderService,
-    private readonly generateFeatures: RepositoryImportGenerateFeaturesNode,
+    private readonly nodes: NodeRegistry,
   ) {
     super();
+  }
+
+  onModuleInit(): void {
+    this.nodes.register(this);
   }
 
   async buildTriggerMessage(
@@ -49,10 +60,13 @@ export class LocalRepositoryOutlineRefinementNode extends ExternalAgentNodeBase<
       );
     }
     const { prerequisites, analysisConfiguration } = repositoryGrounding;
-    const built = await this.prompts.buildPrompt(
-      this.generateFeatures,
-      tracker,
+    const outline = this.nodes.get<RepositoryImportFlowContext>(
+      REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
     );
+    if (!isGenerateNode(outline)) {
+      throw new Error('Repository import outline generator is unavailable');
+    }
+    const built = await this.prompts.buildPrompt(outline, tracker);
     const schema = zodToJsonSchema(featureGenerationResponseSchema);
     const payload = {
       promptType: 'repository_outline_refinement',
