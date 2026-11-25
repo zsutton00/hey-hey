@@ -3475,6 +3475,14 @@ ProjectChangeRecord:
       type: array
       items:
         $ref: "#/ChangeRecordCommit"
+    matchedPlaceKeys:
+      type: array
+      description: >-
+        Present only when `placeKey` was supplied. The place keys this record
+        matched, with the same values as `ProjectChangePlace.key`. Clients must
+        not parse them.
+      items:
+        type: string
 ChangeRecordCommit:
   type: object
   required: [reportId, service, hash, branch]

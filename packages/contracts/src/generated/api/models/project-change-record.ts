@@ -39,4 +39,10 @@ export interface ProjectChangeRecord {
      * @memberof ProjectChangeRecord
      */
     'commits': Array<ChangeRecordCommit>;
+    /**
+     * Present only when `placeKey` was supplied. The place keys this record matched, with the same values as `ProjectChangePlace.key`. Clients must not parse them.
+     * @type {Array<string>}
+     * @memberof ProjectChangeRecord
+     */
+    'matchedPlaceKeys'?: Array<string>;
 }
