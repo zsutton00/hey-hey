@@ -1,4 +1,7 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
+import { ProjectContext } from "../../../../contexts";
+import { EagerIntersectionObserver } from "../../../../test/eagerIntersectionObserver";
 import {
   fireEvent,
   render,
@@ -6,7 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ProposalAction,
   ProposalStatus,
@@ -37,18 +40,52 @@ const workItemMocks = vi.hoisted(() => ({
 
 vi.mock("../../../../data/hooks/useWorkItem", () => workItemMocks);
 
-vi.mock("../../../shared/WorkflowMentionInlineRenderer", () => ({
-  renderMentionNode: (mention: {
-    entityType: string;
-    entityId: string;
-    entityName: string;
-  }) => (
-    <div
-      data-testid={`visual-content-${mention.entityType}-${mention.entityId}`}
-    >
-      {mention.entityName}
-    </div>
-  ),
+const mockupSections = [
+  { key: "catalog", label: "Catalog", kind: "html/css" },
+  { key: "details", label: "Details", kind: "html/css" },
+].map((section) => ({
+  ...section,
+  defaultSizeKey: "desktop",
+  sizeProfiles: [
+    {
+      key: "desktop",
+      label: "Desktop",
+      breakpoints: [
+        {
+          minContainerWidth: 0,
+          page: { width: 1440, height: 900 },
+          inline: { width: 1440, height: 900 },
+        },
+      ],
+    },
+  ],
+}));
+
+const typeDefinitions = new Map(
+  ["mockup", "DIAGRAM", "DIAGRAM_ELEMENT"].map((key) => [
+    key,
+    {
+      key,
+      name: key,
+      capabilities: { rendersInline: true },
+      sections: key === "mockup" ? mockupSections : [],
+    },
+  ]),
+);
+
+vi.mock("../../../../data/hooks/useWorkItemTypes", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../../../data/hooks/useWorkItemTypes")
+  >()),
+  useMentionWorkItemTypeKey: () => ({ typeKey: "mockup", isResolved: true }),
+  useWorkItemTypeByKey: (_org: string, _project: string, key: string) => ({
+    isFetched: true,
+    workItemTypeDefinition: typeDefinitions.get(key),
+  }),
+}));
+
+vi.mock("../../../../data/hooks/useWorkItemGraph", () => ({
+  useWorkItemGraph: () => graphQuery,
 }));
 
 vi.mock("../../../../clients/serviceClients", () => ({
@@ -276,16 +313,56 @@ const conversationMessage = {
   },
 } as unknown as ConversationMessage;
 
-const workItems: Record<string, { id: string; name: string; type: string }> = {
+const workItems: Record<
+  string,
+  { id: string; name: string; type: string; sections: unknown[] }
+> = {
   "target-mockup-list": {
     id: "target-mockup-list",
     name: "Mockup list content",
     type: "mockup",
+    sections: mockupSections.map(({ key, label }, order) => ({
+      id: key,
+      key,
+      order,
+      materializedMarkdown: JSON.stringify({
+        html: `<main><h1>${label}</h1><button>View order</button></main>`,
+        css: "main { padding: 24px; }",
+      }),
+    })),
   },
   "target-diagram-overview": {
     id: "target-diagram-overview",
     name: "Diagram overview content",
     type: "DIAGRAM",
+    sections: [],
+  },
+};
+
+const graphQuery = {
+  isFetched: true,
+  data: {
+    root: {
+      ...workItems["target-diagram-overview"],
+      organizationId: "organization-1",
+      projectId: "project-1",
+    },
+    children: [
+      {
+        id: "review-cart",
+        name: "Review cart",
+        type: "DIAGRAM_ELEMENT",
+        sections: [],
+      },
+      {
+        id: "place-order",
+        name: "Place order",
+        type: "DIAGRAM_ELEMENT",
+        sections: [],
+      },
+    ],
+    relationships: [],
+    participation: null,
   },
 };
 
@@ -302,9 +379,20 @@ const mockProposals = (loaded: ProposalResponseDto[]) =>
       }),
   );
 
+const withProject = ({ children }: { children: React.ReactNode }) => (
+  <MemoryRouter>
+    <ProjectContext.Provider value={{ ...context, navigate: vi.fn() }}>
+      {children}
+    </ProjectContext.Provider>
+  </MemoryRouter>
+);
+
 describe("PlanGenerationVisualPreviewField", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("IntersectionObserver", EagerIntersectionObserver);
     workItemMocks.useWorkItem.mockImplementation(
       (_organizationId: string, _type: string, workItemId: string) => {
         const workItem = workItems[workItemId];
@@ -335,6 +423,7 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     await waitFor(() =>
@@ -369,6 +458,7 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     await waitFor(() =>
@@ -398,6 +488,7 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     await waitFor(() =>
@@ -411,10 +502,10 @@ describe("PlanGenerationVisualPreviewField", () => {
       "visual-step-diagram-detail",
     ]);
     expect(
-      screen.getByTestId("visual-content-mockup-target-mockup-list"),
-    ).toHaveTextContent("Mockup list content");
+      await screen.findByTestId("work-item-inline-section-switcher"),
+    ).toBeInTheDocument();
     expect(
-      screen.getByTestId("visual-content-diagram-target-diagram-overview"),
+      await screen.findByTestId("workflow-inline-mention"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("visual-card-mockup-list"),
@@ -440,13 +531,16 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     await waitFor(() =>
       expect(screen.getByTestId("visual-card-mockup-list")).toBeInTheDocument(),
     );
     expect(screen.getAllByTestId(/visual-step-/)).toHaveLength(3);
-    expect(screen.queryByTestId(/visual-content-/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(/^plan-generation-visual-preview-content-/),
+    ).not.toBeInTheDocument();
   });
 
   it("presents an all-approved set as content without asking for individual approval", async () => {
@@ -476,11 +570,37 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     await waitFor(() =>
-      expect(screen.getAllByTestId(/visual-content-/)).toHaveLength(2),
+      expect(
+        screen.getAllByTestId(/^plan-generation-visual-preview-content-/),
+      ).toHaveLength(2),
     );
+    const sections = await screen.findByTestId(
+      "work-item-inline-section-switcher",
+    );
+    const details = within(sections).getByRole("button", { name: "Details" });
+    fireEvent.click(details);
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByTitle("Mockup list content mockup").getAttribute("srcdoc"),
+    ).toContain("<h1>Details</h1>");
+
+    const diagram = await screen.findByTestId("workflow-inline-mention");
+    fireEvent.click(
+      await within(diagram).findByTestId(
+        "workflow-inline-diagram-open-fullscreen",
+      ),
+    );
+    expect(
+      await screen.findByTestId("workflow-fullscreen-dialog-title"),
+    ).toBeInTheDocument();
+
     expect(screen.getAllByTestId(/visual-step-/)).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: "Approve" }),
@@ -519,6 +639,7 @@ describe("PlanGenerationVisualPreviewField", () => {
         conversationMessage={conversationMessage}
         isSubmitted={false}
       />,
+      { wrapper: withProject },
     );
 
     const review = await screen.findByTestId(

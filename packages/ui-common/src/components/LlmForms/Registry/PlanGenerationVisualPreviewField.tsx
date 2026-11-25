@@ -18,6 +18,7 @@ import { useProposalState } from "../../ProposalDispatchers/useProposalState";
 import { ProposalPresentationContext } from "../../ProposalDispatchers/ProposalPresentationContext";
 import { getProposalDisplayTitle } from "../../ProposalDispatchers/getProposalDisplayTitle";
 import { renderMentionNode } from "../../shared/WorkflowMentionInlineRenderer";
+import { MentionExpansionProvider } from "../../shared/MentionExpansionContext";
 import { useWorkItem } from "../../../data/hooks/useWorkItem";
 import type {
   CreateProposalProps,
@@ -97,7 +98,7 @@ const VisualProposalCard: React.FC<{
 };
 
 /**
- * Renders an approved reused visual as its Mockup or Diagram content. The
+ * Renders an approved visual as its Mockup or Diagram content. The
  * proposal card is the fallback while the work item cannot be resolved, so the
  * visual never drops out of the ordered set.
  */
@@ -132,11 +133,13 @@ const ApprovedVisualContent: React.FC<{
       data-testid={`plan-generation-visual-preview-content-${entityId}`}
       sx={{ minWidth: 0 }}
     >
-      {renderMentionNode({
-        entityType: artifactFamily === "diagram" ? "diagram" : workItem.type,
-        entityId,
-        entityName: workItem.name,
-      })}
+      <MentionExpansionProvider presentation="inline">
+        {renderMentionNode({
+          entityType: artifactFamily === "diagram" ? "diagram" : workItem.type,
+          entityId,
+          entityName: workItem.name,
+        })}
+      </MentionExpansionProvider>
     </Stack>
   );
 };
