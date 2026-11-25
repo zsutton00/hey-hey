@@ -91,15 +91,66 @@ export interface MessagesGetMessageApiClient {
         type?: string;
         data: {
           type?: string;
+          title?: string;
           response?: string;
           comment?: string;
           agentInput?: { userMessage?: string };
           triggersAgent?: unknown;
+          uiElements?: ReadonlyArray<{ label?: string; payload?: unknown }>;
         };
       };
     };
   }>;
 }
+
+type FetchedMessage = NonNullable<
+  NonNullable<Awaited<ReturnType<MessagesGetMessageApiClient['getMessage']>>['data']>['data']
+>;
+
+const completedTurnMessageRejection = (
+  message: FetchedMessage | undefined,
+  expected: { projectId: string; conversationId: string; messageId: string },
+): string | null => {
+  if (!message) {
+    return 'missing';
+  }
+  if (message.id !== expected.messageId) {
+    return 'id_mismatch';
+  }
+  if (message.projectId !== expected.projectId) {
+    return 'project_mismatch';
+  }
+  if (message.conversationId !== expected.conversationId) {
+    return 'conversation_mismatch';
+  }
+  if (message.type !== 'SYSTEM') {
+    return 'not_system';
+  }
+  if (message.data.type !== 'AGENT' && message.data.type !== 'QUESTIONS') {
+    return 'unsupported_data_type';
+  }
+  if (typeof message.data.response !== 'string' || message.data.response.trim().length === 0) {
+    return 'empty_response';
+  }
+
+  return null;
+};
+
+const renderCompletedTurnMessage = (data: FetchedMessage['data']): string => {
+  const response = data.response ?? '';
+  if (data.type !== 'QUESTIONS') {
+    return response;
+  }
+
+  const fields = (data.uiElements ?? []).map(
+    (element) => `#### ${element.label ?? 'Field'}\n${JSON.stringify(element.payload ?? null)}`,
+  );
+  return [
+    `### ${data.title ?? 'Questions'} (questions card for the user)`,
+    response,
+    ...fields,
+  ].join('\n\n');
+};
 
 export interface MessageServiceDependencies {
   logger: ServerLogger;
@@ -157,6 +208,40 @@ export class MessageService {
       return null;
     }
     return { messageId: message.id, content: message.data.response };
+  }
+
+  /**
+   * Reads the Message a settled Turn published as its completed assistant Message.
+   * A Turn can end on a plain AGENT reply or on a QUESTIONS card built from the
+   * agent's structured response, such as an implementation readiness review. A
+   * card is rendered with its title and fields so a supervisor can see the open
+   * question rather than lose the evidence.
+   */
+  public async readCompletedTurnMessage(input: {
+    organizationId: string;
+    projectId: string;
+    conversationId: string;
+    messageId: string;
+  }): Promise<{ messageId: string; content: string } | null> {
+    const response = await this.dependencies.messagesApi.getMessage({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      id: input.messageId,
+    });
+    const message = response.data?.data;
+    const rejection = completedTurnMessageRejection(message, input);
+    if (rejection !== null || !message) {
+      this.dependencies.logger.warn('message_service.completed_turn_message.unresolvable', {
+        messageId: input.messageId,
+        conversationId: input.conversationId,
+        reason: rejection ?? 'missing',
+        messageType: message?.type ?? null,
+        dataType: message?.data.type ?? null,
+      });
+      return null;
+    }
+
+    return { messageId: input.messageId, content: renderCompletedTurnMessage(message.data) };
   }
 
   public async readUserMessage(input: {

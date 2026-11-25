@@ -46,6 +46,9 @@ import {
   type TaskMonitorRuntimeSelection,
 } from '@hey-hey/contracts/api/models';
 import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
+import { dispatchResponseType } from '../../../response-dispatch';
+import { homePageBlockedFinding } from '../../../implementation-readiness/__tests__/readiness-finding.fixture';
+import { MessageService } from '../../../../server/services/message.service';
 
 const effect: EvaluateTaskMonitorSettledRunEffect = {
   type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
@@ -154,7 +157,7 @@ describe('Task Monitor settled-Run evaluation', () => {
     overrides: Partial<
       Pick<
         TaskMonitorSettledRunEvaluationEffectHandlerDependencies,
-        'authContext' | 'agentSessionReader'
+        'authContext' | 'agentSessionReader' | 'agentService'
       >
     > & {
       kind?: WorkItemTypeMonitorKind;
@@ -256,7 +259,7 @@ describe('Task Monitor settled-Run evaluation', () => {
         }),
       } as never,
       agentService: {
-        readAssistantMessage: vi.fn(),
+        readCompletedTurnMessage: vi.fn(),
         stopRun: vi.fn().mockResolvedValue(undefined),
       } as never,
       runStore: {
@@ -704,6 +707,83 @@ describe('Task Monitor settled-Run evaluation', () => {
       status: 'succeeded',
       outcome: { type: expectedOutcome },
     });
+  });
+
+  it('supervises a Turn that ended on an implementation readiness review and keeps observing', async () => {
+    const readinessCardId = 'c0000000-0000-4000-8000-00000000000c';
+    const readinessResponse = {
+      responseType: 'implementation_readiness_v1',
+      disposition: {
+        state: 'REVIEW_REQUIRED',
+        sourceSnapshot: {
+          runId: effect.runId,
+          focalEntityId: '80000000-0000-4000-8000-000000000008',
+          focalEntityType: 'TASK',
+          sourceRevision: 'sha256:readiness-source-revision',
+          capturedAt: '2026-11-24T23:22:19.000Z',
+        },
+        finding: homePageBlockedFinding,
+        resolution: { kind: 'NONE' },
+      },
+    };
+    const dispatched = dispatchResponseType(
+      `The request needs one decision.\n\n\`\`\`json\n${JSON.stringify(readinessResponse)}\n\`\`\``,
+      {
+        taskId: null,
+        promptType: 'free_form',
+        currentWorkflowNodeId: null,
+        expectedResponseTypes: ['implementation_readiness_v1'],
+        emitLegacyStartupPlanUiElement: false,
+      },
+      NOOP_LOGGER,
+    );
+    if (!dispatched.matched) {
+      throw new Error('The readiness response did not build its review card.');
+    }
+    const messageService = new MessageService({
+      logger: NOOP_LOGGER,
+      runService: {} as never,
+      runRegistry: {} as never,
+      promptTypeRegistry: {} as never,
+      workflowsApi: {} as never,
+      messagesApi: {
+        getMessage: vi.fn(async () => ({
+          data: {
+            data: {
+              id: readinessCardId,
+              projectId: effect.projectId,
+              conversationId: 'coding-conversation-1',
+              type: 'SYSTEM',
+              data: dispatched.updateData.data as never,
+            },
+          },
+        })),
+      },
+    });
+    const { handler, runTaskMonitor } = await decisionHarness(
+      TaskMonitorReviewMode.RequireReview,
+      { action: 'WAIT', rationale: 'The session is waiting on its readiness review.' },
+      {
+        agentService: {
+          readCompletedTurnMessage: (
+            input: Parameters<MessageService['readCompletedTurnMessage']>[0],
+          ) => messageService.readCompletedTurnMessage(input),
+          stopRun: vi.fn().mockResolvedValue(undefined),
+        } as never,
+      },
+    );
+
+    await expect(
+      handler.execute({ ...effect, completedAssistantMessageId: readinessCardId }, execution),
+    ).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: { type: 'SUPERVISION_CONTINUES_OBSERVING' },
+    });
+    const settledTurn = runTaskMonitor.mock.calls[0]![0].settledTurn;
+    expect(settledTurn.completedAssistantMessage.messageId).toBe(readinessCardId);
+    expect(settledTurn.completedAssistantMessage.content).toContain(
+      homePageBlockedFinding.userRequest,
+    );
   });
 });
 

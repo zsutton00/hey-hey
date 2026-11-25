@@ -622,7 +622,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
       );
 
       const completedAssistantMessage = effect.completedAssistantMessageId
-        ? await this.dependencies.agentService.readAssistantMessage({
+        ? await this.dependencies.agentService.readCompletedTurnMessage({
             organizationId: auth.organizationId,
             projectId: auth.projectId,
             conversationId: session.conversationId,

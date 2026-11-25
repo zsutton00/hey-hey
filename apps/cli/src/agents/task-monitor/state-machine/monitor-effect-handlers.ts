@@ -534,7 +534,7 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
           completedAssistantMessage:
             effect.settledTurn.completedAssistantMessage ??
             (coordination?.settledRun?.completedAssistantMessageId && coordination.conversationId
-              ? await dependencies.agentService.readAssistantMessage({
+              ? await dependencies.agentService.readCompletedTurnMessage({
                   organizationId: effect.organizationId,
                   projectId: effect.projectId,
                   conversationId: coordination.conversationId,
