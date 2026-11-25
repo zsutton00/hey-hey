@@ -53,6 +53,7 @@ import {
   GrantAgentSessionServicesDto,
   ReportAgentSessionServicePlacesResultDto,
 } from '@hey-hey/contracts/api/models';
+import { AttachAgentSessionServicePlaceRequestDto } from './dto/attach-agent-session-service-place.dto';
 import { ReportAgentSessionServicePlacesRequestDto } from './dto/report-agent-session-service-places.dto';
 import { validate as isUuid } from 'uuid';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -632,6 +633,27 @@ export class AgentSessionController {
       agentSessionId,
       userId,
       report,
+    });
+  }
+
+  @Post(':agentSessionId/service-places/attach')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Change a Service's place to an existing worktree",
+  })
+  async attachServicePlace(
+    @Param('agentSessionId', ParseUUIDPipe) agentSessionId: string,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @Body() change: AttachAgentSessionServicePlaceRequestDto,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
+  ): Promise<AgentSessionDto> {
+    return this.agentSessionService.changeServicePlace({
+      organizationId,
+      projectId,
+      agentSessionId,
+      userId,
+      change,
     });
   }
 

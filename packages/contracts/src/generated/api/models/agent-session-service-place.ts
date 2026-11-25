@@ -17,6 +17,9 @@ import { AgentSessionServicePlaceKind } from './agent-session-service-place-kind
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentSessionServiceLocation } from './agent-session-service-location.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSessionServicePlaceKind } from './agent-session-service-place-kind.js';
 
 /**
@@ -55,6 +58,18 @@ export interface AgentSessionServicePlace {
      * @memberof AgentSessionServicePlace
      */
     'recordedAt': string;
+    /**
+     * True once the place was changed after launch by an approved worktree attach.
+     * @type {boolean}
+     * @memberof AgentSessionServicePlace
+     */
+    'changedDuringSession': boolean;
+    /**
+     *
+     * @type {AgentSessionServiceLocation}
+     * @memberof AgentSessionServicePlace
+     */
+    'launchPlace'?: AgentSessionServiceLocation;
 }
 
 export namespace AgentSessionServicePlace {

@@ -21587,6 +21587,57 @@ paths:
         "404":
           description: Agent Session not found in the route project.
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places/attach:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: agentSessionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: attachAgentSessionServicePlace
+      summary: Change a Service's place to an existing worktree
+      description: >-
+        Applies an approved worktree attach: the Service's active place becomes
+        the worktree. The first change keeps the launch place. Repeating the same
+        change is a no-op that succeeds. A Service outside the session is
+        refused and nothing changes. The plan's branch is never written.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachAgentSessionServicePlaceDto"
+      responses:
+        "200":
+          description: The session with the Service's place changed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionDto"
+        "400":
+          description: Invalid request, Service not in the session, or machine does not match the session binding.
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Agent Session ownership mismatch.
+        "404":
+          description: Agent Session not found in the route project.
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation:
     parameters:
       - name: organizationId
@@ -26963,6 +27014,10 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/WorktreeServicePlaceChoice"
     AgentSessionServicePlace:
       $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlace"
+    AgentSessionServiceLocation:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServiceLocation"
+    AttachAgentSessionServicePlaceDto:
+      $ref: "../schemas/coding-sessions.yaml#/AttachAgentSessionServicePlaceDto"
     ReportedAgentSessionServicePlace:
       $ref: "../schemas/coding-sessions.yaml#/ReportedAgentSessionServicePlace"
     ReportAgentSessionServicePlacesDto:

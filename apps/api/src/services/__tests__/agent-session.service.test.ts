@@ -22,6 +22,8 @@ import { ConversationWorkflowService } from '../workflows/conversation-workflow.
 import { WorkflowTypeRegistryService } from '../workflows/workflow-type-registry.service';
 import { UnsupportedWorkflowTypeError } from '../../core/exceptions/workflow.exceptions';
 import {
+  AgentProviderId,
+  type AgentRequestWorktreeAttachPayload,
   AgentSessionConfigEntityConversationV1,
   AgentSessionConfigProjectReportV1,
   AgentSessionConfigV2,
@@ -484,6 +486,10 @@ describe('AgentSessionService', () => {
       placeBranch: string | null;
       placeWorktreePath: string | null;
       placeRecordedAt: Date | null;
+      launchPlaceKind: string | null;
+      launchPlaceBranch: string | null;
+      launchPlaceWorktreePath: string | null;
+      placeChangedAt: Date | null;
     };
     let memberships: Membership[];
 
@@ -502,6 +508,10 @@ describe('AgentSessionService', () => {
         placeBranch: membership.placeBranch,
         placeWorktreePath: membership.placeWorktreePath,
         placeRecordedAt: membership.placeRecordedAt,
+        launchPlaceKind: membership.launchPlaceKind,
+        launchPlaceBranch: membership.launchPlaceBranch,
+        launchPlaceWorktreePath: membership.launchPlaceWorktreePath,
+        placeChangedAt: membership.placeChangedAt,
       })),
     });
 
@@ -525,6 +535,10 @@ describe('AgentSessionService', () => {
         placeBranch: null,
         placeWorktreePath: null,
         placeRecordedAt: null,
+        launchPlaceKind: null,
+        launchPlaceBranch: null,
+        launchPlaceWorktreePath: null,
+        placeChangedAt: null,
       }));
       prisma.db.agentSession.findFirst.mockImplementation(async () =>
         session(),
@@ -538,6 +552,15 @@ describe('AgentSessionService', () => {
             (membership) =>
               membership.serviceId === where.serviceId_agentSessionId.serviceId,
           ) ?? null,
+      );
+      prisma.db.serviceAgentSession.update.mockImplementation(
+        async ({ where, data }: any) => {
+          const membership = memberships.find(
+            (candidate) => candidate.id === where.id,
+          );
+          Object.assign(membership as Membership, data);
+          return membership;
+        },
       );
       prisma.db.serviceAgentSession.updateMany.mockImplementation(
         async ({ where, data }: any) => {
@@ -582,6 +605,7 @@ describe('AgentSessionService', () => {
           branch: 'feature/x',
           worktreePath: '/repo/.worktrees/x',
           recordedAt: expect.any(String),
+          changedDuringSession: false,
         },
       ]);
     });
@@ -597,6 +621,7 @@ describe('AgentSessionService', () => {
           kind: 'MAIN_FOLDER',
           branch: null,
           recordedAt: expect.any(String),
+          changedDuringSession: false,
         },
       ]);
     });
@@ -669,6 +694,321 @@ describe('AgentSessionService', () => {
         ]),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.db.serviceAgentSession.updateMany).not.toHaveBeenCalled();
+    });
+
+    describe('changeServicePlace', () => {
+      type Destination = 'x' | 'y';
+      let cards: AgentRequestWorktreeAttachPayload[];
+
+      const destinationOf = (destination: Destination) => ({
+        branch: `feature/${destination}`,
+        worktreePath: `/repo/.worktrees/${destination}`,
+      });
+      const requestIdOf = (destination: Destination) =>
+        destination === 'x' ? 'request-a' : 'request-b';
+
+      // A card as the CLI stores it once the user has decided.
+      const decide = (
+        destination: Destination,
+        decidedAt: string,
+        extra: {
+          decision?: 'approve' | 'deny' | null;
+          failureReason?: string;
+          serviceId?: string;
+        } = {},
+      ) => {
+        const { decision = 'approve', failureReason, serviceId } = extra;
+        cards.push({
+          responseType: 'agent_request_worktree_attach_v1',
+          worktreeAttachRequest: {
+            id: requestIdOf(destination),
+            runId: null,
+            sessionId: sessionId1,
+            agentId: 'agent-1',
+            agentType: AgentProviderId.Claude,
+            timestamp: '2026-11-24T09:59:00.000Z',
+            idempotencyToken: `token-${destination}`,
+            serviceId: serviceId ?? apiServiceId,
+            currentPlace: { kind: 'MAIN_FOLDER', branch: 'main' },
+            ...destinationOf(destination),
+            reason: 'Continue in the existing worktree',
+          },
+          decision,
+          decidedAt: decision ? decidedAt : null,
+          ...(failureReason ? { failureReason } : {}),
+        } satisfies AgentRequestWorktreeAttachPayload);
+      };
+
+      const attach = (
+        destination: Destination = 'x',
+        overrides: Record<string, unknown> = {},
+      ) =>
+        service.changeServicePlace({
+          organizationId: 'org-1' as any,
+          projectId: 'proj-1' as any,
+          agentSessionId: sessionId1,
+          userId: 'user-1' as any,
+          change: {
+            machineId,
+            serviceId: apiServiceId,
+            ...destinationOf(destination),
+            requestId: requestIdOf(destination),
+            ...overrides,
+          },
+        });
+
+      const snapshot = () => JSON.parse(JSON.stringify(memberships));
+      const activeWorktree = () => memberships[0]?.placeWorktreePath;
+
+      beforeEach(() => {
+        cards = [];
+        prisma.db.agentSession.findFirst.mockImplementation(async () => ({
+          ...session(),
+          conversationId: 'conversation-1',
+        }));
+        // The persisted messages that hold attach cards, as the query returns
+        // them: whole message data, with unrelated messages alongside.
+        prisma.db.$queryRaw.mockImplementation(async () => [
+          {
+            data: { type: 'ANSWER', response: 'Working on it', uiElements: [] },
+          },
+          {
+            data: {
+              uiElements: [
+                {
+                  id: 'agent-request-service-scope:other',
+                  type: 'agent-request-service-scope',
+                  payload: { responseType: 'agent_request_service_scope_v1' },
+                },
+              ],
+            },
+          },
+          ...cards.map((payload) => ({
+            data: {
+              uiElements: [
+                {
+                  id: `agent-request-worktree-attach:${payload.worktreeAttachRequest.id}`,
+                  type: 'agent-request-worktree-attach',
+                  label: 'Attach worktree',
+                  payload,
+                },
+              ],
+            },
+          })),
+        ]);
+      });
+
+      it('moves to the worktree, keeps the launch place and marks it changed', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await report([
+          { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+        ]);
+
+        const result = await attach();
+
+        expect(result.servicePlaces).toEqual([
+          {
+            serviceId: apiServiceId,
+            kind: 'WORKTREE',
+            branch: 'feature/x',
+            worktreePath: '/repo/.worktrees/x',
+            recordedAt: expect.any(String),
+            changedDuringSession: true,
+            launchPlace: { kind: 'MAIN_FOLDER', branch: 'main' },
+          },
+        ]);
+      });
+
+      it('keeps the first launch place across later changes', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await report([
+          { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+        ]);
+        await attach('x');
+        decide('y', '2026-11-24T10:05:00.000Z');
+
+        const result = await attach('y');
+
+        expect(result.servicePlaces[0]).toMatchObject({
+          branch: 'feature/y',
+          launchPlace: { kind: 'MAIN_FOLDER', branch: 'main' },
+        });
+      });
+
+      it('records the first attach as a change and never invents a launch place from it', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        const first = await attach('x');
+
+        expect(first.servicePlaces[0]).toMatchObject({
+          kind: 'WORKTREE',
+          worktreePath: '/repo/.worktrees/x',
+          changedDuringSession: true,
+        });
+        expect(first.servicePlaces[0]).not.toHaveProperty('launchPlace');
+
+        decide('y', '2026-11-24T10:05:00.000Z');
+        const second = await attach('y');
+
+        expect(second.servicePlaces[0]).toMatchObject({
+          worktreePath: '/repo/.worktrees/y',
+          changedDuringSession: true,
+        });
+        expect(second.servicePlaces[0]).not.toHaveProperty('launchPlace');
+      });
+
+      it('succeeds without writing when the same change is repeated', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await attach();
+        prisma.db.serviceAgentSession.update.mockClear();
+
+        const result = await attach();
+
+        expect(result.servicePlaces).toHaveLength(1);
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+      });
+
+      it('does not move the Service back when approval A is replayed after attach B', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await attach('x');
+        decide('y', '2026-11-24T10:05:00.000Z');
+        await attach('y');
+        const before = snapshot();
+        prisma.db.serviceAgentSession.update.mockClear();
+
+        const replay = await attach('x');
+
+        expect(replay.servicePlaces[0]).toMatchObject({
+          worktreePath: '/repo/.worktrees/y',
+        });
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('applies A when B was approved but failed and A is delivered afterwards', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        decide('y', '2026-11-24T10:05:00.000Z', {
+          failureReason: 'The worktree was no longer registered',
+        });
+
+        const result = await attach('x');
+
+        expect(result.servicePlaces[0]).toMatchObject({
+          worktreePath: '/repo/.worktrees/x',
+        });
+        expect(activeWorktree()).toBe('/repo/.worktrees/x');
+      });
+
+      it('applies A when B was approved but never applied', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        decide('y', '2026-11-24T10:05:00.000Z');
+
+        await attach('x');
+
+        expect(activeWorktree()).toBe('/repo/.worktrees/x');
+      });
+
+      it('applies a later-decided A that arrives after an earlier-decided B was applied', async () => {
+        decide('y', '2026-11-24T10:00:00.000Z');
+        await attach('y');
+        decide('x', '2026-11-24T10:05:00.000Z');
+
+        await attach('x');
+
+        expect(activeWorktree()).toBe('/repo/.worktrees/x');
+      });
+
+      it('never moves back to the request applied first when decision times are identical', async () => {
+        const decidedAt = '2026-11-24T10:00:00.000Z';
+        decide('x', decidedAt);
+        decide('y', decidedAt);
+        await attach('y');
+        const before = snapshot();
+        prisma.db.serviceAgentSession.update.mockClear();
+
+        const replay = await attach('x');
+
+        expect(replay.servicePlaces[0]).toMatchObject({
+          worktreePath: '/repo/.worktrees/y',
+        });
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('refuses an unknown request ID and leaves the row untouched', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        const before = snapshot();
+
+        await expect(
+          attach('x', { requestId: 'request-unknown' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('refuses a request that was denied or is still undecided', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z', { decision: 'deny' });
+        decide('y', '2026-11-24T10:05:00.000Z', { decision: null });
+        const before = snapshot();
+
+        await expect(attach('x')).rejects.toBeInstanceOf(BadRequestException);
+        await expect(attach('y')).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('refuses a valid request ID paired with a different destination', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        const before = snapshot();
+
+        await expect(
+          attach('x', { worktreePath: '/repo/.worktrees/elsewhere' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(
+          attach('x', { branch: 'feature/other' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('refuses a card that was approved for a different Service', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z', { serviceId: webServiceId });
+        const before = snapshot();
+
+        await expect(attach('x')).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('refuses a Service that is not in the session and changes nothing', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z', {
+          serviceId: strangerServiceId,
+        });
+        const before = snapshot();
+
+        await expect(
+          attach('x', { serviceId: strangerServiceId }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(prisma.db.serviceAgentSession.update).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      });
+
+      it('leaves the launch report returning CONFLICT for a differing place', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await attach();
+
+        const result = await report([
+          { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+        ]);
+
+        expect(result.results).toEqual([
+          { serviceId: apiServiceId, outcome: 'CONFLICT' },
+        ]);
+      });
     });
   });
 
@@ -753,6 +1093,7 @@ describe('AgentSessionService', () => {
           branch: 'feature/x',
           worktreePath: '/repo/.worktrees/x',
           recordedAt: recordedAt.toISOString(),
+          changedDuringSession: false,
         },
       ];
       expect(one.servicePlaces).toEqual(expected);
@@ -784,6 +1125,7 @@ describe('AgentSessionService', () => {
           kind: 'MAIN_FOLDER',
           branch: null,
           recordedAt: recordedAt.toISOString(),
+          changedDuringSession: false,
         },
       ]);
     });

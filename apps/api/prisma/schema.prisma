@@ -3651,6 +3651,12 @@ model ServiceAgentSession {
   placeWorktreePath String?   @map("place_worktree_path")
   placeRecordedAt   DateTime? @map("place_recorded_at")
 
+  // Where the Service worked at launch; null until an approved attach changes the place.
+  launchPlaceKind         String?   @map("launch_place_kind")
+  launchPlaceBranch       String?   @map("launch_place_branch")
+  launchPlaceWorktreePath String?   @map("launch_place_worktree_path")
+  placeChangedAt          DateTime? @map("place_changed_at")
+
   service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   agentSession AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
 

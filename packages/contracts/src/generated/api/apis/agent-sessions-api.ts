@@ -49,6 +49,8 @@ import type { AgentSessionType } from '../models.js';
 // @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
+import type { AttachAgentSessionServicePlaceDto } from '../models.js';
+// @ts-ignore
 import type { BatchReadAgentSessionCurrentState200Response } from '../models.js';
 // @ts-ignore
 import type { BatchReadAgentSessionOutputAttention200Response } from '../models.js';
@@ -256,6 +258,58 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(agentInteractionAdmissionRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Applies an approved worktree attach: the Service\'s active place becomes the worktree. The first change keeps the launch place. Repeating the same change is a no-op that succeeds. A Service outside the session is refused and nothing changes. The plan\'s branch is never written.
+         * @summary Change a Service\'s place to an existing worktree
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} agentSessionId
+         * @param {AttachAgentSessionServicePlaceDto} attachAgentSessionServicePlaceDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        attachAgentSessionServicePlace: async (organizationId: string, projectId: string, agentSessionId: string, attachAgentSessionServicePlaceDto: AttachAgentSessionServicePlaceDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('attachAgentSessionServicePlace', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('attachAgentSessionServicePlace', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('attachAgentSessionServicePlace', 'agentSessionId', agentSessionId)
+            // verify required parameter 'attachAgentSessionServicePlaceDto' is not null or undefined
+            assertParamExists('attachAgentSessionServicePlace', 'attachAgentSessionServicePlaceDto', attachAgentSessionServicePlaceDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places/attach`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(attachAgentSessionServicePlaceDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2725,6 +2779,22 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Applies an approved worktree attach: the Service\'s active place becomes the worktree. The first change keeps the launch place. Repeating the same change is a no-op that succeeds. A Service outside the session is refused and nothing changes. The plan\'s branch is never written.
+         * @summary Change a Service\'s place to an existing worktree
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} agentSessionId
+         * @param {AttachAgentSessionServicePlaceDto} attachAgentSessionServicePlaceDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async attachAgentSessionServicePlace(organizationId: string, projectId: string, agentSessionId: string, attachAgentSessionServicePlaceDto: AttachAgentSessionServicePlaceDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GrantAgentSessionServices200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.attachAgentSessionServicePlace(organizationId, projectId, agentSessionId, attachAgentSessionServicePlaceDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.attachAgentSessionServicePlace']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Resolve the current-state projection for a bounded set of Agent Session identities in the requested project. Only authorized existing sessions are returned; missing or out-of-scope identities are omitted without disclosing whether they exist. Each returned item is a complete latest-value entry containing its Agent Session identity, current state, revision, and transition time.
          * @summary Read current state for authorized Agent Sessions
          * @param {string} organizationId Organization ID
@@ -3498,6 +3568,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.admitAgentInteraction(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentInteractionAdmissionRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Applies an approved worktree attach: the Service\'s active place becomes the worktree. The first change keeps the launch place. Repeating the same change is a no-op that succeeds. A Service outside the session is refused and nothing changes. The plan\'s branch is never written.
+         * @summary Change a Service\'s place to an existing worktree
+         * @param {AgentSessionsApiAttachAgentSessionServicePlaceRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        attachAgentSessionServicePlace(requestParameters: AgentSessionsApiAttachAgentSessionServicePlaceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GrantAgentSessionServices200Response> {
+            return localVarFp.attachAgentSessionServicePlace(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.attachAgentSessionServicePlaceDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Resolve the current-state projection for a bounded set of Agent Session identities in the requested project. Only authorized existing sessions are returned; missing or out-of-scope identities are omitted without disclosing whether they exist. Each returned item is a complete latest-value entry containing its Agent Session identity, current state, revision, and transition time.
          * @summary Read current state for authorized Agent Sessions
          * @param {AgentSessionsApiBatchReadAgentSessionCurrentStateRequest} requestParameters Request parameters.
@@ -3983,6 +4063,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     admitAgentInteraction(requestParameters: AgentSessionsApiAdmitAgentInteractionRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentInteractionAdmissionResponse>;
+
+    /**
+     * Applies an approved worktree attach: the Service\'s active place becomes the worktree. The first change keeps the launch place. Repeating the same change is a no-op that succeeds. A Service outside the session is refused and nothing changes. The plan\'s branch is never written.
+     * @summary Change a Service\'s place to an existing worktree
+     * @param {AgentSessionsApiAttachAgentSessionServicePlaceRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    attachAgentSessionServicePlace(requestParameters: AgentSessionsApiAttachAgentSessionServicePlaceRequest, options?: RawAxiosRequestConfig): AxiosPromise<GrantAgentSessionServices200Response>;
 
     /**
      * Resolve the current-state projection for a bounded set of Agent Session identities in the requested project. Only authorized existing sessions are returned; missing or out-of-scope identities are omitted without disclosing whether they exist. Each returned item is a complete latest-value entry containing its Agent Session identity, current state, revision, and transition time.
@@ -4498,6 +4588,41 @@ export interface AgentSessionsApiAdmitAgentInteractionRequest {
      * @memberof AgentSessionsApiAdmitAgentInteraction
      */
     readonly agentInteractionAdmissionRequest: AgentInteractionAdmissionRequest
+}
+
+/**
+ * Request parameters for attachAgentSessionServicePlace operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiAttachAgentSessionServicePlaceRequest
+ */
+export interface AgentSessionsApiAttachAgentSessionServicePlaceRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiAttachAgentSessionServicePlace
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiAttachAgentSessionServicePlace
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiAttachAgentSessionServicePlace
+     */
+    readonly agentSessionId: string
+
+    /**
+     *
+     * @type {AttachAgentSessionServicePlaceDto}
+     * @memberof AgentSessionsApiAttachAgentSessionServicePlace
+     */
+    readonly attachAgentSessionServicePlaceDto: AttachAgentSessionServicePlaceDto
 }
 
 /**
@@ -6174,6 +6299,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public admitAgentInteraction(requestParameters: AgentSessionsApiAdmitAgentInteractionRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).admitAgentInteraction(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentInteractionAdmissionRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Applies an approved worktree attach: the Service\'s active place becomes the worktree. The first change keeps the launch place. Repeating the same change is a no-op that succeeds. A Service outside the session is refused and nothing changes. The plan\'s branch is never written.
+     * @summary Change a Service\'s place to an existing worktree
+     * @param {AgentSessionsApiAttachAgentSessionServicePlaceRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public attachAgentSessionServicePlace(requestParameters: AgentSessionsApiAttachAgentSessionServicePlaceRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).attachAgentSessionServicePlace(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.attachAgentSessionServicePlaceDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

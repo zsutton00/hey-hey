@@ -34,10 +34,16 @@ import type { AgentRequestReviewFileScopePayload } from './agent-request-review-
 import type { AgentRequestServiceScopePayload } from './agent-request-service-scope-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentRequestWorktreeAttachPayload } from './agent-request-worktree-attach-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSessionReviewFileScopeRequest } from './agent-session-review-file-scope-request.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentSessionServiceScopeRequest } from './agent-session-service-scope-request.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentSessionWorktreeAttachRequest } from './agent-session-worktree-attach-request.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CodingPlanContext } from './coding-plan-context.js';
@@ -209,4 +215,4 @@ import type { VerifyImpactedEntityReference } from './verify-impacted-entity-ref
  * Optional payload for custom UI elements
  * @export
  */
-export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | CodingPlanContext | CodingPlanDiscrepancy | CodingPlanVersion | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;
+export type UIElementPayload = AgentQuestionPayload | AgentRequestPermissionPayload | AgentRequestReviewFileScopePayload | AgentRequestServiceScopePayload | AgentRequestWorktreeAttachPayload | CodingPlanContext | CodingPlanDiscrepancy | CodingPlanVersion | CodingPromptFinalAssessmentPayload | CodingPromptMergedFinalAssessmentPayload | CodingPromptStartupPlanPayload | FileDiffPayload | GoalPmRoutingPayload | ImplementationReadinessPayload | MultipleChoicePayload | OnboardingPlanCandidateReviewPayload | OpenItemsTriagePayload | PlanApprovalPayload | PlanDocumentViewPayload | PlanGapDiscoveryPayload | PlanGenerationFinalizePayload | PlanGenerationJourneyReviewPayload | PlanGenerationStageReviewPayload | PlanGenerationVisualPreviewPayload | QuestionsGroupPayload | RepositoryGroundingFieldPayload | RepositoryPlacementReviewPayload | RepositoryPlacementStrategyPayload | VerifyFeaturePayload;

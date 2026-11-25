@@ -712,6 +712,10 @@ describe('ServiceService', () => {
           placeBranch: null,
           placeWorktreePath: null,
           placeRecordedAt: null,
+          launchPlaceKind: null,
+          launchPlaceBranch: null,
+          launchPlaceWorktreePath: null,
+          placeChangedAt: null,
           createdAt: new Date('2024-01-04'),
         },
       ];
@@ -858,6 +862,10 @@ describe('ServiceService', () => {
         placeBranch: null,
         placeWorktreePath: null,
         placeRecordedAt: null,
+        launchPlaceKind: null,
+        launchPlaceBranch: null,
+        launchPlaceWorktreePath: null,
+        placeChangedAt: null,
         createdAt: new Date(),
       };
 
