@@ -67,7 +67,8 @@ vi.mock("../WorkflowProposalRenderer", () => ({
   }) => <div>Update {workItemTypeDefinition.name}</div>,
 }));
 
-vi.mock("../../InteractionComponent", () => ({
+vi.mock("../../InteractionComponent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../InteractionComponent")>()),
   InteractionComponent: ({
     entityTitle,
     children,

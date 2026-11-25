@@ -71,7 +71,9 @@ describe("useEntityData task service relations", () => {
       useEntityData([proposal], "org-1", "project-1"),
     );
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() =>
+      expect(result.current.entities["task-1"]?.type).toBe("task"),
+    );
 
     expect(getTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({

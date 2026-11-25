@@ -18,6 +18,11 @@ import {
 } from "./types";
 import { useProposalState } from "./useProposalState";
 import { useEntityData } from "./useEntityData";
+import { loadedEntity } from "./proposalTarget";
+import {
+  describeTargetFailure,
+  UnavailableTargetCard,
+} from "./UnavailableTargetCard";
 import { TaskUpdateRenderer } from "./TaskUpdateRenderer";
 import { DesignDocUpdateRenderer } from "./DesignDocUpdateRenderer";
 import { WorkflowProposalRenderer } from "./WorkflowProposalRenderer";
@@ -101,7 +106,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
     [proposals],
   );
 
-  const { entities, loading, error } = useEntityData(
+  const { entities } = useEntityData(
     entityProposals,
     organizationId,
     projectId,
@@ -159,40 +164,12 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
     ],
   );
 
-  const hasRejectedProposal = proposals.some(
-    (proposal) => getState(proposal.id).state === "rejected",
-  );
-  const hasEdgeOnlyProposal = proposals.some(isEdgeOnlyUpdateProposal);
-  const hasWorkItemGraphProposal = proposals.some(isWorkItemGraphProposal);
-
   if (proposals.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
         No update proposals available.
       </Typography>
     );
-  }
-
-  if (
-    loading &&
-    !hasRejectedProposal &&
-    !hasEdgeOnlyProposal &&
-    !hasWorkItemGraphProposal
-  ) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-        <CircularProgress size={24} />
-      </Box>
-    );
-  }
-
-  if (
-    error &&
-    !hasRejectedProposal &&
-    !hasEdgeOnlyProposal &&
-    !hasWorkItemGraphProposal
-  ) {
-    return <Alert severity="error">{error}</Alert>;
   }
 
   const content = (
@@ -230,7 +207,8 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                   getState(original.id).state === "applied",
               }
             : getState(original.id);
-        const liveEntity = entities[original.targetEntityId];
+        const target = entities[original.targetEntityId];
+        const liveEntity = loadedEntity(target);
         // A future revision renders as an ordinary update against the content
         // it replaces; only its footer differs once approved.
         const future = isFutureProposal(original) ? original : undefined;
@@ -314,6 +292,33 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           : getProposalDisplayTitle(proposal);
 
         let rendered: React.ReactNode;
+        let contentUnavailable = false;
+        const renderUnavailable = (
+          explanation: string,
+          onRetry?: () => void,
+        ) => {
+          contentUnavailable = true;
+          return (
+            <UnavailableTargetCard
+              proposal={original}
+              status={status}
+              explanation={explanation}
+              onRetry={onRetry}
+              onReject={
+                onReject
+                  ? (reason: string) => handleReject(original.id, reason)
+                  : undefined
+              }
+              disabled={disabled}
+              siblingProposals={siblingProposals}
+              approvalProgress={getApprovalProgress(
+                original.requiredApprovals,
+                original.approvals,
+              )}
+              overrides={overrides}
+            />
+          );
+        };
         if (isEdgeOnlyUpdateProposal(proposal)) {
           const approvalProgress = getApprovalProgress(
             proposal.requiredApprovals,
@@ -373,14 +378,12 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
               diffDefaultViewMode={diffDefaultViewMode}
             />
           );
-        } else if (loading) {
+        } else if (target?.type === "loading") {
           rendered = (
             <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
               <CircularProgress size={24} />
             </Box>
           );
-        } else if (error) {
-          rendered = <Alert severity="error">{error}</Alert>;
         } else if (isUpdateWorkItemTypeUpdates(proposal)) {
           const approvalProgress = getApprovalProgress(
             proposal.requiredApprovals,
@@ -406,13 +409,21 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
               overrides={overrides}
             />
           );
-        } else if (!entityData) {
+        } else if (!entityData && isEvaluationOutput) {
           rendered = (
             <Alert severity="warning">
-              {isEvaluationOutput
-                ? "The original content was not saved with this evaluation output."
-                : "Could not load the existing item for this update."}
+              The original content was not saved with this evaluation output.
             </Alert>
+          );
+        } else if (target?.type === "unavailable") {
+          const { failure } = target;
+          rendered = renderUnavailable(
+            describeTargetFailure(original, status, failure),
+            failure.notFound ? undefined : failure.retry,
+          );
+        } else if (!entityData) {
+          rendered = renderUnavailable(
+            "Could not load the existing item for this update.",
           );
         } else if (entityData.type === "task" && workItemTypesLoading) {
           rendered = (
@@ -421,17 +432,12 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
             </Box>
           );
         } else if (entityData.type === "task" && workItemTypesError) {
-          rendered = (
-            <Alert severity="error">
-              Failed to load the work-item type registry:{" "}
-              {workItemTypesError.message}
-            </Alert>
+          rendered = renderUnavailable(
+            `Failed to load the work-item type registry: ${workItemTypesError.message}`,
           );
         } else if (entityData.type === "task" && !taskTypeDefinition) {
-          rendered = (
-            <Alert severity="warning">
-              The work-item type details are unavailable for this update.
-            </Alert>
+          rendered = renderUnavailable(
+            "The work-item type details are unavailable for this update.",
           );
         } else {
           const approvalProgress = getApprovalProgress(
@@ -562,6 +568,26 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
           return <React.Fragment key={proposal.id}>{rendered}</React.Fragment>;
         }
 
+        const card = (
+          <InteractionComponent
+            entityId={proposal.id}
+            entityType="PROPOSAL"
+            hasProposalSupport
+            entityTitle={interactionTitle}
+            organizationId={organizationId}
+            projectId={projectId}
+            draggable={false}
+          >
+            <RejectedProposalCard proposal={proposal} status={status}>
+              {rendered}
+            </RejectedProposalCard>
+          </InteractionComponent>
+        );
+        // With no content to compare there is nothing to reconcile.
+        if (contentUnavailable) {
+          return <React.Fragment key={proposal.id}>{card}</React.Fragment>;
+        }
+
         return (
           <ProposalOutOfDateReview
             key={proposal.id}
@@ -579,19 +605,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
                 : handleApply(proposal.id, request)
             }
           >
-            <InteractionComponent
-              entityId={proposal.id}
-              entityType="PROPOSAL"
-              hasProposalSupport
-              entityTitle={interactionTitle}
-              organizationId={organizationId}
-              projectId={projectId}
-              draggable={false}
-            >
-              <RejectedProposalCard proposal={proposal} status={status}>
-                {rendered}
-              </RejectedProposalCard>
-            </InteractionComponent>
+            {card}
           </ProposalOutOfDateReview>
         );
       })}

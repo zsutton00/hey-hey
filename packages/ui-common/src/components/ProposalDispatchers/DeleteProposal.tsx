@@ -8,6 +8,11 @@ import type { DeleteProposalProps, ProposalApprovalRequest } from "./types";
 import { isArchiveWorkItemTypeUpdates } from "./types";
 import { useProposalState } from "./useProposalState";
 import { useEntityData } from "./useEntityData";
+import { loadedEntity } from "./proposalTarget";
+import {
+  describeTargetFailure,
+  UnavailableTargetCard,
+} from "./UnavailableTargetCard";
 import type { EntityData } from "./useEntityData";
 import { getApprovalProgress } from "../../permissions";
 import { InteractionComponent } from "../InteractionComponent";
@@ -113,13 +118,19 @@ const DeleteProposalHeader: React.FC<{
   );
 };
 
+/** Targets whose deletion archives an item the reviewer can name. */
+const ARCHIVING_TARGET_TYPES: ReadonlySet<TargetEntityType> = new Set([
+  TargetEntityType.Task,
+  TargetEntityType.DesignDoc,
+]);
+
 /**
  * Dispatcher component for DELETE proposals. Every target entity type renders
  * through one shared card: the shared proposal identity header, the resolved
  * title with a struck-through "will be deleted" treatment, and the
  * Approve/Reject controls.
- * The entity fetch is best-effort — the card still renders (falling back to
- * the proposal's own title snapshot) when the lookup fails.
+ * Each card follows its own target read: one that cannot be read says so and
+ * cannot be approved, and the others are unaffected.
  */
 export const DeleteProposal: React.FC<DeleteProposalProps> = ({
   proposals,
@@ -152,7 +163,7 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
     [allProposals, proposals],
   );
 
-  const { entities, loading } = useEntityData(
+  const { entities } = useEntityData(
     proposals,
     organizationId,
     projectId,
@@ -202,25 +213,11 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
     ],
   );
 
-  const hasRejectedProposal = proposals.some(
-    (proposal) => getState(proposal.id).state === "rejected",
-  );
-
   if (proposals.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
         No deletion proposals available.
       </Typography>
-    );
-  }
-
-  // The entity fetch only sharpens the title; render a spinner while it runs,
-  // but never block the card on a failed lookup.
-  if (loading && !hasRejectedProposal) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-        <CircularProgress size={24} />
-      </Box>
     );
   }
 
@@ -232,14 +229,57 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
           proposal.targetEntityType,
           renderMode,
         );
-        const entityData = entities[proposal.targetEntityId];
+        const target = entities[proposal.targetEntityId];
+        const entityData = loadedEntity(target);
 
         const approvalProgress = getApprovalProgress(
           proposal.requiredApprovals,
           proposal.approvals,
         );
 
-        if (loading) {
+        if (target?.type === "unavailable") {
+          const { failure } = target;
+          const unavailable = (
+            <UnavailableTargetCard
+              proposal={proposal}
+              status={status}
+              explanation={describeTargetFailure(proposal, status, failure)}
+              onRetry={failure.notFound ? undefined : failure.retry}
+              onReject={
+                onReject
+                  ? (reason: string) => handleReject(proposal.id, reason)
+                  : undefined
+              }
+              disabled={disabled}
+              siblingProposals={siblingProposals}
+              approvalProgress={approvalProgress}
+              overrides={overrides}
+            />
+          );
+          if (renderMode === "group-member") {
+            return (
+              <React.Fragment key={proposal.id}>{unavailable}</React.Fragment>
+            );
+          }
+          return (
+            <InteractionComponent
+              key={proposal.id}
+              entityId={proposal.id}
+              entityType="PROPOSAL"
+              hasProposalSupport
+              entityTitle={getProposalDisplayTitle(proposal)}
+              organizationId={organizationId}
+              projectId={projectId}
+              draggable={false}
+            >
+              <RejectedProposalCard proposal={proposal} status={status}>
+                {unavailable}
+              </RejectedProposalCard>
+            </InteractionComponent>
+          );
+        }
+
+        if (target?.type === "loading") {
           const loadingContent = (
             <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
               <CircularProgress size={24} />
@@ -348,6 +388,16 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
           ? { fontSize: overrides.titleFontSize }
           : undefined;
 
+        const entityLabel = humanEntityLabel(
+          proposal.targetEntityType,
+          entityData,
+        );
+        const deletionNote =
+          status.state === "applied" &&
+          ARCHIVING_TARGET_TYPES.has(proposal.targetEntityType)
+            ? `This ${entityLabel} is now archived.`
+            : `This ${entityLabel} will be deleted.`;
+
         const cardContent = (
           <Stack spacing={1.5}>
             {!overrides.hideHeader && (
@@ -362,10 +412,7 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
               />
             )}
             <Typography variant="body2" color="error">
-              {`This ${humanEntityLabel(
-                proposal.targetEntityType,
-                entityData,
-              )} will be deleted.`}
+              {deletionNote}
             </Typography>
             <ProposalEdges
               edges={proposal.edges}

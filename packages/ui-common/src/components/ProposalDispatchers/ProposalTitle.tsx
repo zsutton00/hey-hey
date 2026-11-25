@@ -69,6 +69,8 @@ export interface ProposalTitleProps {
   titleTestId?: string;
   typeTestId?: string;
   endAdornment?: ReactNode;
+  /** False when the target cannot be read, so there is nothing to open. */
+  linked?: boolean;
 }
 
 const renderTitleMarkup = (
@@ -109,6 +111,7 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
   titleTestId = "proposal-title",
   typeTestId,
   endAdornment,
+  linked = true,
 }) => {
   const reconciliationBody = useContext(InlineReconciliationBodyContext);
   const paths = usePathService();
@@ -134,6 +137,7 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
   };
   const hasResolvedTarget = !isPlaceholderEntityId(resolvedTarget.entityId);
   const isLinked =
+    linked &&
     hasResolvedTarget &&
     (!isExistingTaskPlanProposal(proposal) ||
       (getProposalMaterializationStatus(proposal)?.state === "applied" &&

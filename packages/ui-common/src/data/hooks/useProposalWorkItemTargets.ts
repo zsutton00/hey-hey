@@ -8,31 +8,33 @@ import {
   getProjectGraphQLClient,
   type GraphQLProjectScope,
 } from "../graphql/client";
+import {
+  failedProposalTargetRead,
+  type ProposalTargetRead,
+} from "./proposalTargetRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
-interface TargetReadState {
-  items: TaskResponseDto[];
-  loading: boolean;
-  error: Error | undefined;
-}
-
-interface TargetRead extends TargetReadState {
+interface TargetReads {
   client: ApolloClient;
-  idsKey: string;
+  reads: Record<string, ProposalTargetRead<TaskResponseDto>>;
 }
 
-/** Watches each target so the realtime work-item refresh updates open comparisons. */
+/**
+ * Watches each target so the realtime work-item refresh updates open
+ * comparisons. One target that is slow or unreadable leaves the others as
+ * they are.
+ */
 export function useProposalWorkItemTargets(
   { organizationId, projectId }: GraphQLProjectScope,
   ids: readonly string[],
-): TargetReadState {
+): Record<string, ProposalTargetRead<TaskResponseDto>> {
   const client = getProjectGraphQLClient(useApolloClient(), {
     organizationId,
     projectId,
   });
   const idsKey = JSON.stringify([...new Set(ids)].sort());
   const enabled = !!organizationId && !!projectId && ids.length > 0;
-  const [result, setResult] = useState<TargetRead>();
+  const [result, setResult] = useState<TargetReads>();
 
   useWebsocketSubscriptions(
     { projectIds: [projectId], initiativeIds: [] },
@@ -57,30 +59,47 @@ export function useProposalWorkItemTargets(
         context: scope,
         refetchWritePolicy: "merge",
       });
+      // The failure reaches the card through the watched query itself.
+      const retry = () => void query.refetch().catch(() => null);
 
       return query.pipe(
-        map(({ dataState, data, loading, error }) => ({
-          item: dataState === "complete" && !error ? select(data) : null,
-          loading: loading && !data,
-          error,
-        })),
+        map(
+          ({
+            dataState,
+            data,
+            loading,
+            error,
+          }): [string, ProposalTargetRead<TaskResponseDto>] => {
+            if (!error && dataState === "complete") {
+              const item = select(data);
+              if (item) {
+                return [id, { state: "ready", item }];
+              }
+            }
+            if (!error && loading) {
+              return [id, { state: "loading" }];
+            }
+
+            const cause = error ?? new Error("The read returned no item");
+            return [id, failedProposalTargetRead("TASK", id, cause, retry)];
+          },
+        ),
       );
     });
     const subscription = combineLatest(reads).subscribe((answers) => {
-      setResult({
-        client,
-        idsKey,
-        items: answers.flatMap(({ item }) => (item ? [item] : [])),
-        loading: answers.some(({ loading }) => loading),
-        error: answers.find(({ error }) => error)?.error,
-      });
+      setResult({ client, reads: Object.fromEntries(answers) });
     });
 
     return () => subscription.unsubscribe();
   }, [client, enabled, idsKey, organizationId, projectId]);
 
-  if (enabled && result?.client === client && result.idsKey === idsKey) {
-    return result;
+  if (!enabled) {
+    return {};
   }
-  return { items: [], loading: enabled, error: undefined };
+
+  // Answers already held stay on screen while the set of targets changes.
+  const held = result?.client === client ? result.reads : {};
+  return Object.fromEntries(
+    ids.map((id) => [id, held[id] ?? { state: "loading" }]),
+  );
 }
