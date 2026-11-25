@@ -167,6 +167,7 @@ const CONVERSATION_PROMPT_TYPE_ACCEPTANCE: Record<AgentTrigger['promptType'], bo
   repository_grounding: true,
   repository_feature_enrichment: true,
   repository_first_work: true,
+  repository_outline_refinement: true,
   repository_placement: true,
   plan_shaping_visual_preview: true,
   session_monitor: false,

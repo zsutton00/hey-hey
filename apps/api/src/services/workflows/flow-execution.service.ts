@@ -1,3 +1,6 @@
+import { isLocalRepositoryImportExecutionOwner } from './repository-import-execution-owner';
+import { isLocalApplication } from '../../deployment-environment';
+import { resolveRepositoryImportFlowIdentity } from '../../workflows/repository-import-legacy-compatibility';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FlowExecutionStatus } from '@prisma/client';
@@ -1046,6 +1049,64 @@ export class FlowExecutionService {
         nodeId: null,
         triggerMessageId: null,
       };
+    }
+
+    if (
+      isLocalApplication() &&
+      (workflowName === WorkflowName.RepositoryImport ||
+        workflowName === WorkflowName.Onboarding)
+    ) {
+      const saved = await this.findByConversation(
+        conversationId,
+        organizationId,
+      );
+      const localImport =
+        saved &&
+        isLocalRepositoryImportExecutionOwner(
+          saved.flowState?.executionOwner,
+        ) &&
+        resolveRepositoryImportFlowIdentity({
+          conversationWorkflowName: workflowName,
+          executionFlowId: saved.flowId,
+          currentNode: saved.currentNode,
+          flowState: saved.flowState,
+        });
+      if (localImport && saved?.currentNode && saved.resumable) {
+        const entry = this.nodeExecutionService.getNode(
+          localImport,
+          saved.currentNode,
+        );
+        if (entry?.node instanceof ExternalAgentNodeBase) {
+          const { triggerMessageId } =
+            await this.pendingTriggerService.resolvePendingTriggerForNode(
+              conversationId,
+              saved.currentNode,
+            );
+          return {
+            workflowState: WorkflowState.AgentPending,
+            promptType: entry.node.promptType,
+            nodeId: saved.currentNode,
+            triggerMessageId,
+          };
+        }
+        return {
+          workflowState: WorkflowState.LiveNonAgent,
+          promptType: flow.terminalPromptType,
+          nodeId: null,
+          triggerMessageId: null,
+        };
+      }
+      if (
+        localImport ||
+        (!saved && workflowName === WorkflowName.RepositoryImport)
+      ) {
+        return {
+          workflowState: WorkflowState.Terminal,
+          promptType: flow.terminalPromptType,
+          nodeId: null,
+          triggerMessageId: null,
+        };
+      }
     }
 
     if (!workflowId) {

@@ -1,4 +1,7 @@
+import { isLocalApplication } from '../../deployment-environment';
+import { LocalRepositoryOutlineRefinementNode } from './local-repository-outline-refinement.node';
 import { LocalOnboardingService } from './local-onboarding.service';
+import { LocalRepositoryImportService } from './local-repository-import.service';
 import { Global, Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
@@ -104,6 +107,9 @@ import { PlanModule } from '../plan/plan.module';
     FlowExecutionService,
     NodeExecutionService,
     LocalOnboardingService,
+    ...(isLocalApplication()
+      ? [LocalRepositoryImportService, LocalRepositoryOutlineRefinementNode]
+      : []),
     PendingTriggerService,
     FlowSecurityService,
     InitiativeRefinementWorkflowService,

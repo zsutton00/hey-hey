@@ -6,6 +6,7 @@ import {
 } from "@hey-hey/ui-common/components";
 import {
   TrackingProvider,
+  useAuth,
   useOrganization,
   usePageTracking,
 } from "@hey-hey/ui-common/context";
@@ -23,6 +24,7 @@ import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import { useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { PageBreadcrumbs } from "../../components/Layout";
+import { LocalRepositoryImportRecovery } from "./LocalRepositoryImportRecovery";
 import { ProjectDetailsForm } from "../Onboarding/components/ProjectDetailsForm";
 
 const REPOSITORY_IMPORT_CONVERSATION_STATUSES: ConversationStatus[] = [
@@ -37,6 +39,7 @@ const REPOSITORY_IMPORT_CONVERSATION_STATUSES: ConversationStatus[] = [
 
 const RepositoryImportPageContent = () => {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const currentOrgId = currentOrganization?.id;
   const { projectId } = useParams<{ projectId: string }>();
   const [searchParams] = useSearchParams();
@@ -54,6 +57,7 @@ const RepositoryImportPageContent = () => {
     data: activeImportConversation,
     isLoading: isLoadingActiveImport,
     error: activeImportError,
+    refetch: refetchActiveImport,
   } = useConversationByWorkflow(currentOrgId, projectId, "repository-import", {
     enabled: !!project && !requestedConversationId,
     requireFirstMessage: false,
@@ -66,6 +70,7 @@ const RepositoryImportPageContent = () => {
     data: requestedImportConversation,
     isLoading: isLoadingRequestedImport,
     error: requestedImportError,
+    refetch: refetchRequestedImport,
   } = useConversation(
     currentOrgId,
     projectId,
@@ -176,6 +181,16 @@ const RepositoryImportPageContent = () => {
         project={project}
         organizationId={project.organizationId}
       />
+      {user?.isLocalAccount && (
+        <LocalRepositoryImportRecovery
+          conversation={conversation}
+          onRecovered={
+            requestedConversationId
+              ? refetchRequestedImport
+              : refetchActiveImport
+          }
+        />
+      )}
       <Conversation
         animationType="minimal"
         navigationOrientation="vertical"

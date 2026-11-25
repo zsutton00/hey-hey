@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.5.1
+
+### Local setup and repository import
+
+- Added repository import in local Hey Hey using a provider connected through the CLI. Review and revise the proposed feature outline before approving it.
+- Fixed local repository import so you can still approve the saved outline if a revision fails.
+- Fixed local upgrades that encountered a migration older than one already installed.
+- Removed the unavailable Plan option from local coding session setup.
+
+### Coding sessions and Changes
+
+- Fixed the branch and worktree picker layout in the Discuss dialog.
+- Updated session details to show each service alongside the branch it used.
+- Fixed grouping on the Changes page so filtered records appear only under matching branches or worktrees.
+
+### Reviews and onboarding
+
+- Fixed Task Monitors losing track of readiness reviews while they were still in progress.
+- Fixed proposal review so an unreadable item no longer prevents other proposal cards from loading.
+- Fixed newly started hosted onboarding conversations so the person who started them can open and resume them. Previously locked conversations remain affected.
+
+### Getting the release
+
+- CLI 4.6.1 is distributed through `npm install -g @hey-hey/cli@4.6.1`. For local use, `heyhey local` offers the matching set of application images. Hosted availability follows a separate deployment.
+
 ## v1.5.0
 
 ### Google Antigravity and Gemini

@@ -46,6 +46,9 @@ import {
   RepositoryGroundingRequestProviderEnum,
   RepositoryGroundingRequestReasoningEffortEnum,
   RepositoryFirstWorkRequestProviderEnum,
+  RepositoryOutlineRefinementRequestProviderEnum,
+  RepositoryOutlineRefinementRequestReasoningEffortEnum,
+  type RepositoryOutlineRefinementRequest,
   RepositoryFirstWorkRequestReasoningEffortEnum,
   RepositoryPlacementRequestProviderEnum,
   RepositoryPlacementRequestReasoningEffortEnum,
@@ -280,6 +283,23 @@ export const parseRepositoryFeatureEnrichmentRequest = (value: unknown) => ({
   ...repositoryFeatureEnrichmentPayloadSchema.parse(value),
   promptType: LocalPromptType.RepositoryFeatureEnrichment,
 });
+
+const repositoryOutlineRefinementPayloadSchema = z
+  .object({
+    promptType: z.literal(LocalPromptType.RepositoryOutlineRefinement).optional(),
+    projectId: z.string().uuid(),
+    conversationId: z.string().uuid(),
+    workflowId: z.string().uuid(),
+    workflowNodeId: z.string().min(1),
+    serviceId: z.string().uuid(),
+    machineId: z.string().uuid(),
+    provider: z.nativeEnum(RepositoryOutlineRefinementRequestProviderEnum),
+    resolvedFrontierModel: z.string().min(1),
+    reasoningEffort: z.nativeEnum(RepositoryOutlineRefinementRequestReasoningEffortEnum),
+    fastMode: z.boolean().optional(),
+    prompt: z.string().min(1),
+  } satisfies Record<keyof RepositoryOutlineRefinementRequest, z.ZodTypeAny>)
+  .strict();
 
 const repositoryFirstWorkPayloadShape = {
   promptType: z.literal(LocalPromptType.RepositoryFirstWork).optional(),
@@ -1081,6 +1101,7 @@ const triggerPayloadSchemas: Partial<Record<StaticTriggerPayloadKey, z.ZodType<u
   [LocalPromptType.RepositoryGrounding]: repositoryGroundingPayloadSchema,
   [LocalPromptType.RepositoryFeatureEnrichment]: repositoryFeatureEnrichmentPayloadSchema,
   [LocalPromptType.RepositoryFirstWork]: repositoryFirstWorkPayloadSchema,
+  [LocalPromptType.RepositoryOutlineRefinement]: repositoryOutlineRefinementPayloadSchema,
   [LocalPromptType.RepositoryPlacement]: repositoryPlacementPayloadSchema,
   [START_RUN_TRIGGER_SENTINEL]: startRunPayloadSchema,
 };

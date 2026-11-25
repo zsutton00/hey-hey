@@ -24,7 +24,7 @@ import {
 } from "@mui/material";
 import { ChangeRecordRow } from "./ChangeRecordRow";
 import { RecordedEditModal } from "./RecordedEditModal";
-import { groupByPlace, placeLabel } from "./changePlaces";
+import { groupChangeRecords, placeLabel, toChangePlace } from "./changePlaces";
 
 const PAGE_SIZE = 50;
 
@@ -73,11 +73,7 @@ export function ChangesView({
   const { places } = useProjectChangePlaces(scope);
   const groups =
     filters.groupBy === "place" && state.page
-      ? groupByPlace(state.page.records, (record) =>
-          record.report.payload.reportType === "IMPLEMENT"
-            ? (record.report.payload.edits ?? [])
-            : [],
-        )
+      ? groupChangeRecords(state.page.records, places)
       : null;
   const renderRow = (record: ProjectChangeRecord) => (
     <ChangeRecordRow
@@ -175,14 +171,7 @@ export function ChangesView({
             <MenuItem key={place.key} value={place.key}>
               {place.notRecorded
                 ? t("changes.placeGroupNotRecorded")
-                : placeLabel(
-                    {
-                      kind: place.kind!,
-                      branch: place.branch ?? null,
-                      worktreePath: place.worktreePath,
-                    },
-                    t("changes.placeDetached"),
-                  )}
+                : placeLabel(toChangePlace(place), t("changes.placeDetached"))}
               {` (${place.recordCount})`}
             </MenuItem>
           ))}

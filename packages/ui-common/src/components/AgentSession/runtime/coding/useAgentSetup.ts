@@ -41,6 +41,7 @@ import {
 } from "../../agentSetupDraftMemory";
 import { supportsFastMode } from "../../capabilityCatalog";
 import { useRuntimeModelCatalog } from "../../useRuntimeModelCatalog";
+import { getDeployment } from "../../../../services/runtimeConfig";
 import { updateAgentSessionRecord } from "./update-agent-session-record";
 import { buildLaunchPlaces } from "../../launchPlaceChoices";
 import {
@@ -437,9 +438,13 @@ export const useAgentSetup = ({
         services: [],
       };
     }
+    // Temporary: Plan is hidden on local installations until Plan Mode runs there.
+    const defaultMethod =
+      getDeployment() === "local"
+        ? "open"
+        : DEFAULT_SESSION_METHOD_SELECTION.method;
     return {
-      method:
-        restoredDraft?.sessionMethod ?? DEFAULT_SESSION_METHOD_SELECTION.method,
+      method: restoredDraft?.sessionMethod ?? defaultMethod,
       serviceIds: initialSelectedServiceIds,
       services: [],
     };
@@ -1007,12 +1012,10 @@ export const useAgentSetup = ({
         return;
       }
       const next = enabled
-        ? selectedServiceIds.map(
-            (serviceId): ServicePlaceChoice => ({
-              ...(sessionPlaceChoice ?? { kind: "MAIN_FOLDER" }),
-              serviceId,
-            }),
-          )
+        ? selectedServiceIds.map((serviceId): ServicePlaceChoice => ({
+            ...(sessionPlaceChoice ?? { kind: "MAIN_FOLDER" }),
+            serviceId,
+          }))
         : null;
       setPerServicePlaceChoiceList(next);
       persistDraft({ perServicePlaceChoices: next });

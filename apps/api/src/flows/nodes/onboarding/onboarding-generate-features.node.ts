@@ -101,6 +101,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
     featureData: IntermediateSystemMessageData,
     _userMessage: FlowUserMessage | undefined,
     tracker: MutableContextHandle<RepositoryImportFlowContext>,
+    options?: { deferDraftRetirement?: boolean },
   ): Promise<{ modifiedResult: FeatureGenerationActionData }> {
     const context = tracker.getContext();
     const parsedFeatureData =
@@ -109,6 +110,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
       parsedFeatureData,
       tracker,
       this.id,
+      options?.deferDraftRetirement,
     );
     const topLevelNodes = this.featureListLifecycle.toReviewNodes(state);
     const proposalIds = state.topLevels.map((topLevel) => topLevel.proposalId);
@@ -201,6 +203,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
   async processUserResponse(
     tracker: MutableContextHandle<RepositoryImportFlowContext>,
     userMessage: FlowUserMessage,
+    options?: { deferDraftRetirement?: boolean },
   ): Promise<void> {
     const structured = this.getFeatureListUserMessage(userMessage);
     if (!structured) {
@@ -224,6 +227,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
         refinement,
         tracker,
         this.id,
+        options?.deferDraftRetirement,
       );
       return;
     }

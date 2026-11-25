@@ -698,6 +698,88 @@ describe('ReportService', () => {
     expect(query.sql).toContain('jsonb_array_elements');
   });
 
+  it('says which places the filter matched on a record with edits on two branches', async () => {
+    const branchA = '["MAIN_FOLDER", "branch-a", null]';
+    const report = buildImplementReport({
+      id: 'change-1',
+      createdAt: new Date('2026-11-13T12:00:00Z'),
+      expiresAt: null,
+      reportEntities: [],
+      payload: {
+        reportType: 'IMPLEMENT',
+        summary: 'Edits on two branches',
+        filesChanged: ['a.ts', 'b.ts'],
+        edits: ['branch-a', 'branch-b'].map((branch, index) => ({
+          path: index === 0 ? 'a.ts' : 'b.ts',
+          place: { kind: 'MAIN_FOLDER', branch },
+        })),
+      },
+    });
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([{ id: 'change-1', matchedPlaceKeys: [branchA] }])
+      .mockResolvedValueOnce([]);
+    prisma.db.report.findMany.mockResolvedValue([report]);
+
+    const page = await service.listProjectChanges(
+      'org-1' as OrganizationId,
+      'project-1',
+      { placeKey: branchA, limit: 10, offset: 0 },
+    );
+
+    expect(page.records[0]?.matchedPlaceKeys).toEqual([branchA]);
+    expect(page.records[0]?.report.payload).toEqual(report.payload);
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.sql).toContain('AS "matchedPlaceKeys"');
+  });
+
+  it('matches only the not-recorded key when filtered to not recorded', async () => {
+    const report = buildImplementReport({
+      id: 'change-1',
+      createdAt: new Date('2026-11-13T12:00:00Z'),
+      expiresAt: null,
+      reportEntities: [],
+    });
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([
+        { id: 'change-1', matchedPlaceKeys: ['NOT_RECORDED'] },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.db.report.findMany.mockResolvedValue([report]);
+
+    const page = await service.listProjectChanges(
+      'org-1' as OrganizationId,
+      'project-1',
+      { placeKey: 'NOT_RECORDED', limit: 10, offset: 0 },
+    );
+
+    expect(page.records[0]?.matchedPlaceKeys).toEqual(['NOT_RECORDED']);
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.values).toContain('NOT_RECORDED');
+  });
+
+  it('omits matched places when no place filter is set', async () => {
+    const report = buildImplementReport({
+      id: 'change-1',
+      createdAt: new Date('2026-11-13T12:00:00Z'),
+      expiresAt: null,
+      reportEntities: [],
+    });
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([{ id: 'change-1' }])
+      .mockResolvedValueOnce([]);
+    prisma.db.report.findMany.mockResolvedValue([report]);
+
+    const page = await service.listProjectChanges(
+      'org-1' as OrganizationId,
+      'project-1',
+      { limit: 10, offset: 0 },
+    );
+
+    expect(page.records[0]).not.toHaveProperty('matchedPlaceKeys');
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.sql).not.toContain('matchedPlaceKeys');
+  });
+
   it('lists distinct places with record counts and a not-recorded entry', async () => {
     prisma.db.$queryRaw
       .mockResolvedValueOnce([

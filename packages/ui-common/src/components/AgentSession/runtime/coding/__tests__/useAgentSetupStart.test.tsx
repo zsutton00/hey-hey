@@ -955,6 +955,18 @@ describe("useAgentSetup start() conversation creation", () => {
     });
   });
 
+  it.each([
+    ["local", "open"],
+    ["hosted", "plan"],
+  ])("preselects the %s default session method", (deployment, method) => {
+    window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment };
+
+    const { result } = renderSetup();
+
+    expect(result.current.sessionMethodSelection.method).toBe(method);
+    delete window.__HEY_HEY_RUNTIME_CONFIG__;
+  });
+
   it("restores the matching incomplete setup draft before catalog defaults", () => {
     upsertAgentSetupDraft(
       "user-1",

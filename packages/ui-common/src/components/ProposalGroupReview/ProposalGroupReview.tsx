@@ -26,6 +26,8 @@ import {
   isWorkItemGraphProposal,
 } from "../ProposalDispatchers/types";
 import { ProposalGroupMemberReview } from "./ProposalGroupMemberReview";
+import { BlockedMembersContext, useBlockedMembers } from "./useBlockedMembers";
+import { ProposalContentBlockedContext } from "../ProposalDispatchers/ProposalContentBlockedContext";
 import {
   extractProposalApprovalFailureDiagnostic,
   ProposalFailureDiagnostic,
@@ -212,8 +214,9 @@ export const ProposalGroupReviewView: React.FC<
       ({ approvalSatisfied }) => approvalSatisfied,
     );
   const approveAllComplete = allMembersApproved || approveAllResultComplete;
+  const { blockedMemberIds, blockMember } = useBlockedMembers();
 
-  return (
+  const review = (
     <Paper
       variant="outlined"
       data-testid="proposal-group-review"
@@ -246,7 +249,11 @@ export const ProposalGroupReviewView: React.FC<
               color="success"
               size="small"
               onClick={() => void onApproveAll().catch(() => null)}
-              disabled={isApprovingAll || approveAllComplete}
+              disabled={
+                isApprovingAll ||
+                approveAllComplete ||
+                blockedMemberIds.size > 0
+              }
               data-testid="proposal-group-approve-all"
             >
               {isApprovingAll
@@ -372,6 +379,14 @@ export const ProposalGroupReviewView: React.FC<
           ))}
       </Stack>
     </Paper>
+  );
+
+  return (
+    <ProposalContentBlockedContext.Provider value={blockMember}>
+      <BlockedMembersContext.Provider value={blockedMemberIds}>
+        {review}
+      </BlockedMembersContext.Provider>
+    </ProposalContentBlockedContext.Provider>
   );
 };
 

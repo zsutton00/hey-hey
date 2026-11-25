@@ -1,3 +1,4 @@
+import { isLocalApplication } from '../deployment-environment';
 import { assertLaunchServicePlaceChoices } from '../services/service-place-choices.validator';
 import { startControllerInputs } from '../generated/controller-action-contract';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
@@ -991,6 +992,7 @@ export class ConversationController implements IConversationControllerSpec {
     @Param('projectId') projectId: ProjectId,
     @Param('conversationId') conversationId: ConversationId,
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') callerUserId?: UserId,
   ): Promise<ConversationStartResponseDto> {
     const conversation =
       await this.conversationService.getConversationFromAdapter(
@@ -1001,6 +1003,23 @@ export class ConversationController implements IConversationControllerSpec {
 
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
+    }
+
+    if (isLocalApplication() && callerUserId) {
+      const local =
+        await this.conversationWorkflowService.recoverLocalRepositoryImport(
+          conversation,
+          callerUserId,
+        );
+      if (local) {
+        return {
+          status: local.conversation.status,
+          started: local.workflowStarted,
+          ...(local.workflowId
+            ? { workflowId: local.workflowId as WorkflowId }
+            : {}),
+        };
+      }
     }
 
     switch (conversation.status) {

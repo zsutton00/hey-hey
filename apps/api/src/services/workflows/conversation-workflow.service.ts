@@ -16,6 +16,9 @@ import { hasUiElements } from 'src/utils/type-checks';
 import { ConversationWorkflowError } from '../../core/exceptions/workflow.exceptions';
 import {
   ConversationResponseDto,
+  ExternalAgentNodeCompletion,
+  MessageResponseDto,
+  RepositoryGroundingEntryMode,
   ConversationStatus,
   CreateConversationDto,
   WorkflowName,
@@ -46,6 +49,9 @@ import { ConversationService } from '../conversation.service';
 import { MessageService } from '../message.service';
 import { FlowExecutionService } from './flow-execution.service';
 import { onboardingExecutionOwner } from './onboarding-execution-owner';
+import { repositoryImportExecutionOwner } from './repository-import-execution-owner';
+import { isLocalApplication } from '../../deployment-environment';
+import { LocalRepositoryImportService } from './local-repository-import.service';
 import { NodeExecutionService } from './node-execution.service';
 import { WorkflowRouterService } from './workflow-router.service';
 import {
@@ -427,6 +433,17 @@ export class ConversationWorkflowService {
         return { conversation, workflowStarted: true, workflowId };
       }
 
+      if (repositoryImportExecutionOwner(validatedWorkflowName) === 'CLI') {
+        await this.beginLocalRepositoryImport({
+          conversation,
+          organizationId,
+          workflowId: workflowId as WorkflowId,
+          userId,
+          additionalContext,
+        });
+        return { conversation, workflowStarted: true, workflowId };
+      }
+
       const workflowResult =
         await this.workflowTypeRegistry.startWorkflowByType(
           validatedWorkflowName,
@@ -560,6 +577,110 @@ export class ConversationWorkflowService {
     }
 
     return { workflowId: workflowResult.workflowId };
+  }
+
+  async recoverLocalRepositoryImport(
+    conversation: ConversationResponseDto,
+    userId: UserId,
+  ): Promise<ConversationWithWorkflowResult | undefined> {
+    if (
+      !isLocalApplication() ||
+      (conversation.workflowName !== WorkflowName.RepositoryImport &&
+        !(
+          conversation.workflowName === WorkflowName.Onboarding &&
+          conversation.triggerEvent === 'services_import'
+        ))
+    ) {
+      return undefined;
+    }
+
+    const flow = this.nodeExecutionService.getFlow(
+      WorkflowName.RepositoryImport,
+    );
+    if (!flow) {
+      throw new Error('Repository import workflow template not found');
+    }
+    const organizationId = conversation.organizationId as OrganizationId;
+    const workflowId = conversation.workflowId ?? (uuidv4() as WorkflowId);
+    const entryMode =
+      conversation.triggerEvent === 'services_import'
+        ? RepositoryGroundingEntryMode.ExistingProject
+        : RepositoryGroundingEntryMode.NewProject;
+    const context = await this.buildInitialFlowContext(
+      flow,
+      conversation,
+      workflowId,
+      organizationId,
+      userId,
+      { repositoryGroundingSeed: { entryMode } },
+    );
+    const started = await this.appContext
+      .get(LocalRepositoryImportService, { strict: false })
+      .recoverStart(context, userId);
+    const current = started
+      ? await this.conversationService.findOne(conversation.id, organizationId)
+      : conversation;
+    return {
+      conversation: current ?? conversation,
+      workflowStarted: started,
+      workflowId: current?.workflowId,
+    };
+  }
+
+  async advanceLocalRepositoryImport(
+    message: MessageResponseDto,
+    organizationId: OrganizationId,
+    input: {
+      nodeId: string;
+      operationId?: string;
+      completion?: ExternalAgentNodeCompletion;
+    },
+  ): Promise<boolean> {
+    if (!isLocalApplication()) {
+      return false;
+    }
+    return this.appContext
+      .get(LocalRepositoryImportService, { strict: false })
+      .advance(message, organizationId, input);
+  }
+
+  private async beginLocalRepositoryImport(params: {
+    conversation: ConversationResponseDto;
+    organizationId: OrganizationId;
+    workflowId: WorkflowId;
+    userId?: UserId;
+    additionalContext?: Record<string, unknown>;
+  }): Promise<void> {
+    const { conversation, organizationId, workflowId, userId } = params;
+    if (!userId) {
+      throw new ConversationWorkflowError(
+        'A local repository import must be started by a user',
+        { conversationId: conversation.id },
+      );
+    }
+    const flow = this.nodeExecutionService.getFlow(
+      WorkflowName.RepositoryImport,
+    );
+    if (!flow) {
+      throw new ConversationWorkflowError(
+        'Repository import workflow template not found',
+      );
+    }
+
+    const context = await this.buildInitialFlowContext(
+      flow,
+      conversation,
+      workflowId,
+      organizationId,
+      userId,
+      params.additionalContext,
+    );
+    await this.appContext
+      .get(LocalRepositoryImportService, { strict: false })
+      .begin({ context, userId });
+    this.logger.debug('Local repository import started', {
+      conversationId: conversation.id,
+    });
   }
 
   private validateAgentSessionCreateRequest(

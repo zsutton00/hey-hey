@@ -21,6 +21,7 @@ import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import { useModalService } from "../../contexts/ModalService";
 import { useGuidedWalkthroughControls } from "../GuidedWalkthrough";
 import { buildAddServiceWalkthrough } from "../Help/buildAddServiceWalkthrough";
+import { getDeployment } from "../../services/runtimeConfig";
 
 export interface SessionLaunchOptions {
   provider: AgentProvider | null;
@@ -74,15 +75,17 @@ export const AgenticSetupSection = ({
     projectId,
     taskData?.type,
   );
-  const compatibleSessionMethods = useMemo(
-    () =>
-      !taskData
-        ? listSessionMethods()
-        : workItemTypeDefinition
-          ? listCompatibleSessionMethods(workItemTypeDefinition.key)
-          : [],
-    [taskData, workItemTypeDefinition],
-  );
+  const compatibleSessionMethods = useMemo(() => {
+    const methods = !taskData
+      ? listSessionMethods()
+      : workItemTypeDefinition
+        ? listCompatibleSessionMethods(workItemTypeDefinition.key)
+        : [];
+    // Temporary: remove once Plan Mode runs on local installations.
+    return getDeployment() === "local"
+      ? methods.filter((method) => method !== "plan")
+      : methods;
+  }, [taskData, workItemTypeDefinition]);
   const featureLookup = useFeatureLookup(organizationId, projectId);
   const cachedAncestry =
     taskData && featureLookup.isReady

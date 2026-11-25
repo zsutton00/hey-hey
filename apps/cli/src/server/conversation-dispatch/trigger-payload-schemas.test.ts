@@ -17,6 +17,9 @@ import {
   validateTriggerPayload,
   validateUserMessageTriggerPayload,
 } from './trigger-payload-schemas';
+import { repositoryOutlineRefinementHandler } from '../../agents/repository-outline-refinement.handler';
+import type { RepositoryOutlineRefinementRequest } from '@hey-hey/contracts/api/models';
+import { asConversationId, asProjectId, asWorkflowId } from '../../test-utils/contract-ids';
 import { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../agents/prompt-type-registry.test-support';
 
@@ -26,6 +29,38 @@ const VALID_DESIGN_DOC_ID = '11111111-1111-4111-8111-111111111111';
 const VALID_PLAN_ID = '22222222-2222-4222-8222-222222222222';
 
 describe('validateTriggerPayload', () => {
+  it('admits the server-built outline revision with its accepted repository runtime', () => {
+    const payload = {
+      projectId: asProjectId(VALID_DESIGN_DOC_ID),
+      conversationId: asConversationId(VALID_PLAN_ID),
+      workflowId: asWorkflowId(VALID_DESIGN_DOC_ID),
+      workflowNodeId: 'local-repository-outline-refinement',
+      serviceId: VALID_DESIGN_DOC_ID,
+      machineId: VALID_PLAN_ID,
+      provider: 'codex',
+      resolvedFrontierModel: 'selected-model',
+      reasoningEffort: 'high',
+      fastMode: false,
+      prompt: 'Apply the reviewed feedback to the team reporting outline.',
+    } satisfies RepositoryOutlineRefinementRequest;
+    expect(validateTriggerPayload(LocalPromptType.RepositoryOutlineRefinement, payload)).toEqual(
+      payload,
+    );
+    expect(repositoryOutlineRefinementHandler.resolveRuntime?.(payload)).toEqual({
+      provider: 'codex',
+      model: 'selected-model',
+      reasoningEffort: 'high',
+      fastMode: false,
+    });
+    expect(repositoryOutlineRefinementHandler.buildPrompt(payload)).toBe(payload.prompt);
+    expect(() =>
+      validateTriggerPayload(LocalPromptType.RepositoryOutlineRefinement, {
+        ...payload,
+        serviceId: undefined,
+      }),
+    ).toThrow(TriggerPayloadValidationError);
+  });
+
   it.each(['planId', 'designDocId'])('rejects a revision missing canonical %s', (field) => {
     const payload = {
       planId: VALID_PLAN_ID,

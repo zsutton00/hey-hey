@@ -609,15 +609,13 @@ describe("ConversationFormRenderer", () => {
     const message = createMockConversationMessage({
       message: createMockMessage({ id: "unavailable-owner-form-message" }),
     });
-    const conversationFormResolver = vi.fn(
-      (): ConversationFormResolution => ({
-        responseDeclarations: [],
-        uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
-        disabled: true,
-        isSubmitted: false,
-        submit: vi.fn().mockResolvedValue(undefined),
-      }),
-    );
+    const conversationFormResolver = vi.fn((): ConversationFormResolution => ({
+      responseDeclarations: [],
+      uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
+      disabled: true,
+      isSubmitted: false,
+      submit: vi.fn().mockResolvedValue(undefined),
+    }));
 
     await renderWithConversationProvider(
       <ConversationFormRenderer
@@ -647,15 +645,13 @@ describe("ConversationFormRenderer", () => {
     const submit = vi
       .fn()
       .mockRejectedValue(new Error("The owner could not accept the form."));
-    const conversationFormResolver = vi.fn(
-      (): ConversationFormResolution => ({
-        responseDeclarations: [],
-        uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
-        disabled: false,
-        isSubmitted: false,
-        submit,
-      }),
-    );
+    const conversationFormResolver = vi.fn((): ConversationFormResolution => ({
+      responseDeclarations: [],
+      uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
+      disabled: false,
+      isSubmitted: false,
+      submit,
+    }));
 
     const { onNext } = await renderWithConversationProvider(
       <ConversationFormRenderer

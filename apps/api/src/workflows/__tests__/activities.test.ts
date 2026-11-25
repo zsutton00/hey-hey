@@ -54,6 +54,7 @@ import {
   MessageId,
   OrganizationId,
   ProjectId,
+  UserId,
   WorkflowId,
 } from '../../types';
 import {
@@ -230,6 +231,7 @@ describe('Flow Activities - Queue-based Execution', () => {
         workflowId: testIds.workflow,
         flowId: WorkflowName.Onboarding,
         userId: testIds.user,
+        initiatedBy: 'USER',
         ...baseInitializeParams,
       });
 
@@ -242,6 +244,7 @@ describe('Flow Activities - Queue-based Execution', () => {
           workflowAboutType: baseInitializeParams.workflowAboutType,
         }),
         testIds.organization,
+        { createdBy: testIds.user },
       );
 
       expect(result.context.core.projectId).toBe(testIds.project);
@@ -278,6 +281,33 @@ describe('Flow Activities - Queue-based Execution', () => {
           workflowAboutType: baseInitializeParams.workflowAboutType,
         }),
         testIds.organization,
+        expect.anything(),
+      );
+    });
+
+    it('records no creator for a system start, even with the placeholder user', async () => {
+      mockConversationService.createConversation.mockResolvedValue(
+        TestUtils.createMockConversation({
+          id: testIds.conversation,
+          workflowId: testIds.workflow,
+          projectId: testIds.project,
+        }),
+      );
+
+      await activities.initializeConversationFlow({
+        projectId: testIds.project,
+        organizationId: testIds.organization,
+        workflowId: testIds.workflow,
+        flowId: WorkflowName.Onboarding,
+        userId: 'system' as UserId,
+        initiatedBy: 'SYSTEM',
+        ...baseInitializeParams,
+      });
+
+      expect(mockConversationService.createConversation).toHaveBeenCalledWith(
+        expect.anything(),
+        testIds.organization,
+        { createdBy: undefined },
       );
     });
 
@@ -1492,6 +1522,7 @@ describe('Flow Activities - Queue-based Execution', () => {
           workflowAboutType: baseInitializeParams.workflowAboutType,
         }),
         'org-123',
+        expect.anything(),
       );
     });
   });

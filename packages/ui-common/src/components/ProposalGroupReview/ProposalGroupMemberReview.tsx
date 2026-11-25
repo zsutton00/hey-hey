@@ -35,6 +35,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { usePathService } from "../../contexts/PathServiceContext";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
 import { getMemberActionability } from "./memberActionability";
+import { BlockedMembersContext } from "./useBlockedMembers";
 import {
   formatApprovalProgress,
   formatExecutionStatus,
@@ -425,6 +426,9 @@ export const MemberDecisionControls: React.FC<{
   const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
     useModalState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const contentBlocked = React.useContext(BlockedMembersContext).has(
+    member.proposal.id,
+  );
   const actionability = getMemberActionability(member);
   const submitRejection = useCallback(async () => {
     const reason = rejectReason.trim();
@@ -443,6 +447,7 @@ export const MemberDecisionControls: React.FC<{
     proposalStatus === ProposalStatus.Rejected;
   const approveDisabled =
     reconciliation?.approvalDisabled ||
+    contentBlocked ||
     isDeciding ||
     proposalIsTerminal ||
     !actionability.canApprove ||

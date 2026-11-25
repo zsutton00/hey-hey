@@ -1,18 +1,33 @@
 import { useProposalWorkItemTargets } from "../../data/hooks/useProposalWorkItemTargets";
-import { useEffect, useState } from "react";
+import { useProposalDesignDocTargets } from "../../data/hooks/useProposalDesignDocTargets";
+import type { ProposalTargetRead } from "../../data/hooks/proposalTargetRead";
+import { loadedEntity, type ProposalTarget } from "./proposalTarget";
 import { TargetEntityType } from "../../api";
 import type {
   ProposalResponseDto,
   TaskResponseDto,
   DesignDocResponseDto,
 } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
 
 export type EntityData =
   | { type: "task"; data: TaskResponseDto }
   | { type: "designDoc"; data: DesignDocResponseDto };
 
-export type EntityDataMap = Record<string, EntityData>;
+export type EntityDataMap = Record<string, ProposalTarget>;
+
+const toProposalTarget = <TItem>(
+  read: ProposalTargetRead<TItem>,
+  loaded: (item: TItem) => EntityData,
+): ProposalTarget => {
+  switch (read.state) {
+    case "loading":
+      return { type: "loading" };
+    case "unavailable":
+      return { type: "unavailable", failure: read.failure };
+    case "ready":
+      return loaded(read.item);
+  }
+};
 
 /**
  * Where a proposal's "before" content comes from: the live entity, or the
@@ -94,110 +109,56 @@ const retainedEntityMap = (
 ): EntityDataMap => {
   const results: EntityDataMap = {};
   for (const proposal of proposals) {
-    const data = retainedEntityData(proposal, live[proposal.targetEntityId]);
+    const target = live[proposal.targetEntityId];
+    if (target?.type === "loading") {
+      results[proposal.targetEntityId] = target;
+      continue;
+    }
+    // A live read failure (e.g. the target was since deleted) still leaves
+    // the retained values to show.
+    const data = retainedEntityData(proposal, loadedEntity(target));
     if (data) results[proposal.targetEntityId] = data;
   }
   return results;
 };
 
 /**
- * Observes work-item targets and loads design-doc targets for proposal comparisons.
- * Retained comparisons overlay recorded values on the current target context.
+ * Observes work-item targets and loads design-doc targets for proposal
+ * comparisons, one entry per target. Retained comparisons overlay recorded
+ * values on the current target context.
  */
 export function useEntityData(
   proposals: ProposalResponseDto[],
   organizationId: string,
   projectId: string,
   source: EntityDataSource = "live",
-) {
-  const taskTargets = useProposalWorkItemTargets(
-    { organizationId, projectId },
+): { entities: EntityDataMap } {
+  const targetIds = (type: TargetEntityType) =>
     proposals
-      .filter(
-        ({ targetEntityType }) => targetEntityType === TargetEntityType.Task,
-      )
-      .map(({ targetEntityId }) => targetEntityId),
+      .filter(({ targetEntityType }) => targetEntityType === type)
+      .map(({ targetEntityId }) => targetEntityId);
+  const tasks = useProposalWorkItemTargets(
+    { organizationId, projectId },
+    targetIds(TargetEntityType.Task),
   );
-  const designDocIds = proposals
-    .filter(
-      ({ targetEntityType }) => targetEntityType === TargetEntityType.DesignDoc,
-    )
-    .map(({ targetEntityId }) => targetEntityId);
-  const designDocKey = JSON.stringify([...new Set(designDocIds)].sort());
-  const [designDocs, setDesignDocs] = useState<{
-    organizationId: string;
-    key: string;
-    items: DesignDocResponseDto[];
-    error: string | null;
-  }>();
+  const designDocs = useProposalDesignDocTargets(
+    organizationId,
+    targetIds(TargetEntityType.DesignDoc),
+  );
 
-  useEffect(() => {
-    const ids: string[] = JSON.parse(designDocKey);
-    if (ids.length === 0) {
-      return;
-    }
-    let cancelled = false;
-
-    void Promise.all(
-      ids.map(async (designDocId) => {
-        const response = await unifiedApiClient.getDesignDoc({
-          organizationId,
-          designDocId,
-        });
-        return response.data.data;
-      }),
-    ).then(
-      (items) => {
-        if (!cancelled) {
-          setDesignDocs({
-            organizationId,
-            key: designDocKey,
-            items: items.filter((doc) => doc !== undefined),
-            error: null,
-          });
-        }
-      },
-      (error: unknown) => {
-        if (!cancelled) {
-          setDesignDocs({
-            organizationId,
-            key: designDocKey,
-            items: [],
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to load entity data",
-          });
-        }
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [designDocKey, organizationId]);
-
-  const docs =
-    designDocs?.key === designDocKey &&
-    designDocs.organizationId === organizationId
-      ? designDocs
-      : undefined;
   const entities: EntityDataMap = {};
-  for (const task of taskTargets.items) {
-    entities[task.id] = { type: "task", data: task };
+  for (const [id, read] of Object.entries(tasks)) {
+    entities[id] = toProposalTarget(read, (data) => ({ type: "task", data }));
   }
-  for (const doc of docs?.items ?? []) {
-    entities[doc.id] = { type: "designDoc", data: doc };
+  for (const [id, read] of Object.entries(designDocs)) {
+    entities[id] = toProposalTarget(read, (data) => ({
+      type: "designDoc",
+      data,
+    }));
   }
-  const error = taskTargets.error?.message ?? docs?.error ?? null;
-  const loading =
-    !error && (taskTargets.loading || (designDocIds.length > 0 && !docs));
 
-  const retained =
-    source === "retained" ? retainedEntityMap(proposals, entities) : null;
-
-  // A live read failure (e.g. the target was since deleted) still leaves the
-  // retained values to show.
-  if (retained) return { entities: retained, loading, error: null };
-  return { entities, loading, error };
+  if (source === "retained") {
+    return { entities: retainedEntityMap(proposals, entities) };
+  }
+  return { entities };
 }

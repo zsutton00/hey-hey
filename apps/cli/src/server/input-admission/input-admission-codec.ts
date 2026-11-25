@@ -1,19 +1,19 @@
 import { z } from 'zod/v4';
 import type { JsonValue } from '../../durable-data';
 import {
-  INPUT_QUEUE_SCHEMA_VERSION_V16,
-  decodeStoredRecordV16,
-  type FinishedInputRecordV16,
-  type OpenInputRecordV16,
-  type ReadableInputRecordV16,
-  type RecordDecodeV16,
-  type StoredInputKindV16,
-  type StoredPayloadV16,
-  storedPayloadV16Schemas,
-} from './storage-schema/v16';
+  INPUT_QUEUE_SCHEMA_VERSION_V17,
+  decodeStoredRecordV17,
+  type FinishedInputRecordV17,
+  type OpenInputRecordV17,
+  type ReadableInputRecordV17,
+  type RecordDecodeV17,
+  type StoredInputKindV17,
+  type StoredPayloadV17,
+  storedPayloadV17Schemas,
+} from './storage-schema/v17';
 
-// The frozen v16 `Exact<T>` helper recursively expands string-brand intersections as objects.
-// Restore their nominal string shape at the active codec boundary without changing v16 data.
+// The frozen v17 `Exact<T>` helper recursively expands string-brand intersections as objects.
+// Restore their nominal string shape at the active codec boundary without changing v17 data.
 type RestoreBrandedStrings<T> = T extends { __brand: infer Brand extends string }
   ? string & { readonly __brand: Brand }
   : T extends ReadonlySet<unknown> | ReadonlyMap<unknown, unknown>
@@ -27,13 +27,13 @@ const restoreBrandedStrings = <T>(value: T): RestoreBrandedStrings<T> =>
   value as RestoreBrandedStrings<T>;
 
 /** The storage version this build writes; older files migrate to it when opened. */
-export const INPUT_QUEUE_SCHEMA_VERSION = INPUT_QUEUE_SCHEMA_VERSION_V16;
+export const INPUT_QUEUE_SCHEMA_VERSION = INPUT_QUEUE_SCHEMA_VERSION_V17;
 
-export type ReadableInputRecord = RestoreBrandedStrings<ReadableInputRecordV16>;
-export type OpenInputRecord = RestoreBrandedStrings<OpenInputRecordV16>;
-type FinishedInputRecord = FinishedInputRecordV16;
-export type StoredInputKind = StoredInputKindV16;
-type StoredPayload = StoredPayloadV16;
+export type ReadableInputRecord = RestoreBrandedStrings<ReadableInputRecordV17>;
+export type OpenInputRecord = RestoreBrandedStrings<OpenInputRecordV17>;
+type FinishedInputRecord = FinishedInputRecordV17;
+export type StoredInputKind = StoredInputKindV17;
+type StoredPayload = StoredPayloadV17;
 export type InputIdentity = Pick<
   ReadableInputRecord,
   | 'key'
@@ -48,22 +48,22 @@ export type InputIdentity = Pick<
 >;
 
 /** A new input in its storage shape, classified once by whoever admitted it. */
-type StoredInputV16 = {
+type StoredInputV17 = {
   [K in StoredInputKind]: {
     kind: K;
     keyKind: ReadableInputRecord['keyKind'];
     payload: StoredPayload[K];
   };
 }[StoredInputKind];
-export type StoredInput = RestoreBrandedStrings<StoredInputV16>;
+export type StoredInput = RestoreBrandedStrings<StoredInputV17>;
 
 type RestoredRecordDecode =
-  | Exclude<RecordDecodeV16, { status: 'readable' }>
+  | Exclude<RecordDecodeV17, { status: 'readable' }>
   | { status: 'readable'; record: ReadableInputRecord };
 
 /** Decode with the frozen schema, then undo only its type-level expansion of branded strings. */
 export const decodeStoredRecord = (value: JsonValue): RestoredRecordDecode => {
-  const decoded = decodeStoredRecordV16(value);
+  const decoded = decodeStoredRecordV17(value);
   if (decoded.status !== 'readable') return decoded;
   return { status: 'readable', record: restoreBrandedStrings(decoded.record) };
 };
@@ -77,7 +77,7 @@ export const storedInput = (
   restoreBrandedStrings({
     kind,
     keyKind,
-    payload: storedPayloadV16Schemas[kind].parse(payload),
+    payload: storedPayloadV17Schemas[kind].parse(payload),
   }) as StoredInput;
 
 /** Any record about to be committed; `save` decodes it back into a readable record. */

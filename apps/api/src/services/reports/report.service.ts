@@ -753,10 +753,24 @@ export class ReportService {
         SELECT 1 FROM ${ReportService.REPORT_EDITS}
         WHERE ${ReportService.EDIT_HAS_PLACE})`;
     }
-    return Prisma.sql`EXISTS (
-      SELECT 1 FROM ${ReportService.REPORT_EDITS}
+    return Prisma.sql`EXISTS (SELECT 1 ${this.implementEditsInPlace(placeKey)})`;
+  }
+
+  /** The keys a record matched the place filter with, as a text array. */
+  private implementMatchedPlaceKeys(placeKey: string): Prisma.Sql {
+    if (placeKey === ReportService.NOT_RECORDED_KEY) {
+      return Prisma.sql`ARRAY[${placeKey}]::text[]`;
+    }
+    return Prisma.sql`ARRAY(
+      SELECT DISTINCT ${ReportService.EDIT_PLACE_KEY}
+      ${this.implementEditsInPlace(placeKey)})`;
+  }
+
+  /** The `FROM ... WHERE` selecting a record's edits made in a recorded place. */
+  private implementEditsInPlace(placeKey: string): Prisma.Sql {
+    return Prisma.sql`FROM ${ReportService.REPORT_EDITS}
       WHERE ${ReportService.EDIT_HAS_PLACE}
-        AND ${ReportService.EDIT_PLACE_KEY} = ${placeKey})`;
+        AND ${ReportService.EDIT_PLACE_KEY} = ${placeKey}`;
   }
 
   async listProjectChangePlaces(
@@ -841,13 +855,18 @@ export class ReportService {
       projectId,
       filters,
     );
+    const columns = [Prisma.sql`reports.id`];
     if (filters.placeKey !== undefined) {
       conditions.push(this.implementPlacePredicate(filters.placeKey));
+      columns.push(
+        Prisma.sql`${this.implementMatchedPlaceKeys(filters.placeKey)} AS "matchedPlaceKeys"`,
+      );
     }
     const ids = await this.prisma.db.$queryRaw<
-      Array<{ id: string }>
+      Array<{ id: string; matchedPlaceKeys?: string[] }>
     >(Prisma.sql`
-      SELECT reports.id FROM reports WHERE ${Prisma.join(conditions, ' AND ')}
+      SELECT ${Prisma.join(columns)} FROM reports
+      WHERE ${Prisma.join(conditions, ' AND ')}
       ORDER BY reports.created_at DESC, reports.id DESC
       LIMIT ${filters.limit + 1} OFFSET ${filters.offset}
     `);
@@ -866,10 +885,17 @@ export class ReportService {
       projectId,
       reports.map((report) => report.id),
     );
-    const records = reports.map((report) => ({
-      report: this.toDto(report, names),
-      commits: commitsByReport.get(report.id) ?? [],
-    }));
+    const matchedKeysById = new Map(
+      ids.map((row) => [row.id, row.matchedPlaceKeys]),
+    );
+    const records = reports.map((report) => {
+      const matchedPlaceKeys = matchedKeysById.get(report.id);
+      return {
+        report: this.toDto(report, names),
+        commits: commitsByReport.get(report.id) ?? [],
+        ...(matchedPlaceKeys && { matchedPlaceKeys }),
+      };
+    });
     return { records, hasMore: ids.length > filters.limit };
   }
 

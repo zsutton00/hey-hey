@@ -1338,6 +1338,33 @@
             },
             "promptType": {
               "type": "string",
+              "const": "repository_outline_refinement"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "triggerMessageId": {
+              "type": "string"
+            },
+            "payload": {
+              "$ref": "#/definitions/RepositoryOutlineRefinementRequest"
+            }
+          },
+          "required": [
+            "nodeId",
+            "payload",
+            "promptType",
+            "triggerMessageId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inputExecution": {
+              "$ref": "#/definitions/InputExecutionIdentity"
+            },
+            "promptType": {
+              "type": "string",
               "const": "repository_placement"
             },
             "nodeId": {
@@ -3442,6 +3469,136 @@
       ],
       "description": "Explicit deterministic read bounds copied into the CLI request as analysis controls. They constrain execution and are not echoed in the success completion."
     },
+    "RepositoryOutlineRefinementRequest": {
+      "type": "object",
+      "properties": {
+        "promptType": {
+          "$ref": "#/definitions/RepositoryOutlineRefinementRequestPromptTypeEnum"
+        },
+        "projectId": {
+          "$ref": "#/definitions/ProjectId",
+          "description": "Unique identifier for a project (branded type)"
+        },
+        "conversationId": {
+          "$ref": "#/definitions/ConversationId",
+          "description": "Unique identifier for a conversation (branded type)"
+        },
+        "workflowId": {
+          "$ref": "#/definitions/WorkflowId",
+          "description": "Unique identifier for a workflow (branded type)"
+        },
+        "workflowNodeId": {
+          "type": "string"
+        },
+        "serviceId": {
+          "type": "string",
+          "description": "Unique identifier for a service (branded type)"
+        },
+        "machineId": {
+          "type": "string",
+          "description": "Unique identifier for a paired machine (branded type)"
+        },
+        "provider": {
+          "$ref": "#/definitions/RepositoryOutlineRefinementRequestProviderEnum"
+        },
+        "resolvedFrontierModel": {
+          "type": "string"
+        },
+        "reasoningEffort": {
+          "$ref": "#/definitions/RepositoryOutlineRefinementRequestReasoningEffortEnum"
+        },
+        "fastMode": {
+          "type": "boolean"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Server-built outline revision prompt for the accepted repository import."
+        }
+      },
+      "required": [
+        "projectId",
+        "conversationId",
+        "workflowId",
+        "workflowNodeId",
+        "serviceId",
+        "machineId",
+        "provider",
+        "resolvedFrontierModel",
+        "reasoningEffort",
+        "prompt"
+      ]
+    },
+    "RepositoryOutlineRefinementRequestPromptTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "repository_outline_refinement"
+        },
+        {}
+      ]
+    },
+    "RepositoryOutlineRefinementRequestProviderEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "claude"
+        },
+        {
+          "type": "string",
+          "const": "codex"
+        },
+        {
+          "type": "string",
+          "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
+        {}
+      ]
+    },
+    "RepositoryOutlineRefinementRequestReasoningEffortEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "type": "string",
+          "const": "minimal"
+        },
+        {
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "type": "string",
+          "const": "high"
+        },
+        {
+          "type": "string",
+          "const": "xhigh"
+        },
+        {
+          "type": "string",
+          "const": "max"
+        },
+        {
+          "type": "string",
+          "const": "ultra"
+        },
+        {
+          "type": "string",
+          "const": "default"
+        },
+        {}
+      ]
+    },
     "RepositoryPlacementRequest": {
       "type": "object",
       "properties": {
@@ -5212,6 +5369,67 @@
             "reasoningEffort",
             "resolvedFrontierModel",
             "scope",
+            "serviceId",
+            "workflowId",
+            "workflowNodeId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "promptType": {
+              "type": "string",
+              "const": "repository_outline_refinement"
+            },
+            "projectId": {
+              "$ref": "#/definitions/ProjectId",
+              "description": "Unique identifier for a project (branded type)"
+            },
+            "conversationId": {
+              "$ref": "#/definitions/ConversationId",
+              "description": "Unique identifier for a conversation (branded type)"
+            },
+            "workflowId": {
+              "$ref": "#/definitions/WorkflowId",
+              "description": "Unique identifier for a workflow (branded type)"
+            },
+            "workflowNodeId": {
+              "type": "string"
+            },
+            "serviceId": {
+              "type": "string",
+              "description": "Unique identifier for a service (branded type)"
+            },
+            "machineId": {
+              "type": "string",
+              "description": "Unique identifier for a paired machine (branded type)"
+            },
+            "provider": {
+              "$ref": "#/definitions/RepositoryOutlineRefinementRequestProviderEnum"
+            },
+            "resolvedFrontierModel": {
+              "type": "string"
+            },
+            "reasoningEffort": {
+              "$ref": "#/definitions/RepositoryOutlineRefinementRequestReasoningEffortEnum"
+            },
+            "fastMode": {
+              "type": "boolean"
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Server-built outline revision prompt for the accepted repository import."
+            }
+          },
+          "required": [
+            "conversationId",
+            "machineId",
+            "projectId",
+            "prompt",
+            "promptType",
+            "provider",
+            "reasoningEffort",
+            "resolvedFrontierModel",
             "serviceId",
             "workflowId",
             "workflowNodeId"

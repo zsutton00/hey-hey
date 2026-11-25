@@ -1,3 +1,6 @@
+import { isLocalApplication } from '../../deployment-environment';
+import { LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE } from '../../flows/constants/node-ids';
+import type { Prisma } from '@prisma/client';
 import {
   forwardRef,
   INestApplicationContext,
@@ -73,6 +76,7 @@ type StartFlowNodeParams = {
   organizationId: OrganizationId;
   requestId: RequestId;
   userMessageId?: MessageId;
+  transaction?: Prisma.TransactionClient;
   parentMessageId?: MessageId;
   options?: {
     appendMessage?: boolean;
@@ -150,7 +154,11 @@ export class NodeExecutionService implements OnModuleInit {
 
     const nodeId = this.resolveNodeId(flowId, requestedNodeId);
 
-    const routingConfig = flow.nodes[nodeId];
+    const localOutline =
+      flowId === 'repository-import' &&
+      nodeId === LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE &&
+      isLocalApplication();
+    const routingConfig = flow.nodes[nodeId] ?? (localOutline ? {} : undefined);
     if (!routingConfig) return undefined;
 
     // Get the Injectable node instance from registry
@@ -478,7 +486,7 @@ export class NodeExecutionService implements OnModuleInit {
     this.logger.debug(
       `[startExternalAgentNode] built trigger inline for ${params.node.id}`,
       {
-        message: built,
+        promptType: built.triggersAgent.promptType,
       },
     );
 
@@ -549,6 +557,17 @@ export class NodeExecutionService implements OnModuleInit {
           parentMessageId: params.userMessageId ?? params.parentMessageId,
         },
       });
+    } else if (params.transaction) {
+      message = await this.messageService.addMessageInTransaction(
+        params.transaction,
+        {
+          ...baseMessage,
+          conversationId: params.conversationId,
+          parentMessageId: params.parentMessageId,
+        },
+        params.organizationId,
+        'startFlowNode:externalAgent',
+      );
     } else if (params.options?.appendMessage) {
       message = await this.messageService.appendMessageToConversation(
         params.conversationId,

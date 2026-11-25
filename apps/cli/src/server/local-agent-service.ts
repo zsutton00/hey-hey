@@ -271,6 +271,15 @@ export class LocalAgentService {
     return this.messageService.readAssistantMessage(input);
   }
 
+  public readCompletedTurnMessage(input: {
+    organizationId: string;
+    projectId: string;
+    conversationId: string;
+    messageId: string;
+  }): Promise<{ messageId: string; content: string } | null> {
+    return this.messageService.readCompletedTurnMessage(input);
+  }
+
   public readUserMessage(input: {
     organizationId: string;
     projectId: string;

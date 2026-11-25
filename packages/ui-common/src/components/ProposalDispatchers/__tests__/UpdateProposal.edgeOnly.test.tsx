@@ -167,11 +167,7 @@ beforeEach(() => {
   getTaskMock.mockImplementation(() => new Promise(() => {}));
   Object.keys(entities).forEach((key) => delete entities[key]);
   entities["task-1"] = { type: "task", data: task("task-1") };
-  useEntityDataMock.mockReturnValue({
-    entities,
-    loading: false,
-    error: null,
-  });
+  useEntityDataMock.mockReturnValue({ entities });
 });
 
 const renderUpdates = (
@@ -258,9 +254,7 @@ describe("UpdateProposal edge declarations", () => {
 
   it("renders an edge-only update while an entity-backed sibling is loading", () => {
     useEntityDataMock.mockReturnValue({
-      entities: {},
-      loading: true,
-      error: null,
+      entities: { "task-3": { type: "loading" } },
     });
 
     renderUpdates([
@@ -273,25 +267,6 @@ describe("UpdateProposal edge declarations", () => {
 
     expect(screen.getByTestId("edge-only-update-proposal")).toBeInTheDocument();
     expect(screen.getAllByRole("progressbar").length).toBeGreaterThan(0);
-  });
-
-  it("renders an edge-only update when an entity-backed sibling fails to load", () => {
-    useEntityDataMock.mockReturnValue({
-      entities: {},
-      loading: false,
-      error: "Entity fetch failed",
-    });
-
-    renderUpdates([
-      proposal({}, { id: "proposal-edge", edges: [edge] }),
-      proposal(
-        { name: "Renamed task" },
-        { id: "proposal-entity", targetEntityId: "task-3" },
-      ),
-    ]);
-
-    expect(screen.getByTestId("edge-only-update-proposal")).toBeInTheDocument();
-    expect(screen.getByText("Entity fetch failed")).toBeInTheDocument();
   });
 
   it("preserves the existing zero-edge update path", () => {

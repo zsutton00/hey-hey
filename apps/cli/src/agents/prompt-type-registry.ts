@@ -1,3 +1,4 @@
+import { repositoryOutlineRefinementHandler } from './repository-outline-refinement.handler';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { localOnboardingHandler } from './local-onboarding/local-onboarding.handler';
 import { agentSearchHandler } from './agent-search/agent-search.handler';
@@ -187,6 +188,7 @@ const createHandlerBuilders = (
   staticHandler(LocalPromptType.RepositoryGrounding, repositoryAnalysisHandler),
   staticHandler(LocalPromptType.RepositoryFeatureEnrichment, repositoryFeatureEnrichmentHandler),
   staticHandler(LocalPromptType.RepositoryFirstWork, repositoryFirstWorkHandler),
+  staticHandler(LocalPromptType.RepositoryOutlineRefinement, repositoryOutlineRefinementHandler),
   staticHandler(LocalPromptType.RepositoryPlacement, repositoryPlacementHandler),
   staticHandler(LocalPromptType.HtmlCssMockupRevision, htmlCssMockupRevisionHandler),
   {

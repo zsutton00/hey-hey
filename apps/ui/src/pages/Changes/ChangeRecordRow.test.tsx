@@ -215,6 +215,87 @@ describe("change record places", () => {
     ).toHaveLength(2);
   });
 
+  it.each([
+    {
+      filtered: "one branch",
+      placeKey: "key-a",
+      places: [
+        { kind: "MAIN_FOLDER", branch: "branch-a" },
+        { kind: "MAIN_FOLDER", branch: "branch-b" },
+      ],
+      expectedHeading: "⎇ branch-a · changes.groupRecordCount",
+      expectedChips: ["⎇ branch-a", "⎇ branch-b"],
+    },
+    {
+      filtered: "not recorded",
+      placeKey: "NOT_RECORDED",
+      places: [undefined],
+      expectedHeading:
+        "changes.placeGroupNotRecorded · changes.groupRecordCount",
+      expectedChips: [],
+    },
+  ])(
+    "groups a record only under the matched place when filtered to $filtered",
+    ({ placeKey, places, expectedHeading, expectedChips }) => {
+      placesHook.mockReturnValue({
+        places: [
+          { key: "key-a", kind: "MAIN_FOLDER", branch: "branch-a" },
+          { key: "key-b", kind: "MAIN_FOLDER", branch: "branch-b" },
+          { key: "NOT_RECORDED", notRecorded: true },
+        ],
+      });
+      changes.mockReturnValue({
+        page: {
+          records: [{ ...withPlaces(...places), matchedPlaceKeys: [placeKey] }],
+          hasMore: false,
+        },
+        isLoading: false,
+      });
+      render(
+        <NuqsTestingAdapter
+          searchParams={`?groupBy=place&placeKey=${placeKey}`}
+        >
+          <MemoryRouter>
+            <ChangesView organizationId="org" projectId="project" />
+          </MemoryRouter>
+        </NuqsTestingAdapter>,
+      );
+      expect(
+        screen.getAllByTestId("change-group-heading").map((h) => h.textContent),
+      ).toEqual([expectedHeading]);
+      expect(
+        screen.queryAllByTestId("change-place").map((c) => c.textContent),
+      ).toEqual(expectedChips);
+    },
+  );
+
+  it("lists filtered records without a heading until the matched place is known", () => {
+    placesHook.mockReturnValue({ places: [] });
+    changes.mockReturnValue({
+      page: {
+        records: [
+          {
+            ...withPlaces({ kind: "MAIN_FOLDER", branch: "branch-a" }),
+            matchedPlaceKeys: ["key-a"],
+          },
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+    });
+    render(
+      <NuqsTestingAdapter searchParams="?groupBy=place&placeKey=key-a">
+        <MemoryRouter>
+          <ChangesView organizationId="org" projectId="project" />
+        </MemoryRouter>
+      </NuqsTestingAdapter>,
+    );
+    expect(
+      screen.queryByTestId("change-group-heading"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("change-record")).toBeInTheDocument();
+  });
+
   it("sends the chosen place to the list query", () => {
     changes.mockReturnValue({
       page: { records: [], hasMore: false },

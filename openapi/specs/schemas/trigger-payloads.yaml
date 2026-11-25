@@ -2092,6 +2092,9 @@ RepositoryFirstWorkPromptPayload:
     Complete-state first-work request carried by the EXTERNAL_AGENT trigger
     rail after imported Features are materialized.
 
+RepositoryOutlineRefinementPromptPayload:
+  $ref: "./repository-grounding.yaml#/RepositoryOutlineRefinementRequest"
+
 RepositoryPlacementPromptPayload:
   $ref: "./repository-grounding.yaml#/RepositoryPlacementRequest"
   description: >-

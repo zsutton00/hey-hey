@@ -70,6 +70,7 @@ export const LocalPromptType = {
     RepositoryGrounding: 'repository_grounding',
     RepositoryFeatureEnrichment: 'repository_feature_enrichment',
     RepositoryFirstWork: 'repository_first_work',
+    RepositoryOutlineRefinement: 'repository_outline_refinement',
     RepositoryPlacement: 'repository_placement',
     SessionMonitor: 'session_monitor',
     TaskMonitor: 'task_monitor',
@@ -125,6 +126,7 @@ export const LocalPromptType = {
     "repository_grounding": "repository_grounding",
     "repository_feature_enrichment": "repository_feature_enrichment",
     "repository_first_work": "repository_first_work",
+    "repository_outline_refinement": "repository_outline_refinement",
     "repository_placement": "repository_placement",
     "session_monitor": "session_monitor",
     "task_monitor": "task_monitor",
@@ -181,6 +183,7 @@ Object.defineProperty(LocalPromptType, "work_tracker_import", { enumerable: fals
 Object.defineProperty(LocalPromptType, "repository_grounding", { enumerable: false, value: LocalPromptType["RepositoryGrounding"] });
 Object.defineProperty(LocalPromptType, "repository_feature_enrichment", { enumerable: false, value: LocalPromptType["RepositoryFeatureEnrichment"] });
 Object.defineProperty(LocalPromptType, "repository_first_work", { enumerable: false, value: LocalPromptType["RepositoryFirstWork"] });
+Object.defineProperty(LocalPromptType, "repository_outline_refinement", { enumerable: false, value: LocalPromptType["RepositoryOutlineRefinement"] });
 Object.defineProperty(LocalPromptType, "repository_placement", { enumerable: false, value: LocalPromptType["RepositoryPlacement"] });
 Object.defineProperty(LocalPromptType, "session_monitor", { enumerable: false, value: LocalPromptType["SessionMonitor"] });
 Object.defineProperty(LocalPromptType, "task_monitor", { enumerable: false, value: LocalPromptType["TaskMonitor"] });
