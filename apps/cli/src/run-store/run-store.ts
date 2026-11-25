@@ -21,6 +21,7 @@ import type {
   PreviousProviderSession,
   PermissionRequestPresentation,
   ServiceScopeRequestPresentation,
+  WorktreeAttachRequestPresentation,
   ServiceScopeContinuation,
   ReviewFileScopeRequestPresentation,
   ProviderSessionHistoryEntry,
@@ -59,6 +60,7 @@ import type {
   ResolvedServiceBinding,
 } from '../shared/agent-bridge-contract/contract';
 import {
+  AgentProviderId,
   AgentSessionServicePlaceKind,
   type ImplementationReadinessDisposition,
   type ReportedAgentSessionServicePlace,
@@ -296,6 +298,72 @@ const readCapturedServicePlaces = (
   return places;
 };
 
+const worktreeAttachRequestPresentationSchema = z.object({
+  messageId: z.string().min(1),
+  request: z.object({
+    id: z.string().min(1),
+    runId: z.string().nullable(),
+    sessionId: z.string().min(1),
+    agentId: z.string().min(1),
+    agentType: z.enum(AgentProviderId),
+    timestamp: z.string().min(1),
+    idempotencyToken: z.string().min(1),
+    serviceId: z.string().min(1),
+    currentPlace: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal(AgentSessionServicePlaceKind.MainFolder),
+        branch: z.string().nullable(),
+      }),
+      z.object({
+        kind: z.literal(AgentSessionServicePlaceKind.Worktree),
+        branch: z.string().min(1),
+        worktreePath: z.string().min(1),
+      }),
+    ]),
+    branch: z.string().min(1),
+    worktreePath: z.string().min(1),
+    reason: z.string().min(1),
+    planBranch: z.string().nullable(),
+  }),
+}) satisfies z.ZodType<WorktreeAttachRequestPresentation>;
+
+/**
+ * Reads each pending worktree-attach request on its own: a malformed entry is
+ * logged with its cause and left out, so the rest of the Run still resumes.
+ */
+const readWorktreeAttachRequestPresentations = (
+  runId: unknown,
+  raw: unknown,
+): WorktreeAttachRequestPresentation[] | undefined => {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    console.warn('run.metadata.worktree_attach_requests_invalid', {
+      runId,
+      reason: 'not_an_array',
+      receivedType: raw === null ? 'null' : typeof raw,
+    });
+    return [];
+  }
+
+  return raw.flatMap((entry: unknown, index) => {
+    const parsed = worktreeAttachRequestPresentationSchema.safeParse(entry);
+    if (parsed.success) {
+      return [parsed.data];
+    }
+    console.warn('run.metadata.worktree_attach_request_invalid', {
+      runId,
+      index,
+      issues: parsed.error.issues.map((issue) => ({
+        code: issue.code,
+        path: issue.path.join('.'),
+      })),
+    });
+    return [];
+  });
+};
+
 const parseRunMetadata = (text: string): AgenticSession => {
   const parsed = JSON.parse(text) as Record<string, unknown>;
   if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
@@ -344,9 +412,14 @@ const parseRunMetadata = (text: string): AgenticSession => {
     parsed['agentic_session_id'],
     parsed['capturedServicePlaces'],
   );
+  const worktreeAttachRequestPresentations = readWorktreeAttachRequestPresentations(
+    parsed['agentic_session_id'],
+    parsed['worktreeAttachRequestPresentations'],
+  );
   return {
     ...coerced,
     ...(capturedServicePlaces ? { capturedServicePlaces } : {}),
+    ...(worktreeAttachRequestPresentations ? { worktreeAttachRequestPresentations } : {}),
     entity: parsedEntity.data,
     provider_session_agent_id:
       typeof coerced['provider_session_agent_id'] === 'string'
@@ -1815,6 +1888,20 @@ export class RunStore {
       const run = await readRunMetadata(this.runFamilies, runId);
       if (!run) throw new SessionValidationError(`Unknown agentic session: ${runId}`);
       run.serviceScopeRequestPresentations = [...presentations];
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
+  public updateRunWorktreeAttachRequestPresentations(
+    runId: string,
+    presentations: readonly WorktreeAttachRequestPresentation[],
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      run.worktreeAttachRequestPresentations = [...presentations];
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;

@@ -177,6 +177,7 @@ describe('implementHandler', () => {
     expect(implementHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'report_changed_files',
       'request_agent_session_service_scope',
+      'request_agent_session_worktree_attach',
     ]);
   });
 
@@ -414,8 +415,8 @@ describe('implementHandler', () => {
       const result = await implementHandler.prepare!(run, {}, makeDeps(fetchImpl));
       const prompt = implementHandler.buildPrompt(result.payload);
 
-      expect(prompt).toContain('Launch service `svc-2` at `/worktrees/service-b`');
-      expect(prompt).toContain('`svc-1` at `/worktrees/service-a`');
+      expect(prompt).toContain('Launch service `svc-2`: worktree `/worktrees/service-b`');
+      expect(prompt).toContain('`svc-1`: worktree `/worktrees/service-a`');
       expect(prompt).not.toContain('/host/service-a');
       expect(prompt).not.toContain('/host/service-b');
     });

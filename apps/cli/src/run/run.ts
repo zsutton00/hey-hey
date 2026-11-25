@@ -212,6 +212,7 @@ import {
   type CodexShellObservationIdentity,
 } from './codex-shell-change-observer';
 import { AgentSessionServiceScopeCoordinator } from '../agents/service-scope-request/service-scope-coordinator';
+import { WorktreeAttachCoordinator } from '../agents/worktree-attach-request/worktree-attach-coordinator';
 import {
   RunServiceScope,
   type HeldAdmission,
@@ -753,6 +754,7 @@ export class Run {
   >();
   readonly serviceScope: RunServiceScope;
   readonly serviceScopeCoordinator: AgentSessionServiceScopeCoordinator;
+  readonly worktreeAttachCoordinator: WorktreeAttachCoordinator;
   private readonly servicePlaceReporter: ServicePlaceReporter;
   private readonly reviewFileScopeCoordinator: ReviewFileScopeCoordinator;
   private activeTurnInput: InternalRunPromptRequest | null = null;
@@ -1200,6 +1202,19 @@ export class Run {
       applyApprovedServiceScope: (input) => this.applyApprovedServiceScope(input),
       recordResolvedServiceWorktree: (serviceId, worktree) =>
         this.recordResolvedServiceWorktree(serviceId, worktree),
+    });
+    this.worktreeAttachCoordinator = new WorktreeAttachCoordinator({
+      repoStore: this.repoStore,
+      poster: this.poster,
+      logger: this.logger,
+      serviceScope: this.serviceScope,
+      runId: this.runId,
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      conversationId: this.conversationId,
+      provider: () => this.provider,
+      session: () => this.session,
+      currentAgentId: () => this.currentAgentId(),
     });
     this.servicePlaceReporter = new ServicePlaceReporter({
       runId: this.runId,
@@ -1797,6 +1812,7 @@ export class Run {
         reconciledScope.services,
         reconciledScope.launchServiceId,
         this.session.worktreeState,
+        this.session.mainFolderBranches,
       ),
       workspaceBoundaryChanged: reconciledScope.workspaceBoundaryChanged,
     };
@@ -3061,7 +3077,10 @@ export class Run {
   }
 
   private hasPendingScopeReview(): boolean {
-    return this.serviceScope.hasPendingServiceScopeRequest();
+    return (
+      this.serviceScope.hasPendingServiceScopeRequest() ||
+      this.serviceScope.hasPendingWorktreeAttachRequest()
+    );
   }
 
   public submitReviewFileScopeDecision(

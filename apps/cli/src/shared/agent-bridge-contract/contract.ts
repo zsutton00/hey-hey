@@ -143,6 +143,8 @@ export type Prepared<T> = T & {
   services?: ResolvedServiceBinding[];
   launchServiceId?: string;
   worktreeState?: LocalWorktreeStateByService;
+  /** The Run's read of each main-folder Service's branch; null means detached. */
+  mainFolderBranches?: Readonly<Record<string, string | null>>;
   priorAssistantMessage?: string;
   taskId?: string;
 };

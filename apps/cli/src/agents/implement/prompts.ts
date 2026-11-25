@@ -1,3 +1,4 @@
+import type { AgenticSession } from '../../session/types';
 import { implementationResponsibility } from '../prompts/knowledge-responsibilities';
 import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
 /**
@@ -21,7 +22,11 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../../shared/agent-bridge-contract/contract';
-import { buildServicesContextBlock, codingServiceScopeGuidance } from '../prompts/common';
+import {
+  buildServicesContextBlock,
+  codingServiceScopeGuidance,
+  codingWorktreeAttachGuidance,
+} from '../prompts/common';
 import { decisionNeededPromptBlock } from '../prompts/decision-needed';
 
 export interface ImplementPromptInput {
@@ -33,6 +38,7 @@ export interface ImplementPromptInput {
   launchServiceId?: string | null;
   /** Authoritative resolved worktrees keyed by Service id. */
   worktreeState?: LocalWorktreeStateByService | null;
+  mainFolderBranches?: AgenticSession['mainFolderBranches'] | null;
   /** Parent coding-session id (i.e. `contextMetadata.agentSessionId`). */
   codingSessionId?: string | null;
   /** The Run's agentic session id. */
@@ -56,6 +62,7 @@ export type EnrichedImplementPromptPayload = LocalImplementPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
   _codingSessionId?: string;
   _agenticSessionId?: string;
 };
@@ -121,6 +128,7 @@ const appendServicesContext = (prompt: string, input: ImplementPromptInput): str
     services: input.services ?? [],
     launchServiceId: input.launchServiceId ?? null,
     worktreeState: input.worktreeState ?? null,
+    mainFolderBranches: input.mainFolderBranches ?? undefined,
   });
   return block ? `${prompt}\n\n${block}` : prompt;
 };
@@ -130,5 +138,5 @@ export const buildImplementPrompt = (input: ImplementPromptInput = {}): string =
   prompt = appendApprovedPlan(prompt, input.approvedPlan);
   prompt = appendServicesContext(prompt, input);
   prompt = appendSessionContext(prompt, input);
-  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${buildCompletionReconciliationPromptFor({ startedPromptTypes: input.startedPromptTypes ?? new Set(), focalTask: true })}\n`;
+  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${codingWorktreeAttachGuidance}\n\n${buildCompletionReconciliationPromptFor({ startedPromptTypes: input.startedPromptTypes ?? new Set(), focalTask: true })}\n`;
 };

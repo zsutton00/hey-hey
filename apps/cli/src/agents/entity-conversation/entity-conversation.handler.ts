@@ -1,5 +1,6 @@
 import { reportChangedFilesTool } from '../submission-tools/report-changed-files-tool';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
+import { requestAgentSessionWorktreeAttachTool } from '../worktree-attach-request/worktree-attach-tool';
 import {
   completionResponseHooks,
   changedFileReportingDuty,
@@ -293,6 +294,7 @@ export class EntityConversationHandler implements UserLaunchablePromptTypeHandle
     this.submissionTools = [
       reportChangedFilesTool,
       requestAgentSessionServiceScopeTool,
+      requestAgentSessionWorktreeAttachTool,
       new SubmitSessionNameTool({
         auth: dependencies.auth,
         apiBaseUrl: dependencies.apiBaseUrl,

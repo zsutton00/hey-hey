@@ -91,6 +91,7 @@ export class ServicePlaceReporter {
    */
   public async report(workspace: ResolvedRunWorkspace): Promise<void> {
     const reserved = this.reserveUnreportedServices();
+    await this.readMainFolderBranches(workspace);
     const places = await this.capturePlaces(reserved, workspace);
     if (places.length === 0) {
       return;
@@ -108,6 +109,40 @@ export class ServicePlaceReporter {
   /** Resolves once every started delivery has finished. */
   public async whenIdle(): Promise<void> {
     await Promise.all([...this.deliveries]);
+  }
+
+  /**
+   * Keeps the branch of each Service working in its main folder on the Run, read
+   * once, so prompts and worktree-attach requests name it without asking git
+   * again. A failed read is logged and retried at the next resolution.
+   */
+  private async readMainFolderBranches(workspace: ResolvedRunWorkspace): Promise<void> {
+    const { logger, runId } = this.options;
+
+    for (const { id: serviceId } of this.options.session().services) {
+      const repositoryPath = workspace.servicePaths?.[serviceId];
+      const alreadyRead = this.options.session().mainFolderBranches?.[serviceId] !== undefined;
+      if (workspace.worktree?.[serviceId] || !repositoryPath || alreadyRead) {
+        continue;
+      }
+
+      try {
+        const branch = await readCheckedOutBranch(repositoryPath);
+        this.options.patchSession({
+          mainFolderBranches: {
+            ...this.options.session().mainFolderBranches,
+            [serviceId]: branch,
+          },
+        });
+        logger.debug('local.run.active_places.main_folder_branch_read', {
+          runId,
+          serviceId,
+          branch,
+        });
+      } catch (error) {
+        logger.warn('local.run.active_places.branch_read_failed', { runId, serviceId, error });
+      }
+    }
   }
 
   private reserveUnreportedServices(): AgenticSession['services'] {
@@ -233,7 +268,8 @@ export class ServicePlaceReporter {
         return null;
       }
 
-      const branch = await readCheckedOutBranch(repositoryPath);
+      const known = this.options.session().mainFolderBranches?.[serviceId];
+      const branch = known !== undefined ? known : await readCheckedOutBranch(repositoryPath);
       const place = {
         serviceId,
         kind: AgentSessionServicePlaceKind.MainFolder,

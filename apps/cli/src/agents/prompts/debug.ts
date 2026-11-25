@@ -2,6 +2,7 @@ import type { LocalDebugPromptPayload } from '../../shared/agent-bridge-contract
 import {
   buildServicesContextBlock,
   codingServiceScopeGuidance,
+  codingWorktreeAttachGuidance,
   focalContextOrientation,
   type ServicesContextInput,
 } from './common';
@@ -75,6 +76,7 @@ A fix is not confirmed until you have observed the original symptom stop. Do not
 
   sections.push(focalContextOrientation);
   sections.push(codingServiceScopeGuidance);
+  sections.push(codingWorktreeAttachGuidance);
 
   return sections.join('\n\n');
 };

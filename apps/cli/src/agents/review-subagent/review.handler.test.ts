@@ -159,9 +159,9 @@ describe('reviewHandler', () => {
     const prompt = reviewHandler.buildPrompt(prepared.payload);
 
     expect(prompt).toContain(
-      '- Launch service `service-a` at `/worktrees/service-a` — this is the launch Service workspace and working directory for the session.',
+      '- Launch service `service-a`: worktree `/worktrees/service-a` on branch',
     );
-    expect(prompt).toContain('- `service-b` at `/worktrees/service-b`');
+    expect(prompt).toContain('- `service-b`: worktree `/worktrees/service-b`');
     expect(prompt).toContain(
       'Do not use a host checkout as a fallback location for edits or other mutations',
     );

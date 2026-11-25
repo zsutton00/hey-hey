@@ -4,7 +4,7 @@ import path from 'node:path';
 import { vi } from 'vitest';
 import { RepoMappingStore, toRepositoryPath, toServiceId } from '../../repo/index';
 import { RunStore } from '../../run-store/run-store';
-import { createTestRun } from '../../run/run.test-support';
+import { createTestRun, createTestSession } from '../../run/run.test-support';
 import type { Run } from '../../run/run';
 import type { AgenticSession, AgenticSessionEvent } from '../../session/index';
 
@@ -65,6 +65,37 @@ export const createProviderTestRepoMappingStore = (
 export const createProviderTestAgentOutputOwner = (onAgentOutput: Run['onAgentOutput']): Run => {
   const run = createTestRun();
   vi.spyOn(run, 'onAgentOutput').mockImplementation(onAgentOutput);
+  return run;
+};
+
+/** A Run restored while a worktree-attach request owns its approval pause. */
+export const createWorktreeAttachWaitingTestOwner = (): Run => {
+  const run = createTestRun({
+    session: {
+      ...createTestSession(),
+      worktreeAttachRequestPresentations: [
+        {
+          messageId: 'attach-card-1',
+          request: {
+            id: 'attach-request-1',
+            runId: 'test-run-id',
+            sessionId: 'test-run-id',
+            agentId: 'coding_freeform',
+            agentType: 'claude',
+            timestamp: '2026-11-20T00:00:00.000Z',
+            idempotencyToken: 'attach-token-1',
+            serviceId: 'service-1',
+            currentPlace: { kind: 'MAIN_FOLDER', branch: 'main' },
+            branch: 'feature/changes',
+            worktreePath: '/worktrees/changes',
+            reason: 'The work is on that branch.',
+            planBranch: null,
+          },
+        },
+      ],
+    },
+  });
+  vi.spyOn(run, 'onAgentOutput').mockImplementation(vi.fn());
   return run;
 };
 

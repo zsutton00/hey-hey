@@ -25,13 +25,13 @@ Return a short handoff for your slice that the parent can merge directly: the en
 
 ## Services in scope
 
-- Launch service \`fd9d0961-d3e9-4796-83ee-7720025c3dbe\` at \`/workspace/cli\` — this is the working directory for the session.
+- Launch service \`fd9d0961-d3e9-4796-83ee-7720025c3dbe\`: main folder \`/workspace/cli\` — this is the working directory for the session.
 
 ## Repository edit authority
 
 You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.
+Change each Service in the active session scope only in the place listed for it. Never use another checkout, including a host or main checkout that is not its listed place, as a fallback location for edits or other mutations, and never infer a worktree path and edit there. For a Service that isn't in the session, use the Service access request before changing it. For a Service in the session whose work is in a different worktree, ask to attach that worktree.
 
 Only one service is in scope here, but real projects contain others. Treat any change to a public API, schema, or shared contract as potentially crossing a service boundary — search consumers before assuming the change is internal.
 

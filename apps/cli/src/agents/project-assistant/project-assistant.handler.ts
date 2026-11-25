@@ -41,6 +41,7 @@ type EnrichedPayload = ProjectAssistantPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
 };
 
 export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssistantPromptPayload> {
@@ -180,6 +181,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
       ...(run.services && run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
     };
 
     return { payload: enriched };
@@ -201,6 +203,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
         services: enriched._services,
         launchServiceId: enriched._launchServiceId,
         worktreeState: enriched._worktreeState,
+        mainFolderBranches: enriched._mainFolderBranches,
       },
       {
         handoffTo: enriched.projectAssistantHandoff.consumerHandlerId,

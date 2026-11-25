@@ -16,6 +16,7 @@ import type {
 import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import type {
   AgentSessionServiceScopeRequest,
+  AgentSessionWorktreeAttachRequest,
   ReportedAgentSessionServicePlace,
   ServicePlaceChoice,
 } from '@hey-hey/contracts/api/models';
@@ -89,6 +90,11 @@ export interface PermissionRequestPresentation {
 
 export interface ServiceScopeRequestPresentation {
   request: AgentSessionServiceScopeRequest;
+  messageId: string;
+}
+
+export interface WorktreeAttachRequestPresentation {
+  request: AgentSessionWorktreeAttachRequest;
   messageId: string;
 }
 
@@ -191,6 +197,11 @@ interface AgenticSessionBase {
   /** Where each Service was chosen to work at launch. Absent means every Service follows `worktree`. */
   servicePlaceChoices?: ServicePlaceChoice[];
   worktreeState?: LocalWorktreeStateByService;
+  /**
+   * The branch each main-folder Service had checked out when this process first
+   * resolved its folder; null means detached. Read again after a restart.
+   */
+  mainFolderBranches?: Readonly<Record<string, string | null>>;
   /** Service ids whose place the server already holds a record for. */
   reportedServicePlaceServiceIds?: string[];
   /**
@@ -245,6 +256,8 @@ interface AgenticSessionBase {
   permissionRequestPresentations?: PermissionRequestPresentation[];
   /** Service-scope review requests that remain actionable after a restart. */
   serviceScopeRequestPresentations?: ServiceScopeRequestPresentation[];
+  /** Worktree-attach review requests that remain actionable after a restart. */
+  worktreeAttachRequestPresentations?: WorktreeAttachRequestPresentation[];
   /** Legacy prompt-only continuation retained for persisted Run compatibility. */
   serviceScopeContinuationInput?: InternalRunPromptRequest | undefined;
   /** Durable interrupted-Turn recovery owned by the Run. */

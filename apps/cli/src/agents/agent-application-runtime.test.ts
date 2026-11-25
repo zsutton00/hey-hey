@@ -73,6 +73,7 @@ describe('AgentApplicationRuntime', () => {
     ).toEqual([
       'report_changed_files',
       'request_agent_session_service_scope',
+      'request_agent_session_worktree_attach',
       'submit_session_name',
       'search_session',
     ]);

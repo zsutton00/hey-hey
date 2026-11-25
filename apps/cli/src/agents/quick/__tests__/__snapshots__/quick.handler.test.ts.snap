@@ -7,16 +7,16 @@ The user's kickoff prompt takes precedence. Treat the canonical focal entity pro
 
 ## Services in scope
 
-- Launch service \`service-b\` at \`/worktrees/service-b\` — this is the launch Service workspace and working directory for the session.
-- \`service-a\` at \`/worktrees/service-a\`
+- Launch service \`service-b\`: worktree \`/worktrees/service-b\` on branch \`feature/task-only\` — this is the launch Service workspace and working directory for the session.
+- \`service-a\`: worktree \`/worktrees/service-a\` on branch \`feature/task-only\`
 
 ## Repository edit authority
 
 You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.
+Change each Service in the active session scope only in the place listed for it. Never use another checkout, including a host or main checkout that is not its listed place, as a fallback location for edits or other mutations, and never infer a worktree path and edit there. For a Service that isn't in the session, use the Service access request before changing it. For a Service in the session whose work is in a different worktree, ask to attach that worktree.
 
-This is a worktree-backed session. For each selected Service, use its corresponding listed worktree for inspection and changes. Do not use a host checkout as a fallback location for edits or other mutations. Read-only inspection of a project Service outside the selected scope is allowed and does not expand writable roots. Any newly authorized Service must have its explicit corresponding worktree listed before changes begin.
+This is a worktree-backed session. For each Service listed with a worktree, do its work in that listed worktree; a worktree attached after approval counts as a listed worktree. Do not use a host checkout as a fallback location for edits or other mutations. Reading other worktrees, and read-only inspection of a project Service outside the selected scope, is allowed and does not expand writable roots. Any newly authorized Service must have its place listed before changes begin.
 
 Multiple services are in scope: integration surfaces — APIs, schemas, events, shared types, on-disk contracts — are first-class. A change to one service is not safe in isolation; trace consumers in the other in-scope repos before editing, and update both sides of every shared contract in the same change.
 

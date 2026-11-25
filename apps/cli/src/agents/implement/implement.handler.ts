@@ -40,6 +40,7 @@ import { parseStartupSessionPlanResponse } from '../response-schemas';
 import { buildImplementPrompt, type EnrichedImplementPromptPayload } from './prompts';
 import { taskIdFromHandlerContext, taskIdFromSession } from '../run-entity';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
+import { requestAgentSessionWorktreeAttachTool } from '../worktree-attach-request/worktree-attach-tool';
 
 /**
  * Pull the most recent approved-plan body out of the conversation log.
@@ -165,6 +166,7 @@ export const withPreparedImplementSessionScope = (
   services: ResolvedServiceBinding[],
   launchServiceId: string,
   worktreeState?: LocalWorktreeStateByService,
+  mainFolderBranches?: AgenticSession['mainFolderBranches'],
 ): unknown => {
   if (!isRecord(payload)) return payload;
   return {
@@ -172,6 +174,7 @@ export const withPreparedImplementSessionScope = (
     _services: services,
     _launchServiceId: launchServiceId,
     ...(worktreeState ? { _worktreeState: worktreeState } : {}),
+    ...(mainFolderBranches ? { _mainFolderBranches: mainFolderBranches } : {}),
   };
 };
 
@@ -233,7 +236,11 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
     { reportType: ReportType.Implement, audience: ReportAudience.ProjectVisible, required: true },
   ],
   mcpToolUseCase: 'coding',
-  submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
+  submissionTools: [
+    reportChangedFilesTool,
+    requestAgentSessionServiceScopeTool,
+    requestAgentSessionWorktreeAttachTool,
+  ],
 
   resolveRuntime(payload) {
     return payload.runtime;
@@ -293,6 +300,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
       ...(services.length > 0 ? { _services: services } : {}),
       ...(launchServiceId ? { _launchServiceId: launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
       ...(codingSessionId ? { _codingSessionId: codingSessionId } : {}),
       _agenticSessionId: agenticSessionId,
     };
@@ -307,6 +315,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
       services: enriched._services ?? null,
       launchServiceId: enriched._launchServiceId ?? null,
       worktreeState: enriched._worktreeState ?? null,
+      mainFolderBranches: enriched._mainFolderBranches ?? null,
       codingSessionId: enriched._codingSessionId ?? null,
       agenticSessionId: enriched._agenticSessionId ?? null,
       taskId: taskIdFromHandlerContext(context),

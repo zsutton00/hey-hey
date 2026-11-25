@@ -4,12 +4,16 @@ import type {
   AgenticSession,
   ServiceScopeContinuation,
   ServiceScopeRequestPresentation,
+  WorktreeAttachRequestPresentation,
 } from '../session/types';
 import type {
   InternalRunPromptRequest,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
-import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
+import type {
+  AgentSessionServiceScopeRequest,
+  AgentSessionWorktreeAttachRequest,
+} from '@hey-hey/contracts/api/models';
 import type { SystemMessageData } from '../shared/api/index';
 import type { SystemMessageDataNoticeSeverityEnum as NoticeSeverity } from '../shared/api/index';
 import type { Turn } from '../turn/turn';
@@ -36,8 +40,14 @@ export interface ServiceScopeRequestEntry {
   data: SystemMessageData | null;
 }
 
+export interface WorktreeAttachRequestEntry {
+  request: AgentSessionWorktreeAttachRequest;
+  messageId: string;
+  data: SystemMessageData | null;
+}
+
 type ApprovalWait = {
-  kind: 'service_scope';
+  kind: 'service_scope' | 'worktree_attach';
   requestId: string;
 };
 
@@ -70,12 +80,14 @@ export interface RunServiceScopeDeps {
 }
 
 /**
- * Service-scope request records, the approval pause they own, and the
- * interrupted work that resumes once the user approves.
+ * Service-scope and worktree-attach request records, the one approval pause they
+ * share, and the interrupted work that resumes once the user approves.
  */
 export class RunServiceScope {
   private readonly requests = new Map<string, ServiceScopeRequestEntry>();
   private readonly settledRequestIds = new Set<string>();
+  private readonly attachRequests = new Map<string, WorktreeAttachRequestEntry>();
+  private readonly settledAttachRequestIds = new Set<string>();
   /**
    * Requests restored from disk. The in-memory monitor marker did not survive the restart, so their
    * owner is read from the Task Monitor machine instead of assumed.
@@ -110,14 +122,18 @@ export class RunServiceScope {
       });
       this.restoredRequestIds.add(presentation.request.id);
     }
-    const persistedRequest = persistedPresentations[0]?.request;
-    if (persistedRequest) {
-      this.beginApprovalWait({ kind: 'service_scope', requestId: persistedRequest.id });
-      deps.logger.info('local.run.service_scope.approval_wait.rehydrated', {
-        runId: deps.runId,
-        requestId: persistedRequest.id,
+    const persistedAttachPresentations = session.worktreeAttachRequestPresentations ?? [];
+    for (const presentation of persistedAttachPresentations) {
+      this.attachRequests.set(presentation.request.id, {
+        request: presentation.request,
+        messageId: presentation.messageId,
+        data: null,
       });
     }
+    this.restoreApprovalWait(
+      persistedPresentations[0]?.request,
+      persistedAttachPresentations[0]?.request,
+    );
     this.continuation =
       session.serviceScopeContinuation ??
       (session.serviceScopeContinuationInput
@@ -135,6 +151,119 @@ export class RunServiceScope {
             capturedAt: session.updatedAt,
           }
         : null);
+  }
+
+  /** One restored request owns the pause; if both kinds were persisted, the earlier one. */
+  private restoreApprovalWait(
+    scopeRequest: AgentSessionServiceScopeRequest | undefined,
+    attachRequest: AgentSessionWorktreeAttachRequest | undefined,
+  ): void {
+    const { logger, runId } = this.deps;
+    const attachIsEarlier =
+      attachRequest !== undefined &&
+      (scopeRequest === undefined || attachRequest.timestamp < scopeRequest.timestamp);
+    const owner = attachIsEarlier ? attachRequest : scopeRequest;
+    if (!owner) {
+      return;
+    }
+
+    const kind = attachIsEarlier ? 'worktree_attach' : 'service_scope';
+    if (scopeRequest && attachRequest) {
+      logger.warn('local.run.approval_wait.rehydration_conflict', {
+        runId,
+        ownerKind: kind,
+        serviceScopeRequestId: scopeRequest.id,
+        worktreeAttachRequestId: attachRequest.id,
+      });
+    }
+
+    this.beginApprovalWait({ kind, requestId: owner.id });
+    logger.info(`local.run.${kind}.approval_wait.rehydrated`, {
+      runId,
+      requestId: owner.id,
+      ...this.attachLogFields(owner.id),
+    });
+  }
+
+  private attachLogFields(requestId: string): { serviceId?: string; branch?: string } {
+    const request = this.attachRequests.get(requestId)?.request;
+    return request ? { serviceId: request.serviceId, branch: request.branch } : {};
+  }
+
+  public findPendingWorktreeAttachRequest(
+    serviceId: string,
+    branch: string,
+    reason: string,
+  ): AgentSessionWorktreeAttachRequest | null {
+    for (const { request } of this.attachRequests.values()) {
+      if (
+        request.serviceId === serviceId &&
+        request.branch === branch &&
+        request.reason === reason
+      ) {
+        return request;
+      }
+    }
+    return null;
+  }
+
+  public getWorktreeAttachRequest(requestId: string): WorktreeAttachRequestEntry | undefined {
+    const entry = this.attachRequests.get(requestId);
+    return entry ? { ...entry } : undefined;
+  }
+
+  public isWorktreeAttachRequestSettled(requestId: string): boolean {
+    return this.settledAttachRequestIds.has(requestId);
+  }
+
+  public hasPendingWorktreeAttachRequest(): boolean {
+    return this.attachRequests.size > 0;
+  }
+
+  public recordWorktreeAttachRequest(
+    request: AgentSessionWorktreeAttachRequest,
+    messageId: string,
+    data: SystemMessageData,
+  ): void {
+    this.settledAttachRequestIds.delete(request.id);
+    this.attachRequests.set(request.id, { request, messageId, data });
+    this.deps.readStateChanged();
+    this.saveAttachPresentations(
+      [...this.otherAttachPresentations(request.id), { request, messageId }],
+      request.id,
+      'local.run.worktree_attach.presentations.persist_failed',
+    );
+  }
+
+  public settleWorktreeAttachRequest(requestId: string): void {
+    this.attachRequests.delete(requestId);
+    this.settledAttachRequestIds.add(requestId);
+    this.deps.readStateChanged();
+    this.saveAttachPresentations(
+      this.otherAttachPresentations(requestId),
+      requestId,
+      'local.run.worktree_attach.presentations.settle_failed',
+    );
+    this.deps.requestSettled();
+  }
+
+  private otherAttachPresentations(requestId: string): WorktreeAttachRequestPresentation[] {
+    return (this.deps.session().worktreeAttachRequestPresentations ?? []).filter(
+      (presentation) => presentation.request.id !== requestId,
+    );
+  }
+
+  private saveAttachPresentations(
+    presentations: WorktreeAttachRequestPresentation[],
+    requestId: string,
+    failureEvent: string,
+  ): void {
+    this.deps.patchSession({ worktreeAttachRequestPresentations: presentations });
+    void this.deps.runStore
+      .updateRunWorktreeAttachRequestPresentations(this.deps.runId, presentations)
+      .catch((error: unknown) =>
+        this.deps.logger.error(failureEvent, { runId: this.deps.runId, requestId, error }),
+      );
   }
 
   public findPendingServiceScopeRequest(
@@ -181,14 +310,18 @@ export class RunServiceScope {
   }
 
   /**
-   * True only while the exact pending Service-scope request owns the Run's
-   * approval pause. Provider runners use this to distinguish the deliberate
-   * abort that enters approval from a user cancellation or provider failure.
+   * True only while the exact pending Service-scope or worktree-attach request
+   * owns the Run's approval pause. Provider runners use this to distinguish the
+   * deliberate abort that enters approval from a user cancellation or provider
+   * failure.
    */
   public isServiceScopeApprovalPauseActive(): boolean {
-    return (
-      this.approvalWait?.kind === 'service_scope' && this.requests.has(this.approvalWait.requestId)
-    );
+    const wait = this.approvalWait;
+    if (!wait) {
+      return false;
+    }
+    const pending = wait.kind === 'service_scope' ? this.requests : this.attachRequests;
+    return pending.has(wait.requestId);
   }
 
   /**
@@ -259,10 +392,23 @@ export class RunServiceScope {
     this.deps.requestSettled();
   }
 
-  public async pauseForServiceScopeRequest(
+  public pauseForServiceScopeRequest(
     requestId: string,
     resolution: 'automatic' | 'human' = 'human',
   ): Promise<void> {
+    return this.pauseForApproval({ kind: 'service_scope', requestId }, resolution);
+  }
+
+  /** A worktree attach is always the person's decision. */
+  public pauseForWorktreeAttachRequest(requestId: string): Promise<void> {
+    return this.pauseForApproval({ kind: 'worktree_attach', requestId }, 'human');
+  }
+
+  private async pauseForApproval(
+    wait: ApprovalWait,
+    resolution: 'automatic' | 'human',
+  ): Promise<void> {
+    const { requestId } = wait;
     const activeInput = this.deps.activeInput();
     const activeTurn = this.deps.activeTurn();
     if (!activeInput || !activeTurn) {
@@ -273,7 +419,7 @@ export class RunServiceScope {
           this.deps.abort();
           return;
         }
-        throw new Error('Service-scope pause requires an active Turn continuation.');
+        throw new Error('An approval pause requires an active Turn continuation.');
       }
       await this.deps.runStore.updateRunServiceScopeContinuation(
         this.deps.runId,
@@ -281,7 +427,7 @@ export class RunServiceScope {
       );
       this.deps.patchSession({ serviceScopeContinuation: this.continuation });
       if (resolution === 'human') {
-        this.beginApprovalWait({ kind: 'service_scope', requestId });
+        this.beginApprovalWait(wait);
       } else {
         this.automaticTaskMonitorScopeRequestId = requestId;
         this.automaticTaskMonitorScopeAbortRequestId = requestId;
@@ -299,6 +445,7 @@ export class RunServiceScope {
     this.deps.logger.info('local.run.service_scope.continuation.interrupted_turn_captured', {
       runId: this.deps.runId,
       requestId,
+      approvalKind: wait.kind,
       interruptedTurnId: activeTurn.turnId,
     });
     try {
@@ -310,12 +457,14 @@ export class RunServiceScope {
     } catch (error) {
       this.deps.logger.error('local.run.service_scope.continuation.persist_failed', {
         runId: this.deps.runId,
+        requestId,
+        approvalKind: wait.kind,
         error,
       });
       throw error;
     }
     if (resolution === 'human') {
-      this.beginApprovalWait({ kind: 'service_scope', requestId });
+      this.beginApprovalWait(wait);
     } else {
       this.automaticTaskMonitorScopeRequestId = requestId;
       this.automaticTaskMonitorScopeAbortRequestId = requestId;
@@ -393,9 +542,10 @@ export class RunServiceScope {
     }
     this.approvalWait = wait;
     this.deps.observeProviderPhase('awaiting_approval');
-    this.deps.logger.info('local.run.service_scope.approval_wait.started', {
+    this.deps.logger.info(`local.run.${wait.kind}.approval_wait.started`, {
       runId: this.deps.runId,
       requestId: wait.requestId,
+      ...this.attachLogFields(wait.requestId),
     });
   }
 

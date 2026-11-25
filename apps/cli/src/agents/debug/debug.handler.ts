@@ -14,12 +14,14 @@ import {
 } from '../prompt-type-handler';
 import { buildDebugPrompt } from '../prompts/debug';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
+import { requestAgentSessionWorktreeAttachTool } from '../worktree-attach-request/worktree-attach-tool';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 
 type EnrichedDebugPromptPayload = LocalDebugPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
 };
 
 export const debugHandler: UserLaunchablePromptTypeHandler<LocalDebugPromptPayload> = {
@@ -34,7 +36,7 @@ export const debugHandler: UserLaunchablePromptTypeHandler<LocalDebugPromptPaylo
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
-  submissionTools: [requestAgentSessionServiceScopeTool],
+  submissionTools: [requestAgentSessionServiceScopeTool, requestAgentSessionWorktreeAttachTool],
 
   async prepare(
     run: AgenticSession,
@@ -46,6 +48,7 @@ export const debugHandler: UserLaunchablePromptTypeHandler<LocalDebugPromptPaylo
       ...(run.services && run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
     };
     return { payload: enriched };
   },
@@ -56,6 +59,7 @@ export const debugHandler: UserLaunchablePromptTypeHandler<LocalDebugPromptPaylo
       services: enriched._services,
       launchServiceId: enriched._launchServiceId,
       worktreeState: enriched._worktreeState,
+      mainFolderBranches: enriched._mainFolderBranches,
       focalEntityId: ctx?.entity?.entityId,
     });
   },

@@ -40,6 +40,7 @@ import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { PROVIDER_PLATFORM_PROMPT_DELIVERY_MODE } from '../platform-prompt-delivery';
 import {
   createProviderTestAgentOutputOwner,
+  createWorktreeAttachWaitingTestOwner,
   createProviderTestRepoMappingStore,
   createProviderTestRunStore,
 } from '../provider-owner.test-support';
@@ -2979,6 +2980,34 @@ describe('session-runner-codex', () => {
   });
 
   // ----- negative paths: RUN_FAILED / SESSION_NOT_FOUND / mismatch ----------
+
+  it('treats the abort that enters a worktree-attach wait as expected control flow', async () => {
+    const runStore = makeRunStore();
+    const agentOutputOwner = createWorktreeAttachWaitingTestOwner();
+    const controller = agentOutputOwner.createAbortController();
+    sdkStartSessionMock.mockImplementation(async () => {
+      emitSdkEvent('thread/started', { thread: { id: 'codex-thread-1' } });
+      controller.abort();
+      throw new Error('Aborted');
+    });
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore,
+      repoStore: makeRepoStore(),
+      agentOutputOwner,
+    });
+
+    await expect(
+      runner.runPrompt({
+        session: makeSession(),
+        prompt: 'Attach another worktree.',
+        signal: controller.signal,
+      }),
+    ).resolves.toMatchObject({ providerSessionId: 'codex-thread-1', errorCount: 0 });
+
+    expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
+  });
 
   it('treats an automatically settled Service-scope abort as expected control flow', async () => {
     const runStore = makeRunStore();

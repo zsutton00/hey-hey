@@ -183,6 +183,7 @@ describe('coding-conversation adapters', () => {
     expect(freeFormHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'report_changed_files',
       'request_agent_session_service_scope',
+      'request_agent_session_worktree_attach',
       'submit_implementation_readiness',
     ]);
 
@@ -198,6 +199,7 @@ describe('coding-conversation adapters', () => {
     expect(codingFreeformHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'report_changed_files',
       'request_agent_session_service_scope',
+      'request_agent_session_worktree_attach',
     ]);
   });
 
@@ -326,8 +328,8 @@ describe('launch preparation', () => {
     );
 
     const prompt = freeFormHandler.buildPrompt(result.payload);
-    expect(prompt).toContain('Launch service `service-b` at `/worktrees/service-b`');
-    expect(prompt).toContain('`service-a` at `/worktrees/service-a`');
+    expect(prompt).toContain('Launch service `service-b`: worktree `/worktrees/service-b`');
+    expect(prompt).toContain('`service-a`: worktree `/worktrees/service-a`');
     expect(prompt).not.toContain('/host/service-a');
     expect(prompt).not.toContain('/host/service-b');
     expect(prompt).toContain(
@@ -445,7 +447,7 @@ describe('follow-up preparation', () => {
     });
 
     expect(codingFreeformHandler.buildPrompt(result.payload)).toContain(
-      'Launch service `svc-42` at `/tmp/worktrees/svc-42`',
+      'Launch service `svc-42`: worktree `/tmp/worktrees/svc-42`',
     );
   });
 
