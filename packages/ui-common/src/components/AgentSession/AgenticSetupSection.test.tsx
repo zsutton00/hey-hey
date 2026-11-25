@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CurrentControllerMachineEligibilityState } from "../../api";
 import type {
   AgentProvider,
@@ -405,6 +405,48 @@ describe("AgenticSetupSection onStarted launch payload", () => {
         [],
       ),
     );
+  });
+});
+
+describe("AgenticSetupSection session methods by deployment", () => {
+  beforeEach(() => {
+    globalThis.mswServer.use(
+      http.get("*/api/local/repos", () =>
+        HttpResponse.json({ machineId: "machine-1", bindings: [] }),
+      ),
+    );
+    useAgentSetupMock.mockReset();
+    useAgentSetupMock.mockReturnValue(
+      buildSetup({
+        selectedProvider: "claude",
+        selectedModel: "claude-opus-4-7",
+        selectedReasoningEffort: "medium",
+      }),
+    );
+    mockEmptyProjectModeCatalog();
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: { key: "STANDARD" },
+      isFetched: true,
+    });
+  });
+
+  afterEach(() => {
+    delete window.__HEY_HEY_RUNTIME_CONFIG__;
+  });
+
+  it.each([
+    ["local", false],
+    ["hosted", true],
+  ])("on a %s installation offers Plan: %s", (deployment, offersPlan) => {
+    window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment };
+
+    renderSection(vi.fn());
+
+    const methods = screen
+      .getByTestId("stub-compatible-methods")
+      .textContent?.split(",");
+    expect(methods).toContain("open");
+    expect(methods?.includes("plan")).toBe(offersPlan);
   });
 });
 
