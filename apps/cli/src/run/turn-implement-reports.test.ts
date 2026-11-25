@@ -31,7 +31,7 @@ const git = (repo: string, ...args: string[]): string =>
 const makeRepo = (files: Record<string, string>): string => {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'turn-implement-')));
   repos.push(repo);
-  git(repo, 'init', '-q');
+  git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'config', 'user.email', 'test@example.com');
   git(repo, 'config', 'user.name', 'Test');
   for (const [file, content] of Object.entries(files)) {
@@ -270,6 +270,7 @@ describe('emitTurnImplementReports', () => {
           afterRanges: [{ startLine: 2, endLine: 2 }],
           approximate: true,
           versionsRecorded: true,
+          place: { kind: 'MAIN_FOLDER', branch: 'main' },
         },
       ]);
       expect(b!.edits?.find((entry) => entry.path === 'src/new.ts')).toMatchObject({

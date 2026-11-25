@@ -392,14 +392,14 @@ describe("ConversationFormRenderer", () => {
       />,
       { timeline: [...carriers, review] },
     );
-    expect(mockCreateFormContext.mock.lastCall?.at(-4)).toEqual({
+    expect(mockCreateFormContext.mock.lastCall?.[14]).toEqual({
       proposals: [
         { proposalId: "one", lifecycle: "DRAFT", targetWorkItemType: null },
         { proposalId: "two", lifecycle: "DRAFT", targetWorkItemType: null },
       ],
     });
     act(() => setLifecycle("one", "applied"));
-    expect(mockCreateFormContext.mock.lastCall?.at(-4)).toEqual({
+    expect(mockCreateFormContext.mock.lastCall?.[14]).toEqual({
       proposals: [
         {
           proposalId: "one",

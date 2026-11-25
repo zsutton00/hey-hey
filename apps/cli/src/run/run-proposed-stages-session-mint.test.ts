@@ -169,11 +169,11 @@ const makeRun = (
       errorCount: 0,
     };
   });
-  const resumeSession = vi.fn<ResumeSessionFn>().mockResolvedValue({
-    providerSessionId: 'sdk-session-resumed',
+  const resumeSession = vi.fn<ResumeSessionFn>().mockImplementation(async (args) => ({
+    providerSessionId: args.providerSessionId ?? args.session.provider_session_id,
     providerConversationId: null,
     errorCount: 0,
-  });
+  }));
 
   const logger = makeLogger();
   const ownership = createTestRunOwnership((promptType) => {
@@ -277,10 +277,13 @@ describe('plan_shaping_proposed_stages mints a fresh provider session on workflo
       triggerMessageId: 'trigger-1',
     });
 
-    // The swap into proposed-stages forced a new mint via the `'fresh'`
-    // declaration; the resumeSession path is never taken.
+    // The missing submission retries on the newly minted session.
     expect(runPrompt).toHaveBeenCalledTimes(2);
-    expect(resumeSession).not.toHaveBeenCalled();
+    expect(resumeSession).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        session: expect.objectContaining({ provider_session_id: 'sdk-session-2' }),
+      }),
+    );
     expect(run.session.provider_session_id).toBe('sdk-session-2');
   });
 
@@ -365,7 +368,11 @@ describe('a rehydrated Run that lost its in-memory state still mints for propose
     });
 
     expect(runPrompt).toHaveBeenCalledTimes(1);
-    expect(resumeSession).not.toHaveBeenCalled();
+    expect(resumeSession).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        session: expect.objectContaining({ provider_session_id: 'sdk-session-1' }),
+      }),
+    );
     const proposedStagesCall = runPrompt.mock.calls[0]?.[0];
     expect(proposedStagesCall?.additionalAllowedTools).toEqual(PLAN_SHAPING_ALLOWED_TOOLS);
   });

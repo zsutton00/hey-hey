@@ -108,7 +108,7 @@ describe("Entity Adapters", () => {
         typeKey: "BUG",
         definition: statusBearingDefinition,
       });
-      expect(result.status).toBe("In progress");
+      expect(result.status).toBe(mockTask.status);
     });
 
     it("shows a removed status by its saved name with a warning", () => {

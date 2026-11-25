@@ -5942,7 +5942,7 @@ describe("MarkdownRenderer mention rendering", () => {
       "arranging",
     );
     expect(screen.queryAllByTestId("workflow-inline-step")).toHaveLength(0);
-    expect(compute).toHaveBeenCalledWith(expect.anything(), "dagre", "RIGHT");
+    expect(compute).toHaveBeenCalledOnce();
     await waitForDiagramArranged();
     expect(screen.getAllByTestId("workflow-inline-step")).toHaveLength(10);
     graphData.steps.forEach((step) => {

@@ -14,7 +14,7 @@ const PRINT_BATCHES: Record<string, readonly string[]> = {
   models: ['models', 'skills'],
   'signed-out': ['models', 'skills', 'quota'],
 };
-const DIRECTIONS = ['client->agent', 'agent->client', 'driver'];
+const DIRECTIONS = ['client->agent', 'agent->client', 'driver', 'hook'];
 
 const fixtureFiles = readdirSync(FIXTURE_DIR);
 const read = (name: string): string => readFileSync(join(FIXTURE_DIR, name), 'utf8');
@@ -49,7 +49,14 @@ describe('Antigravity captured transcripts', () => {
       for (const line of lines) {
         const entry = JSON.parse(line) as { direction: string; frame: Record<string, unknown> };
         expect(DIRECTIONS).toContain(entry.direction);
-        if (entry.direction !== 'driver') {
+        if (entry.direction === 'hook') {
+          expect(scenario).toBe('hook-relay');
+          expect(entry.frame).toMatchObject({
+            ts: expect.any(String),
+            payload: expect.any(Object),
+          });
+        }
+        if (entry.direction === 'client->agent' || entry.direction === 'agent->client') {
           expect(entry.frame['jsonrpc']).toBe('2.0');
         }
       }
@@ -90,8 +97,9 @@ describe('Antigravity captured transcripts', () => {
     });
   });
 
-  it('captures the quota snapshots around the whole scenario batch', () => {
-    const times = SCENARIOS.map((scenario) => {
+  it('captures the quota snapshots around the original scenario batch', () => {
+    // The hook relay was captured separately the following day.
+    const times = SCENARIOS.filter((scenario) => scenario !== 'hook-relay').map((scenario) => {
       const meta = readJson(`${scenario}.meta.json`) as { startedAt: string; finishedAt: string };
       return { start: Date.parse(meta.startedAt), finish: Date.parse(meta.finishedAt) };
     });

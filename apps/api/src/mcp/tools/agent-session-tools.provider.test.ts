@@ -339,7 +339,7 @@ describe('AgentSessionToolsProvider', () => {
       conversationId,
       messages: [],
     });
-    expect(JSON.stringify(result)).not.toContain('Secret transcript text');
+    expect(prisma.db.message.findMany).not.toHaveBeenCalled();
     expect(messageService.filterReadableConversationIds).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationIds: [conversationId],

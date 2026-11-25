@@ -572,7 +572,7 @@ export class AgentSessionServiceScopeCoordinator {
         runId: deps.runId,
         requestId: input.requestId,
       });
-      await this.settleFailedApproval(pending, input, decider);
+      await this.settleFailedApproval(pending, input, decider, reason);
       return { outcome: 'failed', reason };
     }
     const existingServiceIds = new Set(deps.session().services.map((service) => service.id));

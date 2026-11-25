@@ -15,7 +15,8 @@
         "kind": "PAUSE",
         "command": "PAUSE"
       }
-    ]
+    ],
+    "outstandingPermissions": []
   },
   "paused": {
     "execution": {
@@ -33,7 +34,8 @@
         "kind": "PAUSED_CONTINUATION",
         "command": "RESUME"
       }
-    ]
+    ],
+    "outstandingPermissions": []
   },
   "failed": {
     "execution": {
@@ -56,7 +58,8 @@
       "code": "BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY",
       "cause": "Branch feature/checkout is already checked out in repository /repos/service-a; cannot materialize an isolated worktree for this service.",
       "correctiveGuidance": "Choose a different editable worktree or branch in Task Monitor settings, then press Start to retry."
-    }
+    },
+    "outstandingPermissions": []
   },
   "completed": {
     "execution": {
@@ -65,6 +68,7 @@
       "work": null,
       "intervention": null
     },
-    "availableActions": []
+    "availableActions": [],
+    "outstandingPermissions": []
   }
 }

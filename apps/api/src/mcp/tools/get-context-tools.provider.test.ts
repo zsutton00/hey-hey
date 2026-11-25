@@ -1423,7 +1423,8 @@ describe('GetContextToolsProvider', () => {
         2,
       );
       for (const call of entityContextService.getFullEntityContext.mock.calls) {
-        expect(call[5]).toEqual({
+        expect(call[5]).toBe(testIds.user);
+        expect(call[6]).toEqual({
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
           groupRelationships: true,
@@ -1617,6 +1618,7 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         null,
+        testIds.user,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },

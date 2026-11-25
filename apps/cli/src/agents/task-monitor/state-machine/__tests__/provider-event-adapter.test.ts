@@ -228,7 +228,11 @@ describe('Task Monitor provider event adapter', () => {
 
     it.each([
       ['command', 'item/commandExecution/requestApproval', { command: ['pnpm', 'build'] }],
-      ['file change', 'item/fileChange/requestApproval', { itemId: 'item-1' }],
+      [
+        'file change',
+        'item/fileChange/requestApproval',
+        { itemId: 'item-1', grantRoot: '/workspace' },
+      ],
     ])('carries a Codex %s USER_REQUIRED designation to the human-only owner', (_n, type, base) => {
       expect(admit(codexEvent(type, base))).toMatchObject({ userRequired: false });
       expect(admit(codexEvent(type, { ...base, user_required: true }))).toMatchObject({
@@ -372,7 +376,7 @@ describe('Task Monitor provider event adapter', () => {
           action: 'exec',
           target: 'cwd: /workspace\ncommand: pnpm deploy',
           createdAt: '2026-08-08T12:00:00.000Z',
-          expiresAt: '2026-08-08T12:05:00.000Z',
+          expiresAt: null,
           fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
         }),
       );
