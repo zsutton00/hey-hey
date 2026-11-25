@@ -588,7 +588,8 @@ export class ProjectService {
           null, // no conversationId for project creation
           project.id,
           createProjectDto.organizationId,
-          currentContext?.userId || project.createdBy || ('system' as UserId), // Use context userId, fallback to createdBy or system
+          // No user means a system start; the registry records no creator.
+          currentContext?.userId || project.createdBy || null,
           'Project Onboarding',
           'project',
           project.id,

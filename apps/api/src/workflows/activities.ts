@@ -551,10 +551,15 @@ export const initializeConversationFlow = withEventContext(
         },
       );
 
+      // A person who starts a flow owns its conversation; a system start has
+      // no owner, and its placeholder user ID must never be recorded as one.
+      const createdBy = initiatedBy === 'USER' ? userId : undefined;
+
       try {
         conversation = await conversationService.createConversation(
           conversationDto,
           organizationId,
+          { createdBy },
         );
 
         if (conversation) {
