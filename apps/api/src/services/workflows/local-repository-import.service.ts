@@ -52,6 +52,7 @@ import { JsonExtractionUtil } from '../../utils/json-extraction.util';
 import { featureGenerationResponseSchema } from '../../flows/utils/shared-schemas';
 import { isLocalRepositoryImportExecutionOwner } from './repository-import-execution-owner';
 import { NodeRegistry } from '../../flows/nodes/node-registry.service';
+import { RepositoryImportGenerateFeaturesNode } from '../../flows/nodes/repository-import/repository-import-generate-features.node';
 import { LocalRepositoryOutlineRefinementNode } from './local-repository-outline-refinement.node';
 import { LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE } from '../../flows/constants/node-ids';
 import { randomUUID } from 'node:crypto';
@@ -385,8 +386,11 @@ export class LocalRepositoryImportService implements OnModuleInit {
         return 'WAITING_FOR_USER';
       }
 
-      const lifecycleNode: INode = entry.node;
-      await lifecycleNode.processUserResponse?.(tracker, message);
+      if (node instanceof RepositoryImportGenerateFeaturesNode) {
+        await node.processUserResponse(tracker, message, true);
+      } else {
+        await node.processUserResponse?.(tracker, message);
+      }
       reply = message;
       state.context = tracker.getContext();
       state.lastUserMessageId = message.id as MessageId;
@@ -546,7 +550,7 @@ export class LocalRepositoryImportService implements OnModuleInit {
       FLOW_ID,
       REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
     )?.node;
-    if (!outline?.processLlmResponse) {
+    if (!(outline instanceof RepositoryImportGenerateFeaturesNode)) {
       throw new Error('Repository import outline node is unavailable');
     }
     const tracker = createMutableContextHandle(state.context);
@@ -554,17 +558,13 @@ export class LocalRepositoryImportService implements OnModuleInit {
     let reason: string | undefined;
     if (completion.action === 'success') {
       const { output } = completion.payload as { output: string };
+      let parsed:
+        | ReturnType<typeof featureGenerationResponseSchema.parse>
+        | undefined;
       try {
-        const parsed = featureGenerationResponseSchema.parse(
+        parsed = featureGenerationResponseSchema.parse(
           JSON.parse(JsonExtractionUtil.extractJSONFromResponse(output)),
         );
-        response = (
-          await outline.processLlmResponse(
-            { ...parsed, nodeId: outline.id },
-            undefined,
-            tracker,
-          )
-        ).modifiedResult;
       } catch (error) {
         if (!(error instanceof SyntaxError) && !(error instanceof ZodError)) {
           throw error;
@@ -574,6 +574,16 @@ export class LocalRepositoryImportService implements OnModuleInit {
           conversationId: core.conversationId,
           error: error.name,
         });
+      }
+      if (parsed) {
+        response = (
+          await outline.processLlmResponse(
+            { ...parsed, nodeId: outline.id },
+            undefined,
+            tracker,
+            true,
+          )
+        ).modifiedResult;
       }
     } else {
       const failure = completion.payload as { code: string; message: string };

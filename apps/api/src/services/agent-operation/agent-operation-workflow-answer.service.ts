@@ -1,3 +1,12 @@
+import { resolveRepositoryImportFlowIdentity } from '../../workflows/repository-import-legacy-compatibility';
+import { isLocalRepositoryImportExecutionOwner } from '../workflows/repository-import-execution-owner';
+import { isLocalApplication } from '../../deployment-environment';
+import {
+  isSerializableWorkflowState,
+  WorkflowStep,
+} from '../../workflows/conversation-workflow-state';
+import { REPOSITORY_IMPORT_NODES } from '../../flows/constants';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { CodingPlanWorkflowAnswerSchema } from '../../generated/workflow-review.schemas';
 import {
   codingPlanMessagesQuery,
@@ -205,20 +214,85 @@ export class AgentOperationWorkflowAnswerService {
         });
       }
 
+      const localImport =
+        isLocalApplication() &&
+        request.input.workflowName === WorkflowName.RepositoryImport;
       const conversation = await tx.conversation.findFirst({
         where: {
           id: request.conversationId,
           organizationId: principal.organizationId,
           projectId: principal.projectId,
-          workflowName: request.input.workflowName,
+          workflowName: localImport
+            ? { in: [WorkflowName.RepositoryImport, WorkflowName.Onboarding] }
+            : request.input.workflowName,
         },
-        select: { id: true, workflowId: true },
+        select: { id: true, workflowId: true, workflowName: true },
       });
       if (!conversation?.workflowId) {
         throw new UnprocessableEntityException({
           code: 'WORKFLOW_ANSWER_BINDING_MISMATCH',
           message: 'The answer does not match an active workflow conversation.',
         });
+      }
+
+      if (localImport) {
+        const { organizationId, projectId } = principal;
+        await tx.$queryRaw`SELECT id FROM flow_executions WHERE conversation_id = ${request.conversationId} AND organization_id = ${organizationId} AND project_id = ${projectId} FOR UPDATE`;
+        const execution = await tx.flowExecution.findFirst({
+          where: {
+            conversationId: request.conversationId,
+            organizationId,
+            projectId,
+            flowId: {
+              in: [WorkflowName.RepositoryImport, WorkflowName.Onboarding],
+            },
+          },
+          orderBy: { startedAt: 'desc' },
+        });
+        const state = execution?.flowState;
+        const validNode = [
+          REPOSITORY_IMPORT_NODES.PREREQUISITES,
+          REPOSITORY_IMPORT_NODES.CONFIGURATION,
+          REPOSITORY_IMPORT_NODES.START,
+          REPOSITORY_IMPORT_NODES.RECOVERY,
+          REPOSITORY_IMPORT_NODES.ANALYSIS,
+        ].some((nodeId) => nodeId === request.input.nodeId);
+        if (
+          !validNode ||
+          !execution ||
+          !isSerializableWorkflowState(state) ||
+          !isLocalRepositoryImportExecutionOwner(state.executionOwner) ||
+          !resolveRepositoryImportFlowIdentity({
+            conversationWorkflowName: conversation.workflowName,
+            executionFlowId: execution.flowId,
+            currentNode: execution.currentNode,
+            flowState: state,
+          }) ||
+          state.step !== WorkflowStep.WAITING_FOR_USER_INPUT ||
+          state.currentNodeId !== request.input.nodeId ||
+          state.lastSystemMessageId !== request.input.parentMessageId ||
+          execution?.userId !== principal.userId
+        ) {
+          throw new ConflictException({
+            code: 'LOCAL_REPOSITORY_IMPORT_FORM_MISMATCH',
+            message:
+              'The answer does not match the active local repository import form.',
+          });
+        }
+        const previousAnswer = await tx.message.findFirst({
+          where: {
+            conversationId: request.conversationId,
+            parentMessageId: request.input.parentMessageId,
+            type: 'USER',
+          },
+          select: { id: true },
+        });
+        if (previousAnswer) {
+          throw new ConflictException({
+            code: 'LOCAL_REPOSITORY_IMPORT_ALREADY_ANSWERED',
+            message: 'A reply has already been saved for this import form.',
+          });
+        }
       }
 
       const parentMessage = await tx.message.findFirst({

@@ -1,3 +1,5 @@
+import { isLocalApplication } from '../deployment-environment';
+import { isLocalRepositoryImportExecutionOwner } from './workflows/repository-import-execution-owner';
 import {
   BadRequestException,
   ConflictException,
@@ -141,6 +143,18 @@ export class RepositoryImportReplyService {
               'Conversation is not an active repository import workflow',
             );
           }
+          const state = execution.flowState;
+          if (
+            isLocalApplication() &&
+            isSerializableWorkflowState(state) &&
+            isLocalRepositoryImportExecutionOwner(state.executionOwner) &&
+            (state.step !== WorkflowStep.WAITING_FOR_USER_INPUT ||
+              state.lastSystemMessageId !== input.request.parentMessageId)
+          ) {
+            throw new ConflictException(
+              'Reply parent is not the active local repository import form',
+            );
+          }
           const executionIsRunning =
             execution.status === FlowExecutionStatus.STARTED ||
             execution.status === FlowExecutionStatus.IN_PROGRESS;
@@ -263,7 +277,9 @@ export class RepositoryImportReplyService {
                   interactionCount: 0,
                 },
               },
-              flowId: conversation.workflowName as WorkflowName,
+              flowId: isLocalApplication()
+                ? WorkflowName.RepositoryImport
+                : (conversation.workflowName as WorkflowName),
               lastSystemMessageId: parent.id as MessageId,
               flowPath: legacyContext.flowPath ?? {
                 pathTaken: [execution.currentNode],
@@ -278,6 +294,9 @@ export class RepositoryImportReplyService {
                 : {}),
             };
             const repairedState: SerializableWorkflowState = {
+              ...(isLocalApplication()
+                ? { executionOwner: 'CLI' as const }
+                : {}),
               step: WorkflowStep.WAITING_FOR_USER_INPUT,
               phase: WorkflowPhase.WAITING_FOR_USER,
               nodeConfig: {

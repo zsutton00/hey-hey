@@ -1,3 +1,6 @@
+import { isLocalApplication } from '../../deployment-environment';
+import { isLocalRepositoryImportExecutionOwner } from '../workflows/repository-import-execution-owner';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   BadRequestException,
   Injectable,
@@ -130,8 +133,14 @@ export class ExternalAgentCompletionService {
     if (pending.triggerMessageId !== params.input.pendingTriggerMessageId) {
       this.bindingMismatch('pending_trigger');
     }
+    const flowId =
+      isLocalApplication() &&
+      isLocalRepositoryImportExecutionOwner(active.flowState?.executionOwner) &&
+      active.flowState?.context.flowId === WorkflowName.RepositoryImport
+        ? WorkflowName.RepositoryImport
+        : active.flowId;
     const nodeInfo = this.nodeExecutionService.getNode(
-      active.flowId,
+      flowId,
       params.input.workflowNodeId,
     );
     if (!nodeInfo || !isExternalAgentNode(nodeInfo.node)) {

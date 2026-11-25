@@ -1,3 +1,4 @@
+import { isLocalApplication } from '../../deployment-environment';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { Client } from '@temporalio/client';
@@ -384,6 +385,17 @@ export class MessageProcessor {
               };
             }
           ).repositoryImportReplyDelivery;
+      if (
+        isLocalApplication() &&
+        hasRepositoryImportReplyDelivery(event) &&
+        (await this.conversationWorkflowService.advanceLocalRepositoryImport(
+          storedMessage,
+          organizationId,
+          { nodeId: delivery.nodeId },
+        ))
+      ) {
+        return;
+      }
       const { workflowId } = delivery;
       if (workflowId) {
         await this.signalWorkflow(
@@ -467,6 +479,7 @@ export class MessageProcessor {
       hasPayload: completion.payload !== undefined,
     });
 
+    let routingLocalCompletion = false;
     try {
       const storedMessage = await this.messageService.getMessage(
         event.aggregateId,
@@ -488,6 +501,20 @@ export class MessageProcessor {
       }
 
       const conversationId = storedMessage.conversationId as ConversationId;
+
+      if (isLocalApplication()) {
+        routingLocalCompletion = true;
+        const handled =
+          await this.conversationWorkflowService.advanceLocalRepositoryImport(
+            this.buildExternalAgentSignalMessage(storedMessage, completion),
+            organizationId,
+            { nodeId: completion.nodeId, completion },
+          );
+        routingLocalCompletion = false;
+        if (handled) {
+          return;
+        }
+      }
 
       // Server-side guard: completion is only valid if the conversation has a
       // resumable flow execution on an EXTERNAL_AGENT node whose id matches
@@ -649,6 +676,9 @@ export class MessageProcessor {
         `[handleExternalAgentCompletionCreated] FAILED TO PROCESS EXTERNAL_AGENT COMPLETION ${event.aggregateId}:`,
         error,
       );
+      if (routingLocalCompletion) {
+        throw error;
+      }
     }
   }
 

@@ -62,6 +62,9 @@ export const ONBOARDING_NODES = {
   REPOSITORY_PLACEMENT_REVIEW: 'onboarding-repository-placement-review',
 } as const;
 
+export const LOCAL_REPOSITORY_OUTLINE_REFINEMENT_NODE =
+  'local-repository-outline-refinement';
+
 // Values intentionally preserve the pre-cutover node identities so persisted
 // onboarding imports can resume without rewriting durable execution state.
 export const REPOSITORY_IMPORT_NODES = {

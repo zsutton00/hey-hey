@@ -61,6 +61,7 @@ LocalPromptType:
     - repository_grounding
     - repository_feature_enrichment
     - repository_first_work
+    - repository_outline_refinement
     - repository_placement
     - session_monitor
     - task_monitor
@@ -349,6 +350,7 @@ RunCreatePayload:
     - $ref: "#/RunCreatePayloadRepositoryGrounding"
     - $ref: "#/RunCreatePayloadRepositoryFeatureEnrichment"
     - $ref: "#/RunCreatePayloadRepositoryFirstWork"
+    - $ref: "#/RunCreatePayloadRepositoryOutlineRefinement"
     - $ref: "#/RunCreatePayloadFeatureSyncAnalyze"
     - $ref: "#/RunCreatePayloadFeatureSyncIterate"
     - $ref: "#/RunCreatePayloadPlanShapingFeatureSyncAnalyze"
@@ -396,6 +398,7 @@ RunCreatePayload:
       repository_grounding: "#/RunCreatePayloadRepositoryGrounding"
       repository_feature_enrichment: "#/RunCreatePayloadRepositoryFeatureEnrichment"
       repository_first_work: "#/RunCreatePayloadRepositoryFirstWork"
+      repository_outline_refinement: "#/RunCreatePayloadRepositoryOutlineRefinement"
       feature_sync_analyze: "#/RunCreatePayloadFeatureSyncAnalyze"
       feature_sync_iterate: "#/RunCreatePayloadFeatureSyncIterate"
       plan_shaping_feature_sync_analyze: "#/RunCreatePayloadPlanShapingFeatureSyncAnalyze"
@@ -785,6 +788,18 @@ RunCreatePayloadRepositoryFirstWork:
           enum:
             - repository_first_work
     - $ref: "./trigger-payloads.yaml#/RepositoryFirstWorkPromptPayload"
+
+RunCreatePayloadRepositoryOutlineRefinement:
+  allOf:
+    - type: object
+      required:
+        - promptType
+      properties:
+        promptType:
+          type: string
+          enum:
+            - repository_outline_refinement
+    - $ref: "./trigger-payloads.yaml#/RepositoryOutlineRefinementPromptPayload"
 
 RunCreatePayloadSessionMonitor:
   allOf:

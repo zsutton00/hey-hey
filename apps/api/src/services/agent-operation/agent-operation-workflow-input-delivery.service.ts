@@ -1,3 +1,4 @@
+import { isLocalApplication } from '../../deployment-environment';
 import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import {
   Injectable,
@@ -207,11 +208,6 @@ export class AgentOperationWorkflowInputDeliveryService
     if (!delivery.nodeId) {
       throw new Error('WORKFLOW_ANSWER_NODE_MISSING');
     }
-    const handle = this.temporalClient.workflow.getHandle(workflowId);
-    const status = await handle.query(getWorkflowStatus);
-    if (status.currentNodeId !== delivery.nodeId) {
-      throw new Error('WORKFLOW_ANSWER_NODE_MISMATCH');
-    }
     const messageData = normalizeWorkflowAnswerMessageData(
       message.data,
       delivery.action ?? '',
@@ -224,6 +220,21 @@ export class AgentOperationWorkflowInputDeliveryService
       nodeId: delivery.nodeId,
       workflowAnswerOperationId: delivery.operationId,
     };
+    if (
+      isLocalApplication() &&
+      (await this.conversationWorkflowService.advanceLocalRepositoryImport(
+        flowUserMessage,
+        delivery.operation.organizationId as OrganizationId,
+        { nodeId: delivery.nodeId, operationId: delivery.operationId },
+      ))
+    ) {
+      return;
+    }
+    const handle = this.temporalClient.workflow.getHandle(workflowId);
+    const status = await handle.query(getWorkflowStatus);
+    if (status.currentNodeId !== delivery.nodeId) {
+      throw new Error('WORKFLOW_ANSWER_NODE_MISMATCH');
+    }
     const payload: WorkflowAnswerSignalPayload = {
       operationId: delivery.operationId,
       nodeId: delivery.nodeId,

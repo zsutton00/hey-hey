@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { z as durable } from 'zod/v4';
 import { LocalPromptType, type AgentTrigger } from '@hey-hey/contracts/agent-bridge';
 import {
-  storedReviewEntryV16Schema,
-  storedTriggerFrameV16Schema,
-  type StoredDirectPromptTypeV16,
-  type StoredTriggerFrameV16,
-} from './storage-schema/v16';
+  storedReviewEntryV17Schema,
+  storedTriggerFrameV17Schema,
+  type StoredDirectPromptTypeV17,
+  type StoredTriggerFrameV17,
+} from './storage-schema/v17';
 import type { ReadableInputRecord } from './input-admission-codec';
 const id = z.string().uuid();
 export const collaborationPayloadSchema = z.object({
@@ -96,7 +96,7 @@ type AdmittedDirectPromptType = Exclude<
 >;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const admittedPromptTypesAreStorable: Same<AdmittedDirectPromptType, StoredDirectPromptTypeV16> =
+const admittedPromptTypesAreStorable: Same<AdmittedDirectPromptType, StoredDirectPromptTypeV17> =
   true;
 
 /** Maps an already-verified, already-validated wire trigger into its stored v2 shape. */
@@ -104,22 +104,22 @@ export const toStoredTriggerFrame = (
   conversationId: string | null,
   signedEvent: AgentTrigger,
   validatedPayload: unknown,
-): StoredTriggerFrameV16 =>
-  storedTriggerFrameV16Schema.parse({
+): StoredTriggerFrameV17 =>
+  storedTriggerFrameV17Schema.parse({
     conversationId,
     signedEvent: durable.json().parse(signedEvent),
     event: {
       ...signedEvent,
       ...(validatedPayload !== undefined ? { payload: validatedPayload } : {}),
     },
-  }) as StoredTriggerFrameV16;
+  }) as StoredTriggerFrameV17;
 
 /** The replay check reads only the stored conversation and signed bytes, never the event. */
-export const storedSignedTriggerSchema = storedTriggerFrameV16Schema.pick({
+export const storedSignedTriggerSchema = storedTriggerFrameV17Schema.pick({
   conversationId: true,
   signedEvent: true,
 });
 
 /** Recognize the canonical shared Review entry point from the stored record, in any state. */
 export const isReviewAdmission = (record: ReadableInputRecord): boolean =>
-  record.kind === 'trigger_frame' && storedReviewEntryV16Schema.safeParse(record.payload).success;
+  record.kind === 'trigger_frame' && storedReviewEntryV17Schema.safeParse(record.payload).success;

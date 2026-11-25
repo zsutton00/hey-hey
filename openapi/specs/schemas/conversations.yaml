@@ -2788,6 +2788,25 @@ AgentTriggerRepositoryFirstWork:
       $ref: "./trigger-payloads.yaml#/RepositoryFirstWorkPromptPayload"
   additionalProperties: false
 
+AgentTriggerRepositoryOutlineRefinement:
+  type: object
+  required: [promptType, nodeId, triggerMessageId, payload]
+  properties:
+    inputExecution:
+      $ref: "./agent-operation.yaml#/InputExecutionIdentity"
+    promptType:
+      type: string
+      enum: [repository_outline_refinement]
+    nodeId:
+      type: string
+      minLength: 1
+    triggerMessageId:
+      type: string
+      minLength: 1
+    payload:
+      $ref: "./trigger-payloads.yaml#/RepositoryOutlineRefinementPromptPayload"
+  additionalProperties: false
+
 AgentTriggerFeatureSyncAnalyze:
   type: object
   required:
@@ -3456,6 +3475,7 @@ AgentTrigger:
     - $ref: "#/AgentTriggerRepositoryGrounding"
     - $ref: "#/AgentTriggerRepositoryFeatureEnrichment"
     - $ref: "#/AgentTriggerRepositoryFirstWork"
+    - $ref: "#/AgentTriggerRepositoryOutlineRefinement"
     - $ref: "#/AgentTriggerRepositoryPlacement"
     - $ref: "#/AgentTriggerSessionMonitor"
     - $ref: "#/AgentTriggerUserMessage"
@@ -3481,6 +3501,7 @@ AgentTrigger:
       repository_grounding: "#/AgentTriggerRepositoryGrounding"
       repository_feature_enrichment: "#/AgentTriggerRepositoryFeatureEnrichment"
       repository_first_work: "#/AgentTriggerRepositoryFirstWork"
+      repository_outline_refinement: "#/AgentTriggerRepositoryOutlineRefinement"
       repository_placement: "#/AgentTriggerRepositoryPlacement"
       session_monitor: "#/AgentTriggerSessionMonitor"
       user_message: "#/AgentTriggerUserMessage"

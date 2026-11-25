@@ -1335,6 +1335,71 @@ RepositoryFirstWorkRequest:
     imported Features. The API owns the follow-up round count and answers so
     each turn is evaluated from complete state.
 
+RepositoryOutlineRefinementRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - projectId
+    - conversationId
+    - workflowId
+    - workflowNodeId
+    - serviceId
+    - machineId
+    - provider
+    - resolvedFrontierModel
+    - reasoningEffort
+    - prompt
+  properties:
+    promptType:
+      type: string
+      enum: [repository_outline_refinement]
+    projectId:
+      $ref: "./common.yaml#/ProjectId"
+    conversationId:
+      $ref: "./common.yaml#/ConversationId"
+    workflowId:
+      $ref: "./common.yaml#/WorkflowId"
+    workflowNodeId:
+      type: string
+      minLength: 1
+    serviceId:
+      $ref: "./common.yaml#/ServiceId"
+    machineId:
+      $ref: "./common.yaml#/MachineId"
+    provider:
+      type: string
+      enum: [claude, codex, opencode, antigravity]
+    resolvedFrontierModel:
+      type: string
+      minLength: 1
+    reasoningEffort:
+      type: string
+      enum: [none, minimal, low, medium, high, xhigh, max, ultra, default]
+    fastMode:
+      type: boolean
+    prompt:
+      type: string
+      minLength: 1
+      description: Server-built outline revision prompt for the accepted repository import.
+
+RepositoryOutlineRefinementCompletion:
+  type: object
+  additionalProperties: false
+  required: [output]
+  properties:
+    output:
+      type: string
+      minLength: 1
+      description: Raw provider output validated against the outline schema by the API.
+
+RepositoryOutlineRefinementFailure:
+  type: object
+  additionalProperties: false
+  required: [code, message]
+  properties:
+    code: { type: string, minLength: 1 }
+    message: { type: string, minLength: 1 }
+
 RepositoryFirstWorkQuestions:
   type: object
   additionalProperties: false

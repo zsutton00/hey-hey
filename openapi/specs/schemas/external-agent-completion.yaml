@@ -143,6 +143,8 @@ RepositoryGroundingExternalCompletionPayload:
     - $ref: ./repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
     - $ref: ./repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
     - $ref: ./repository-grounding.yaml#/RepositoryFirstWorkSuccess
+    - $ref: ./repository-grounding.yaml#/RepositoryOutlineRefinementCompletion
+    - $ref: ./repository-grounding.yaml#/RepositoryOutlineRefinementFailure
     - $ref: ./repository-grounding.yaml#/RepositoryPlacementSuccess
     - $ref: '#/ExternalAgentGenericPayload'
   description: >-
@@ -161,6 +163,10 @@ RepositoryGroundingExternalCompletionPayload:
       schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
     - model: RepositoryFirstWorkSuccess
       schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryFirstWorkSuccess
+    - model: RepositoryOutlineRefinementCompletion
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryOutlineRefinementCompletion
+    - model: RepositoryOutlineRefinementFailure
+      schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryOutlineRefinementFailure
     - model: RepositoryPlacementSuccess
       schema: openapi:/event-schemas/repository-grounding.yaml#/RepositoryPlacementSuccess
     - model: ExternalAgentGenericPayload

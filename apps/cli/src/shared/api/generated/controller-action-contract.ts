@@ -3327,6 +3327,92 @@ export const controllerActionRuntimeSchema = {
           allOf: [
             {
               type: 'object',
+              required: ['promptType'],
+              properties: {
+                promptType: {
+                  type: 'string',
+                  enum: ['repository_outline_refinement'],
+                },
+              },
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'projectId',
+                'conversationId',
+                'workflowId',
+                'workflowNodeId',
+                'serviceId',
+                'machineId',
+                'provider',
+                'resolvedFrontierModel',
+                'reasoningEffort',
+                'prompt',
+              ],
+              properties: {
+                promptType: {
+                  type: 'string',
+                  enum: ['repository_outline_refinement'],
+                },
+                projectId: {
+                  $ref: '#/definitions/WorkTrackerImportRequest/properties/projectId',
+                },
+                conversationId: {
+                  $ref: '#/definitions/ConversationControlStopRun/properties/conversationId',
+                },
+                workflowId: {
+                  $ref: '#/definitions/WorkTrackerImportRequest/properties/workflowId',
+                },
+                workflowNodeId: {
+                  type: 'string',
+                  minLength: 1,
+                },
+                serviceId: {
+                  $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
+                },
+                machineId: {
+                  $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
+                },
+                provider: {
+                  type: 'string',
+                  enum: ['claude', 'codex', 'opencode', 'antigravity'],
+                },
+                resolvedFrontierModel: {
+                  type: 'string',
+                  minLength: 1,
+                },
+                reasoningEffort: {
+                  type: 'string',
+                  enum: [
+                    'none',
+                    'minimal',
+                    'low',
+                    'medium',
+                    'high',
+                    'xhigh',
+                    'max',
+                    'ultra',
+                    'default',
+                  ],
+                },
+                fastMode: {
+                  type: 'boolean',
+                },
+                prompt: {
+                  type: 'string',
+                  minLength: 1,
+                  description:
+                    'Server-built outline revision prompt for the accepted repository import.',
+                },
+              },
+            },
+          ],
+        },
+        {
+          allOf: [
+            {
+              type: 'object',
               required: ['promptType', 'userMessage', 'entity'],
               properties: {
                 promptType: {

@@ -52,6 +52,12 @@ import type { RepositoryGroundingHierarchy } from './repository-grounding-hierar
 import type { RepositoryGroundingSuccess } from './repository-grounding-success.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { RepositoryOutlineRefinementCompletion } from './repository-outline-refinement-completion.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { RepositoryOutlineRefinementFailure } from './repository-outline-refinement-failure.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { RepositoryPlacementSuccess } from './repository-placement-success.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -62,4 +68,4 @@ import type { RepositoryPlacementSuggestion } from './repository-placement-sugge
  * Completion payload accepted by the existing external-agent transport. The repository-grounding and repository-placement outcomes are typed; unrelated actions retain the generic object branch.
  * @export
  */
-export type RepositoryGroundingExternalCompletionPayload = ExternalAgentGenericPayload | ExternalAgentRetryableFailurePayload | ExternalAgentTerminalFailurePayload | RepositoryFeatureEnrichmentQuestions | RepositoryFeatureEnrichmentSuccess | RepositoryFirstWorkSuccess | RepositoryGroundingSuccess | RepositoryPlacementSuccess;
+export type RepositoryGroundingExternalCompletionPayload = ExternalAgentGenericPayload | ExternalAgentRetryableFailurePayload | ExternalAgentTerminalFailurePayload | RepositoryFeatureEnrichmentQuestions | RepositoryFeatureEnrichmentSuccess | RepositoryFirstWorkSuccess | RepositoryGroundingSuccess | RepositoryOutlineRefinementCompletion | RepositoryOutlineRefinementFailure | RepositoryPlacementSuccess;
