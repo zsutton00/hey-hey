@@ -898,14 +898,6 @@ export class TriggerFrameRouter {
           userId: verified.envelope.userId,
           messageId: body.messageId,
         });
-        if (cancelled.state === 'cancelled' && verified.frame.conversationId) {
-          await this.dependencies.dropSurfacing.poster.postFailureMessage({
-            organizationId: verified.frame.organizationId,
-            projectId,
-            conversationId: verified.frame.conversationId,
-            reason: 'STOPPED',
-          });
-        }
         this.controlTelemetry.cancellation(cancelled, context?.transportAckAvailable ?? null);
         void agentService.inputAdmission.advance(body.agentSessionId);
         return;

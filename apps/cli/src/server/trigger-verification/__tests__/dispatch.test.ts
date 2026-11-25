@@ -4642,7 +4642,7 @@ describe('admission disposition in the acknowledgement', () => {
 });
 
 describe('verified cancellation telemetry', () => {
-  it('verifies and processes an hour of retries, preserving every rejection and distinct control', async () => {
+  it('processes cancellation retries without posting conversation messages and preserves control telemetry', async () => {
     vi.useFakeTimers({
       toFake: ['Date', 'performance', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
     });
@@ -4721,6 +4721,7 @@ describe('verified cancellation telemetry', () => {
       .mockResolvedValue({ admitted: true, capability: TEST_ADMITTED_HOST_ACTION });
     const logger = noopLogger();
     const stopRun = vi.fn().mockResolvedValue(undefined);
+    const { poster, surfacing } = buildSurfacing();
     const router = createTestRouter({
       verifier,
       resolveConversationRun: () => ({
@@ -4728,6 +4729,7 @@ describe('verified cancellation telemetry', () => {
         conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       inputAdmission,
+      dropSurfacing: surfacing,
       sendMessage: vi.fn(),
       createRun: vi.fn(),
       stopRun,
@@ -4751,6 +4753,7 @@ describe('verified cancellation telemetry', () => {
       expect(reductionAdmission).toHaveBeenCalledTimes(1_800);
       expect(cancel).toHaveBeenCalledTimes(1_800);
       expect(advance).toHaveBeenCalledTimes(1_800);
+      expect(poster.createOutOfBand).not.toHaveBeenCalled();
       const repeats = logger.infoCalls.filter(([name]) => name === 'control_reduction.repeated');
       expect(repeats.reduce((sum, [, fields]) => sum + Number(fields['repetitionCount']), 0)).toBe(
         1_799,
