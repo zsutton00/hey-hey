@@ -239,13 +239,7 @@ export const WorkInSelect = ({
 
   return (
     <Stack spacing={1} data-testid="work-in" data-service-id={serviceId}>
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="flex-start"
-        useFlexGap
-        sx={{ flexWrap: "wrap" }}
-      >
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         <Autocomplete<PlaceOption>
           size="small"
           disabled={disabled}
@@ -350,7 +344,6 @@ export const WorkInSelect = ({
               {...params}
               label={LABEL}
               placeholder={unchosen ? "Choose where to work" : undefined}
-              helperText="Uses the main folder's current branch, or a separate worktree. Type to search."
               slotProps={{
                 input: params.InputProps,
                 htmlInput: {
@@ -360,7 +353,7 @@ export const WorkInSelect = ({
               }}
             />
           )}
-          sx={{ width: FIELD_WIDTH, maxWidth: "100%" }}
+          sx={{ width: FIELD_WIDTH, minWidth: 0 }}
         />
         <Button
           variant="outlined"

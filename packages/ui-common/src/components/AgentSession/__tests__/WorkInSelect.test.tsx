@@ -81,11 +81,6 @@ describe("WorkInSelect", () => {
 
     expect(screen.getByLabelText("Branch or worktree")).toBe(input());
     expect(input()).toHaveValue("main · main folder");
-    expect(
-      screen.getByText(
-        "Uses the main folder's current branch, or a separate worktree. Type to search.",
-      ),
-    ).toBeInTheDocument();
     expect(input().closest(".MuiAutocomplete-root")).toHaveStyle({
       width: "280px",
     });

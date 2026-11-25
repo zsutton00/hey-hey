@@ -758,7 +758,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
           organizationId &&
           projectId ? (
             <Box
-              sx={{ width: 260, maxWidth: "100%", flexShrink: 0 }}
+              // Wide enough for the field and its New worktree button.
+              sx={{ flex: "1 1 430px", minWidth: 0 }}
               data-testid="discuss-work-in"
             >
               <ServicesWorkIn
