@@ -159,6 +159,42 @@ describe("AgentSessionMetadata", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  it.each([false, true])(
+    "marks an attached place and says where it started (mobile: %s)",
+    (mobile) => {
+      setViewport(mobile);
+
+      renderMetadata("below-composer", undefined, undefined, [
+        {
+          serviceName: "hey-hey",
+          place: { kind: "worktree", branch: "feature-x" },
+          change: { startedIn: "dev (main folder)" },
+        },
+        {
+          serviceName: "demos",
+          place: { kind: "worktree", branch: "fix-y" },
+          change: { startedIn: null },
+        },
+      ]);
+      if (mobile) {
+        fireEvent.click(
+          screen.getByTestId("agent-session-metadata-mobile-toggle"),
+        );
+      }
+
+      const [attached, unknownStart] = screen.getAllByTestId(
+        "agent-session-metadata-place-worktree",
+      );
+      expect(attached).toHaveTextContent("worktree feature-x");
+      expect(attached).toHaveTextContent("Changed during session");
+      expect(unknownStart).toHaveTextContent("Changed during session");
+      // Only the Service with a known start says where it started.
+      expect(screen.getByText(/^Started in/)).toHaveTextContent(
+        "Started in dev (main folder)",
+      );
+    },
+  );
+
   it("copies the branch from a worktree entry's copy button", async () => {
     setViewport(false);
     const writeText = vi.fn().mockResolvedValue(undefined);
