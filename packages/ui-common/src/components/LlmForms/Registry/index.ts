@@ -6,6 +6,7 @@ export type {
 export { AgentPermissionRequestField } from "./AgentPermissionRequestField";
 export { AgentQuestionField } from "./AgentQuestionField";
 export { AgentServiceScopeRequestField } from "./AgentServiceScopeRequestField";
+export { AgentWorktreeAttachRequestField } from "./AgentWorktreeAttachRequestField";
 export { AgentResponseField } from "./AgentResponseField";
 export type {
   AgentResponseFieldProps,

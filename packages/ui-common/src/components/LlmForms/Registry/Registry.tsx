@@ -40,6 +40,7 @@ import { AgentSearchResultsField } from "./AgentSearchResultsField";
 import { AgentPermissionRequestField } from "./AgentPermissionRequestField";
 import { AgentQuestionField } from "./AgentQuestionField";
 import { AgentServiceScopeRequestField } from "./AgentServiceScopeRequestField";
+import { AgentWorktreeAttachRequestField } from "./AgentWorktreeAttachRequestField";
 import { AgentReviewFileScopeRequestField } from "./AgentReviewFileScopeRequestField";
 import { AgentResponseField } from "./AgentResponseField";
 import { VerifyFeatureField } from "./VerifyFeatureField";
@@ -1064,6 +1065,13 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
     ...getFieldResponseMetadata("agent_request_service_scope"),
     Component:
       AgentServiceScopeRequestField as unknown as React.FC<FieldComponentProps>,
+    getHasContent: () => true,
+    shouldShowButtons: () => false,
+  },
+  agent_request_worktree_attach: {
+    ...getFieldResponseMetadata("agent_request_worktree_attach"),
+    Component:
+      AgentWorktreeAttachRequestField as unknown as React.FC<FieldComponentProps>,
     getHasContent: () => true,
     shouldShowButtons: () => false,
   },

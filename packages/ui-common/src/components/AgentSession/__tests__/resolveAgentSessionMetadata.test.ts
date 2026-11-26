@@ -37,18 +37,25 @@ describe("resolveAgentSessionMetadata", () => {
           branch: "feature-x",
           worktreePath: "/w/web",
           recordedAt,
+          changedDuringSession: true,
+          launchPlace: {
+            kind: AgentSessionServicePlaceKind.MainFolder,
+            branch: "dev",
+          },
         },
         {
           serviceId: "api",
           kind: AgentSessionServicePlaceKind.MainFolder,
           branch: "dev",
           recordedAt,
+          changedDuringSession: false,
         },
         {
           serviceId: "docs",
           kind: AgentSessionServicePlaceKind.MainFolder,
           branch: null,
           recordedAt,
+          changedDuringSession: true,
         },
       ],
     };
@@ -69,9 +76,14 @@ describe("resolveAgentSessionMetadata", () => {
         {
           serviceName: "Web UI",
           place: { kind: "worktree", branch: "feature-x" },
+          change: { startedIn: "dev (main folder)" },
         },
         { serviceName: "API", place: { kind: "main-folder", branch: "dev" } },
-        { serviceName: "Docs", place: { kind: "main-folder", branch: null } },
+        {
+          serviceName: "Docs",
+          place: { kind: "main-folder", branch: null },
+          change: { startedIn: null },
+        },
         { serviceName: "Demos", place: { kind: "not-recorded" } },
       ],
     });
