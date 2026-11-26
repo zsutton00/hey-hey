@@ -9,17 +9,14 @@ import {
   createPromptTypeHandlerTestAuth,
   createPromptTypeHandlerTestDeps,
 } from '../prompt-type-handler.test-support';
-import { EntityType } from '@hey-hey/contracts/api/models';
+import {
+  EntityType,
+  type AttentionItemSummary,
+  type AttentionSummaryResponse,
+} from '@hey-hey/contracts/api/models';
 import { dispatchResponseType } from '../response-dispatch';
 import { NOOP_LOGGER } from '../../server/logger';
-import {
-  attentionSessionSchema,
-  DAY_MS,
-  itemKey,
-  reduceAttention,
-  TRIAGE_CAPS,
-  type AttentionSession,
-} from './attention';
+import { DAY_MS, emptyAttentionSummary, TRIAGE_CAPS } from './attention';
 import { TRIAGE_INPUT_BUDGET_BYTES, TriageInputOwner } from './input-owner';
 import { TriageInputDiagnostics } from './input-diagnostics';
 import { trackedSchema } from './input-schemas';
@@ -47,20 +44,34 @@ const openItem = (n = 1) => ({
   goalTrackedWorkFilter: 'ACTIVE_AND_BACKLOG',
   goalCollapsed: true,
 });
-const session = (
-  n: number,
-  entity: number,
-  start: number,
-  duration = 30_000,
-): AttentionSession => ({
-  id: id(1000 + n),
-  entityType: EntityType.Task,
-  entityId: id(entity),
-  entityName: `Item ${entity}`,
-  focusStart: new Date(start).toISOString(),
-  focusEnd: new Date(start + duration).toISOString(),
-  durationMs: duration,
+const entity = (n: number, entityType: EntityType = EntityType.Task) => ({
+  entityType,
+  entityId: id(n),
+  entityName: `Item ${n}`,
 });
+const viewed = (
+  n: number,
+  overrides: Partial<AttentionItemSummary> = {},
+): AttentionItemSummary => ({
+  entity: entity(n),
+  lastViewed: new Date(now - 60_000).toISOString(),
+  viewsToday: 1,
+  viewsSevenDays: 1,
+  focusMsSevenDays: 30_000,
+  ...overrides,
+});
+const span = (n: number, start = now - 60_000) => ({
+  entity: entity(n),
+  start: new Date(start).toISOString(),
+  end: new Date(start + 30_000).toISOString(),
+  focusMs: 30_000,
+  views: 1,
+});
+const summary = (overrides: Partial<AttentionSummaryResponse> = {}): AttentionSummaryResponse => ({
+  ...emptyAttentionSummary(now),
+  ...overrides,
+});
+const isSummaryRead = (url: URL) => url.pathname.endsWith('/analytics/attention/summary');
 const response = (data: object) => new Response(JSON.stringify({ data }), { status: 200 });
 const token = `e30.${Buffer.from(JSON.stringify({ sub: id(99) })).toString('base64url')}.x`;
 const run = {
@@ -68,8 +79,6 @@ const run = {
   agentic_session_id: id(90),
   contextMetadata: { organizationId: id(91), projectId: id(92) },
 } as AgenticSession;
-const openCounters = (result: ReturnType<typeof reduceAttention>, n = 1) =>
-  result.openCounters.get(itemKey(item(n)));
 const event = (summary: string) => ({ summary }) as AssistantCompleteEvent;
 const reply = {
   responseType: 'open_items_triage_v1',
@@ -86,11 +95,7 @@ const fetchFixture = () =>
     const url = new URL(String(input));
     if (url.pathname.endsWith('/open-items'))
       return response({ state: 'PRESENT', revision: 3, items: [openItem()], groups: [] });
-    if (url.pathname.endsWith('/attention'))
-      return response({
-        events: [session(1, 1, now - 60_000)],
-        pagination: { limit: 50, offset: 0, total: 1 },
-      });
+    if (isSummaryRead(url)) return response(summary({ items: [viewed(1)], timeline: [span(1)] }));
     if (url.pathname.endsWith('/goals/active'))
       return response({ items: [], userId: id(99), windowDays: 30 });
     if (url.pathname.endsWith('/context'))
@@ -123,17 +128,16 @@ describe('triage input dumps', () => {
       const diagnostics = new TriageInputDiagnostics();
       const fetchImpl = fetchFixture();
       const original = fetchImpl.getMockImplementation()!;
-      const events = [
-        session(1, 1, now - 60_000),
-        {
-          ...session(2, 2, now - 30_000),
-          entityType: EntityType.AgentSession,
-        },
-        { entityType: 'TASK', id: 'invalid' },
-      ];
+      const fetched = {
+        ...summary(),
+        items: [
+          viewed(1),
+          viewed(2, { entity: entity(2, EntityType.AgentSession) }),
+          { entity: 'invalid' },
+        ],
+      };
       fetchImpl.mockImplementation(async (url, init) => {
-        if (new URL(String(url)).pathname.endsWith('/attention'))
-          return response({ events, pagination: { limit: 50, offset: 0, total: 3 } });
+        if (isSummaryRead(new URL(String(url)))) return response(fetched);
         return original(url, init);
       });
       const input = await new TriageInputOwner(
@@ -157,15 +161,11 @@ describe('triage input dumps', () => {
       const contents = await readFile(path, 'utf8');
       const dump = JSON.parse(contents);
       expect(dump.input).toEqual(input);
-      expect(
-        dump.reads.find((read: { path: string }) => read.path.endsWith('/attention')),
-      ).toMatchObject({
-        data: { events },
-        status: 200,
-      });
-      expect(
-        dump.reads.find((read: { path: string }) => read.path.endsWith('/attention')).query,
-      ).toContain('since=');
+      const attentionRead = dump.reads.find((read: { path: string }) =>
+        read.path.endsWith('/attention/summary'),
+      );
+      expect(attentionRead).toMatchObject({ data: fetched, status: 200 });
+      expect(attentionRead.query).toContain(`projectId=${id(92)}`);
       expect(dump.outcome).toBe('input_ready');
       expect(contents).not.toContain(token);
       expect(contents).not.toContain('Authorization');
@@ -202,116 +202,42 @@ describe('triage input dumps', () => {
   });
 });
 
-describe('attention reducers', () => {
-  it('counts distinct focus-session starts rather than duration ticks, deduplicating returned rows', () => {
-    const longSession = session(1, 1, now - 120_000, 90_000);
-    const nextSession = session(2, 1, now - 20_000, 10_000);
-    const result = reduceAttention([longSession, longSession, nextSession], [item()], now, true);
-    expect(openCounters(result)).toMatchObject({
-      viewsToday: 2,
-      viewsSevenDays: 2,
-      focusMsSevenDays: 100_000,
-      lastViewed: nextSession.focusStart,
-    });
-    expect(result.timeline[0]).toMatchObject({ views: 2, focusMs: 100_000 });
-  });
-  it('accepts an attention record exactly as the API sends it and rejects retired lowercase types', () => {
-    const wire = {
-      id: id(1),
-      entityType: 'DESIGN_DOC',
-      entityId: id(2),
-      entityName: 'Design',
-      tab: null,
-      focusStart: new Date(now - 60_000).toISOString(),
-      focusEnd: new Date(now).toISOString(),
-      durationMs: 60_000,
-    };
-    expect(attentionSessionSchema.safeParse(wire).success).toBe(true);
-    expect(attentionSessionSchema.safeParse({ ...wire, entityType: 'design_doc' }).success).toBe(
-      false,
-    );
-    expect(attentionSessionSchema.safeParse({ ...wire, entityType: 'PLAN' }).success).toBe(false);
-  });
-  it('computes UTC day/rolling-window aggregates, merges spans, and finds reopen/co-attention leads deterministically', () => {
-    const events = [
-      session(1, 1, now - DAY_MS),
-      session(2, 1, now - DAY_MS + 60_000),
-      session(3, 2, now - DAY_MS + 120_000),
-      session(4, 1, now - DAY_MS + 180_000),
-      session(5, 1, now - 60_000),
-    ];
-    const result = reduceAttention(events, [item(), item(3)], now, true);
-    expect(openCounters(result)).toMatchObject({
-      viewsToday: 1,
-      viewsSevenDays: 4,
-      focusMsSevenDays: 120_000,
-      lastViewed: events[4]!.focusStart,
-    });
-    expect(result.totalsComplete).toBe(true);
-    expect(openCounters(result, 3)).toMatchObject({ viewsToday: 0, lastViewed: null });
-    expect(result.timeline[0]).toMatchObject({ views: 2, focusMs: 60_000 });
-    expect(result.reopenCandidates.map((a) => a.item.entityId)).toEqual([id(2)]);
-    expect(result.coAttention[0]?.occurrences).toBe(2);
-    expect(reduceAttention([...events].reverse(), [item(), item(3)], now, true)).toEqual(result);
-  });
-  it('clips focus at the seven-day boundary and ignores future sessions, duplicate pages and invalid intervals', () => {
-    const s = session(1, 1, now - 7 * DAY_MS - 10_000, 30_000);
-    const result = reduceAttention([s, s, session(2, 1, now + 1)], [item()], now, false);
-    expect(openCounters(result)).toMatchObject({
-      lastViewed: s.focusStart,
-      viewsSevenDays: 0,
-      focusMsSevenDays: 20_000,
-    });
-    expect(result.totalsComplete).toBe(false);
-    expect(attentionSessionSchema.safeParse({ ...s, focusEnd: 'invalid' }).success).toBe(false);
-    expect(attentionSessionSchema.safeParse({ ...s, durationMs: 99_000 }).success).toBe(false);
-  });
-  it('caps timeline and reopen lists and discloses cuts', () => {
-    const result = reduceAttention(
-      Array.from({ length: 120 }, (_, n) => session(n, n + 1, now - 120_000 + n * 1000, 500)),
-      [],
-      now,
-      true,
-    );
-    expect(result.timeline).toHaveLength(TRIAGE_CAPS.timeline);
-    expect(result.reopenCandidates).toHaveLength(TRIAGE_CAPS.reopen);
-    expect(result.truncated).toMatchObject({ timeline: true, reopen: true });
-  });
-});
-
 describe('triage input and handler', () => {
-  it('excludes open identities beyond the collection cap before capping reopen leads', async () => {
+  it('offers recently viewed closed items for reopening, newest first and capped', async () => {
     const fetchImpl = fetchFixture(),
       original = fetchImpl.getMockImplementation()!;
+    const openCount = TRIAGE_CAPS.items + 50;
+    const closed = (n: number, ago: number) =>
+      viewed(n, { lastViewed: new Date(now - ago).toISOString() });
     fetchImpl.mockImplementation(async (input, init) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/open-items'))
         return response({
           state: 'PRESENT',
           revision: 4,
-          items: Array.from({ length: TRIAGE_CAPS.items + 50 }, (_, n) => openItem(n + 1)),
+          items: Array.from({ length: openCount }, (_, n) => openItem(n + 1)),
           groups: [],
         });
-      if (url.pathname.endsWith('/attention')) {
-        const events = [
-          ...Array.from({ length: 50 }, (_, n) =>
-            session(n, TRIAGE_CAPS.items + n + 1, now - 60_000 + n * 500, 100),
-          ),
-          session(51, 999, now - 120_000, 100),
-        ];
-        const offset = Number(url.searchParams.get('offset'));
-        return response({
-          events: events.slice(offset, offset + 50),
-          pagination: { limit: 50, offset, total: events.length },
-        });
-      }
+      if (isSummaryRead(url))
+        return response(
+          summary({
+            items: [
+              // Open, including rows beyond the input cap, so never a reopen lead.
+              ...Array.from({ length: openCount }, (_, n) => viewed(n + 1)),
+              ...Array.from({ length: TRIAGE_CAPS.reopen + 1 }, (_, n) =>
+                closed(500 + n, (n + 1) * 60_000),
+              ),
+              closed(900, 3 * DAY_MS),
+            ],
+          }),
+        );
       return original(input, init);
     });
     const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
-    expect(input.attention.reopenCandidates.map((candidate) => candidate.item.entityId)).toEqual([
-      id(999),
-    ]);
-    expect(input.attention.truncated.reopen).toBe(false);
+    expect(input.attention.reopenCandidates.map((candidate) => candidate.item.entityId)).toEqual(
+      Array.from({ length: TRIAGE_CAPS.reopen }, (_, n) => id(500 + n)),
+    );
+    expect(input.attention.truncated.reopen).toBe(true);
   });
 
   it('excludes archived records from collection, attention and relationships', async () => {
@@ -455,26 +381,23 @@ describe('triage input and handler', () => {
     expect(input.collection.items[0]?.viewsSevenDays).toBe(1);
   });
 
-  it('preserves earlier attention when a later page fails', async () => {
+  it('says attention is unavailable, and why, when the API cannot summarize it', async () => {
     const fetchImpl = fetchFixture(),
       original = fetchImpl.getMockImplementation()!;
     fetchImpl.mockImplementation(async (input, init) => {
-      const url = new URL(String(input));
-      if (url.pathname.endsWith('/attention')) {
-        if (url.searchParams.get('offset') !== '0') return new Response('', { status: 503 });
-        return response({
-          events: Array.from({ length: 50 }, (_, n) =>
-            session(n, 1, now - 100_000 + n * 1000, 500),
-          ),
-          pagination: { limit: 50, offset: 0, total: 51 },
-        });
-      }
+      if (isSummaryRead(new URL(String(input)))) return new Response('', { status: 404 });
       return original(input, init);
     });
-    const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
-    expect(input.collection.items[0]).toMatchObject({ viewsSevenDays: 50 });
+    const handlerDeps = deps(fetchImpl);
+    const warn = vi.spyOn(handlerDeps.logger, 'warn');
+    const input = await new TriageInputOwner(handlerDeps, id(91), id(92), token, now).build();
+    expect(input.collection.items[0]).toMatchObject({ lastViewed: null, viewsSevenDays: 0 });
     expect(input.attention.totalsComplete).toBe(false);
     expect(input.limits.find((l) => l.scope === 'attention')?.unavailable).toBe(true);
+    expect(warn).toHaveBeenCalledWith('open_items_triage.read.unavailable', {
+      scope: 'attention',
+      cause: 'Error: Read failed (404).',
+    });
   });
   it('caps collection, groups, Goals, tracked snapshots and graph connections with explicit limits', async () => {
     const fetchImpl = fetchFixture(),
@@ -579,22 +502,18 @@ describe('triage input and handler', () => {
             updatedAt: new Date(now).toISOString(),
           })),
         });
-      if (path.endsWith('/attention')) {
-        const offset = Number(url.searchParams.get('offset'));
-        const events = Array.from({ length: 50 }, (_, n) => ({
-          ...session(
-            offset + n,
-            ((offset + n) % TRIAGE_CAPS.items) + 1,
-            now - DAY_MS + (offset + n) * 300_000,
-            500,
-          ),
-          entityName: title(((offset + n) % TRIAGE_CAPS.items) + 1),
-        }));
-        return response({
-          events,
-          pagination: { limit: 50, offset, total: TRIAGE_CAPS.attentionPages * 50 },
-        });
-      }
+      if (isSummaryRead(url))
+        return response(
+          summary({
+            items: Array.from({ length: TRIAGE_CAPS.items }, (_, n) =>
+              viewed(n + 1, { entity: { ...entity(n + 1), entityName: title(n + 1) } }),
+            ),
+            timeline: Array.from({ length: 100 }, (_, n) => ({
+              ...span(n + 1, now - DAY_MS + n * 600_000),
+              entity: { ...entity(n + 1), entityName: title(n + 1) },
+            })),
+          }),
+        );
       if (path.endsWith('/goals/active'))
         return response({
           items: Array.from({ length: TRIAGE_CAPS.goals }, (_, n) => ({
@@ -741,98 +660,77 @@ describe('triage input and handler', () => {
         ?.unavailable,
     ).toBe(true);
   });
-  it('reads canonical uppercase attention, skipping non-candidate types without calling them invalid', async () => {
+  it.each([EntityType.AgentSession, EntityType.Proposal])(
+    'asks for %s attention and uses it for open items, reopen leads and switching pairs',
+    async (entityType) => {
+      const fetchImpl = fetchFixture(),
+        original = fetchImpl.getMockImplementation()!;
+      const open = entity(1, entityType),
+        closed = entity(50, entityType);
+      fetchImpl.mockImplementation(async (input, init) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/open-items')) {
+          return response({
+            state: 'PRESENT',
+            revision: 3,
+            items: [{ ...openItem(), entityType }],
+            groups: [],
+          });
+        }
+        if (isSummaryRead(url)) {
+          expect(url.searchParams.getAll('entityTypes')).toContain(entityType);
+          return response(
+            summary({
+              items: [
+                viewed(1, { entity: open, viewsToday: 2, viewsSevenDays: 4 }),
+                viewed(50, { entity: closed }),
+              ],
+              switches: [{ entities: [open, closed], occurrences: 2 }],
+              truncated: { switches: true, timeline: false },
+            }),
+          );
+        }
+        return original(input, init);
+      });
+      const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
+      expect(input.collection.items[0]).toMatchObject({ viewsToday: 2, viewsSevenDays: 4 });
+      expect(input.attention.totalsComplete).toBe(true);
+      expect(input.attention.reopenCandidates).toMatchObject([
+        { item: { entityType, entityId: id(50) } },
+      ]);
+      expect(input.attention.coAttention).toMatchObject([
+        { items: [{ entityId: id(1) }, { entityId: id(50) }], occurrences: 2 },
+      ]);
+      expect(input.attention.truncated.coAttention).toBe(true);
+    },
+  );
+  it('keeps healthy attention but reports unreadable records as incomplete, saying why', async () => {
     const fetchImpl = fetchFixture(),
       original = fetchImpl.getMockImplementation()!;
-    const wire = (n: number, entityType: string, entityId: string) => ({
-      id: id(2000 + n),
-      entityType,
-      entityId,
-      entityName: `Entity ${n}`,
-      tab: null,
-      focusStart: new Date(now - 120_000 + n * 1000).toISOString(),
-      focusEnd: new Date(now - 90_000 + n * 1000).toISOString(),
-      durationMs: 30_000,
-    });
     fetchImpl.mockImplementation(async (input, init) => {
       const url = new URL(String(input));
-      if (url.pathname.endsWith('/attention'))
+      if (isSummaryRead(url))
         return response({
-          events: [
-            wire(1, 'TASK', id(1)),
-            wire(2, 'AGENT_SESSION', id(50)),
-            wire(3, 'PROPOSAL', id(51)),
-          ],
-          pagination: { limit: 50, offset: 0, total: 3 },
+          ...summary({ unreadableRecords: 2 }),
+          items: [{ ...viewed(2), entity: { ...entity(2), entityType: 'task' } }, viewed(1)],
         });
-      return original(input, init);
-    });
-    const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
-    expect(input.collection.items[0]).toMatchObject({
-      viewsSevenDays: 1,
-      focusMsSevenDays: 30_000,
-    });
-    expect(input.attention.totalsComplete).toBe(true);
-    expect(input.attention.reopenCandidates).toEqual([]);
-    expect(input.limits).toContainEqual({
-      scope: 'attention',
-      invalidRecords: 0,
-      truncated: false,
-      unavailable: false,
-    });
-  });
-  it('rejects records that do not match the contract and says why', async () => {
-    const fetchImpl = fetchFixture(),
-      original = fetchImpl.getMockImplementation()!;
-    fetchImpl.mockImplementation(async (input, init) => {
-      const url = new URL(String(input));
-      if (url.pathname.endsWith('/attention'))
-        return response({
-          events: [{ ...session(1, 1, now - 60_000), entityType: 'task' }],
-          pagination: { limit: 50, offset: 0, total: 1 },
-        });
+      if (url.pathname.endsWith('/context')) return new Response('', { status: 503 });
       return original(input, init);
     });
     const handlerDeps = deps(fetchImpl);
     const warn = vi.spyOn(handlerDeps.logger, 'warn');
     const input = await new TriageInputOwner(handlerDeps, id(91), id(92), token, now).build();
-    expect(input.attention.totalsComplete).toBe(false);
-    expect(warn).toHaveBeenCalledWith('open_items_triage.record.invalid', {
-      scope: 'attention',
-      reasons: { 'entityType: invalid_enum_value': 1 },
-    });
-  });
-  it('pages the full bounded window, isolates bad records and preserves a healthy later page', async () => {
-    const fetchImpl = fetchFixture();
-    const original = fetchImpl.getMockImplementation()!;
-    fetchImpl.mockImplementation(async (input, init) => {
-      const url = new URL(String(input));
-      if (url.pathname.endsWith('/attention')) {
-        const offset = Number(url.searchParams.get('offset'));
-        return response({
-          events:
-            offset === 0
-              ? [
-                  null,
-                  ...Array.from({ length: 49 }, (_, n) =>
-                    session(n, 1, now - 100_000 + n * 1000, 500),
-                  ),
-                ]
-              : [session(50, 1, now - 1000, 500)],
-          pagination: { limit: 50, offset, total: 51 },
-        });
-      }
-      if (url.pathname.endsWith('/context')) return new Response('', { status: 503 });
-      return original(input, init);
-    });
-    const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
-    expect(input.collection.items[0]).toMatchObject({ viewsSevenDays: 50 });
+    expect(input.collection.items[0]).toMatchObject({ viewsSevenDays: 1 });
     expect(input.attention.totalsComplete).toBe(false);
     expect(input.limits).toContainEqual({
       scope: 'attention',
-      invalidRecords: 1,
+      invalidRecords: 3,
       truncated: false,
       unavailable: false,
+    });
+    expect(warn).toHaveBeenCalledWith('open_items_triage.record.invalid', {
+      scope: 'attention',
+      reasons: { 'entity.entityType: invalid_enum_value': 1 },
     });
     expect(input.limits.some((l) => l.unavailable && l.scope.startsWith('connections:'))).toBe(
       true,
@@ -876,38 +774,6 @@ describe('triage input and handler', () => {
     expect(input.goals[1]?.trackedItems).toHaveLength(1);
     expect(input.limits.find((l) => l.scope === `goal:${id(7)}:tracked`)?.unavailable).toBe(true);
     expect(input.limits.find((l) => l.scope === 'collection')?.invalidRecords).toBe(1);
-  });
-  it('caps attention pages and reports partial evidence after transport failure', async () => {
-    const fetchImpl = fetchFixture(),
-      original = fetchImpl.getMockImplementation()!;
-    fetchImpl.mockImplementation(async (input, init) => {
-      const url = new URL(String(input));
-      if (url.pathname.endsWith('/attention')) {
-        const offset = Number(url.searchParams.get('offset'));
-        return response({
-          events: Array.from({ length: 50 }, (_, n) =>
-            session(offset + n, 1, now - 1_000_000 + (offset + n) * 1000, 500),
-          ),
-          pagination: { limit: 50, offset, total: 5000 },
-        });
-      }
-      return original(input, init);
-    });
-    const input = await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build();
-    expect(fetchImpl.mock.calls.filter(([url]) => String(url).includes('/attention'))).toHaveLength(
-      20,
-    );
-    expect(input.limits.find((l) => l.scope === 'attention')?.truncated).toBe(true);
-    expect(input.attention.totalsComplete).toBe(false);
-    fetchImpl.mockImplementation(async (input, init) => {
-      if (String(input).includes('/attention')) throw new Error('offline');
-      return original(input, init);
-    });
-    expect(
-      (await new TriageInputOwner(deps(fetchImpl), id(91), id(92), token, now).build()).limits.find(
-        (l) => l.scope === 'attention',
-      )?.unavailable,
-    ).toBe(true);
   });
   it('blocks only the run requiring an unavailable collection; a later run can proceed', async () => {
     const fetchImpl = fetchFixture();
@@ -1223,7 +1089,7 @@ describe('session observations in compact prepared input', () => {
           items: [1, 2].map((n) => ({ ...openItem(n), entityType: 'AGENT_SESSION' })),
           groups: [],
         });
-      if (path.endsWith('/attention')) return new Response('', { status: 503 });
+      if (path.endsWith('/attention/summary')) return new Response('', { status: 503 });
       if (path.endsWith('current-state:batch'))
         return response({
           items: [
