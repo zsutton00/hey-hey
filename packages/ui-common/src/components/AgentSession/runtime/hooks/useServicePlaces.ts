@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
-  CliReadServicePlacesEntry,
   CliReadServicePlacesOkEntry,
   RecentServicePlaceBranch,
 } from "../../../../api";
-import {
-  HostActionCategory,
-  HostActionTargetKind,
-  HostAffectingActionType,
-} from "../../../../api";
 import { agentSessionsClient } from "../../../../clients";
-import { useUserPairedMachines } from "../../../../data/hooks/useUserPairedMachines";
-import { executeControllerAuthorizedAction } from "../../../../data/hooks/useControllerAuthorizedAction";
+import { readServicePlaces, type ServicePlacesRead } from "./readServicePlaces";
+import { useServicePlacesMachine } from "./useServicePlacesMachine";
 
 export const BRANCH_SEARCH_DEBOUNCE_MS = 300;
 
@@ -50,10 +44,6 @@ export interface UseServicePlacesOptions {
   branchQuery?: string;
 }
 
-interface PlacesRead {
-  entries: ReadonlyMap<string, CliReadServicePlacesEntry>;
-}
-
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
@@ -80,22 +70,22 @@ export function useServicePlaces(
     (options.branchQuery ?? "").trim(),
     BRANCH_SEARCH_DEBOUNCE_MS,
   );
-  const machinesQuery = useUserPairedMachines({ enabled });
-  const machine = machinesQuery.machines.find(
-    (candidate) => candidate.machineId === machineId,
+  const { machinesQuery, machine } = useServicePlacesMachine(
+    machineId,
+    enabled,
   );
 
   const [base, setBase] = useState<
     | { status: "loading" }
     | { status: "unavailable"; message: string }
-    | { status: "ready"; read: PlacesRead }
+    | { status: "ready"; read: ServicePlacesRead }
   >({ status: "loading" });
   const [recent, setRecent] = useState<
     ReadonlyMap<string, readonly RecentServicePlaceBranch[]>
   >(new Map());
   const [search, setSearch] = useState<
     | { query: string; status: "pending" }
-    | { query: string; status: "done"; read: PlacesRead }
+    | { query: string; status: "done"; read: ServicePlacesRead }
     | { query: string; status: "failed"; message: string }
     | null
   >(null);
@@ -105,56 +95,15 @@ export function useServicePlaces(
       return null;
     }
 
-    return async (branchQuery?: string): Promise<PlacesRead> => {
-      const ids = serviceKey.split(",");
-      const authorized = await executeControllerAuthorizedAction({
+    return (branchQuery?: string): Promise<ServicePlacesRead> =>
+      readServicePlaces({
         organizationId,
         projectId,
         machine,
-        action: {
-          requestId: crypto.randomUUID(),
-          actionCategory: HostActionCategory.CliRead,
-          actionType: HostAffectingActionType.CliRead,
-          targetKind: HostActionTargetKind.CliRead,
-          targetId: machineId,
-          serviceIds: ids,
-          ...(branchQuery ? { branchQuery } : {}),
-        },
-        submit: ({ authorization }) =>
-          agentSessionsClient.listMachineServicePlaces({
-            organizationId,
-            projectId,
-            machineId,
-            cliReadWorkspaceServicePlacesListRequest: {
-              operation: "workspace.service_places.list",
-              serviceIds: ids,
-              ...(branchQuery ? { branchQuery } : {}),
-              authorization,
-            },
-          }),
+        serviceIds: serviceKey.split(","),
+        branchQuery,
       });
-
-      if (authorized.outcome === "DENIED") {
-        throw new Error(
-          `Controller authorization denied: ${authorized.reason}`,
-        );
-      }
-
-      const response = authorized.data.data.data;
-      if (!response) {
-        throw new Error("The Service places read returned no result.");
-      }
-      if (response.status === "error") {
-        throw new Error(response.error.message);
-      }
-
-      return {
-        entries: new Map(
-          response.result.services.map((entry) => [entry.serviceId, entry]),
-        ),
-      };
-    };
-  }, [machine, machineId, organizationId, projectId, serviceKey]);
+  }, [machine, organizationId, projectId, serviceKey]);
 
   useEffect(() => {
     if (!enabled || serviceIds.length === 0) {
@@ -283,13 +232,13 @@ export function useServicePlaces(
 
     const searchRead = search?.status === "done" ? search.read : null;
     const byServiceId: Record<string, ServicePlacesEntry> = {};
-    for (const [serviceId, entry] of base.read.entries) {
+    for (const [serviceId, entry] of base.read) {
       if (entry.status === "error") {
         byServiceId[serviceId] = { status: "error", message: entry.message };
         continue;
       }
 
-      const searched = searchRead?.entries.get(serviceId);
+      const searched = searchRead?.get(serviceId);
       const matches = searched?.status === "ok" ? searched : null;
       byServiceId[serviceId] = {
         status: "ready",

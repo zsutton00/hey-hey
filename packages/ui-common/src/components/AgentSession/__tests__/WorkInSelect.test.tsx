@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { WorkInSelect, type WorkInSelectProps } from "../WorkInSelect";
 import { resolveChoice } from "../resolveChoice";
@@ -40,6 +41,8 @@ const readyEntry = (
 const renderSelect = (overrides: Partial<WorkInSelectProps> = {}) => {
   const onChange = vi.fn();
   const onBranchQueryChange = vi.fn();
+  const release = vi.fn();
+  const registerOpenNameField = vi.fn(() => release);
   const props: WorkInSelectProps = {
     serviceId: SERVICE_ID,
     entry: readyEntry(),
@@ -48,13 +51,23 @@ const renderSelect = (overrides: Partial<WorkInSelectProps> = {}) => {
     searching: false,
     searchError: null,
     disabled: false,
+    suggestBranchName: null,
+    branchNameServiceIds: [SERVICE_ID],
+    registerOpenNameField,
     onBranchQueryChange,
     onChange,
     ...overrides,
   };
   const view = render(<WorkInSelect {...props} />);
 
-  return { ...view, onChange, onBranchQueryChange };
+  return {
+    ...view,
+    props,
+    onChange,
+    onBranchQueryChange,
+    registerOpenNameField,
+    release,
+  };
 };
 
 const input = () => screen.getByTestId("work-in-select");
@@ -232,28 +245,6 @@ describe("WorkInSelect", () => {
     });
   });
 
-  it("creates a new worktree from the button beside the field", () => {
-    const { onChange } = renderSelect();
-
-    fireEvent.click(screen.getByTestId("work-in-new-worktree-button"));
-    expect(screen.getByTestId("work-in-new")).toHaveTextContent(
-      "Starts from main",
-    );
-    expect(screen.getByTestId("work-in-new-confirm")).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("New branch name"), {
-      target: { value: "my-branch" },
-    });
-    fireEvent.click(screen.getByTestId("work-in-new-confirm"));
-
-    expect(onChange).toHaveBeenCalledWith({
-      serviceId: SERVICE_ID,
-      kind: "WORKTREE",
-      branch: "my-branch",
-      newBranch: true,
-    });
-  });
-
   it("warns when a worktree is chosen on the branch the main folder holds", () => {
     renderSelect({
       value: {
@@ -309,5 +300,175 @@ describe("WorkInSelect", () => {
       kind: "MAIN_FOLDER",
     });
     expect(resolveChoice(SERVICE_ID, explicit)).toBe(explicit);
+  });
+});
+
+const nameField = () => screen.getByTestId("work-in-new-input");
+
+const openNameField = () =>
+  fireEvent.click(screen.getByTestId("work-in-new-worktree-button"));
+
+const cancelButton = () => screen.getByRole("button", { name: "Cancel" });
+
+const acceptButton = () => screen.getByRole("button", { name: "Accept" });
+
+describe("WorkInSelect, naming a new worktree", () => {
+  it("replaces the field and its button with one naming row", () => {
+    const { onChange } = renderSelect({
+      value: {
+        serviceId: SERVICE_ID,
+        kind: "WORKTREE",
+        branch: "old-work",
+        newBranch: false,
+      },
+    });
+    openNameField();
+
+    expect(screen.getByLabelText("New branch from main")).toBe(nameField());
+    expect(nameField()).toHaveFocus();
+    expect(nameField()).toHaveValue("");
+    expect(acceptButton()).toBeDisabled();
+    expect(screen.queryByTestId("work-in-select")).toBeNull();
+    expect(screen.queryByTestId("work-in-new-worktree-button")).toBeNull();
+    // The note describes the earlier choice, which is out of sight.
+    expect(screen.queryByTestId("work-in-new-worktree-note")).toBeNull();
+    expect(screen.queryByText(/Starts from/)).toBeNull();
+    expect(screen.queryByText("Use new worktree")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("says the branch starts from the current commit while the main folder is detached", () => {
+    renderSelect({
+      entry: readyEntry({ mainFolder: { path: "/repo", branch: null } }),
+    });
+    openNameField();
+
+    expect(screen.getByLabelText("New branch from current commit")).toBe(
+      nameField(),
+    );
+  });
+
+  it("Cancel brings the earlier choice back unchanged and releases the hold", () => {
+    const view = renderSelect({ requireChoice: true });
+    openNameField();
+    expect(view.registerOpenNameField).toHaveBeenCalledTimes(1);
+    expect(view.release).not.toHaveBeenCalled();
+
+    fireEvent.change(nameField(), { target: { value: "abandoned" } });
+    fireEvent.click(cancelButton());
+
+    expect(view.onChange).not.toHaveBeenCalled();
+    expect(view.release).toHaveBeenCalledTimes(1);
+    expect(input()).toHaveValue("");
+    expect(screen.getByTestId("work-in-new-worktree-button")).toHaveFocus();
+  });
+
+  it("Accept sends a new-branch worktree choice that the field then shows", () => {
+    const view = renderSelect();
+    openNameField();
+    fireEvent.change(nameField(), { target: { value: "  my-branch  " } });
+    fireEvent.click(acceptButton());
+
+    const choice = {
+      serviceId: SERVICE_ID,
+      kind: "WORKTREE" as const,
+      branch: "my-branch",
+      newBranch: true,
+    };
+    expect(view.onChange).toHaveBeenCalledWith(choice);
+    expect(view.release).toHaveBeenCalledTimes(1);
+
+    view.rerender(<WorkInSelect {...view.props} value={choice} />);
+    expect(input()).toHaveValue("my-branch · new worktree");
+  });
+
+  it("accepts on Enter alone and cancels on Escape without it reaching a surrounding dialog", async () => {
+    const onOuterKeyDown = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <div onKeyDown={(event) => onOuterKeyDown(event.key)}>
+        <WorkInSelect
+          serviceId={SERVICE_ID}
+          entry={readyEntry()}
+          value={null}
+          lockedBranch={null}
+          searching={false}
+          searchError={null}
+          disabled={false}
+          suggestBranchName={null}
+          branchNameServiceIds={[SERVICE_ID]}
+          registerOpenNameField={() => () => undefined}
+          onBranchQueryChange={() => undefined}
+          onChange={onChange}
+        />
+      </div>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("work-in-new-worktree-button"));
+    await user.keyboard("typed{Escape}");
+    expect(onOuterKeyDown).not.toHaveBeenCalledWith("Escape");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("work-in-new-worktree-button")).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await user.keyboard("my-branch");
+    await user.keyboard("{Meta>}{Enter}{/Meta}{Shift>}{Enter}{/Shift}");
+    fireEvent.keyDown(nameField(), { key: "Enter", isComposing: true });
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ branch: "my-branch", newBranch: true }),
+    );
+    // The same key press must not reopen the field through the focused button.
+    expect(screen.queryByTestId("work-in-new")).toBeNull();
+  });
+
+  it("pre-fills the suggested name, checked against every Service it applies to", async () => {
+    const suggestBranchName = vi.fn(async () => "fix-the-pairing-poll-2");
+    renderSelect({
+      suggestBranchName,
+      branchNameServiceIds: [SERVICE_ID, "service-2"],
+    });
+    openNameField();
+
+    expect(nameField()).toHaveAttribute("placeholder", "Checking names…");
+    await screen.findByDisplayValue("fix-the-pairing-poll-2");
+    expect(suggestBranchName).toHaveBeenCalledWith([SERVICE_ID, "service-2"]);
+    expect(acceptButton()).toBeEnabled();
+  });
+
+  it.each(["my own name", ""])(
+    "never replaces what the user typed (%j) with a late suggestion",
+    async (typedText) => {
+      let answer: (name: string) => void = () => undefined;
+      renderSelect({
+        suggestBranchName: () =>
+          new Promise<string>((resolve) => {
+            answer = resolve;
+          }),
+      });
+      openNameField();
+      fireEvent.change(nameField(), { target: { value: "x" } });
+      fireEvent.change(nameField(), { target: { value: typedText } });
+
+      await act(async () => answer("late-suggestion"));
+
+      expect(nameField()).toHaveValue(typedText);
+    },
+  );
+
+  it("releases the hold when a Plan's branch replaces an open name field", () => {
+    const view = renderSelect();
+    openNameField();
+
+    view.rerender(<WorkInSelect {...view.props} lockedBranch="plan/stage-1" />);
+
+    expect(view.release).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox")).toHaveValue(
+      "Plan branch: plan/stage-1",
+    );
   });
 });

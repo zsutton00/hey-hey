@@ -56,6 +56,7 @@ import { SessionErrorAlert } from "../AgentSession/SessionErrorAlert";
 import { NO_CLI_CONNECTION_CODE } from "../AgentSession/classifySessionError";
 import type { EntityConversationLaunchError } from "./useEntityConversationLauncher";
 import { ServicesWorkIn } from "../AgentSession/ServicesWorkIn";
+import { useOpenNameFields } from "../AgentSession/useOpenNameFields";
 import { resolveChoice } from "../AgentSession/resolveChoice";
 import { ServiceSelector } from "../Selectors/ServiceSelector";
 import type {
@@ -178,6 +179,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
     useState<AgentSkillSelection | null>(null);
   const [prompt, setPrompt] = useState(initialValue ?? "");
   const [placesUnavailable, setPlacesUnavailable] = useState(false);
+  const { nameOpen, registerOpenNameField } = useOpenNameFields();
   const [disableCodexSystemPrompt, setDisableCodexSystemPrompt] =
     useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -324,6 +326,10 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       projectAssistant?: EntityConversationProjectAssistantConfig,
       initiatingAction?: DiscussLaunchAction,
     ) => {
+      // The hint under the editor already says why nothing starts.
+      if (nameOpen) {
+        return;
+      }
       if (placesUnavailable) {
         setValidationError(
           "Where the Service works could not be loaded. Pick another machine or Service, or remove the Service, to start.",
@@ -424,6 +430,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       selectedServiceId,
       placeChoice,
       placesUnavailable,
+      nameOpen,
     ],
   );
 
@@ -461,6 +468,11 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
     organizationId && projectId
       ? { organizationId, projectId, conversationId: null }
       : null;
+
+  const promptHint = nameOpen
+    ? "Accept or cancel the new branch name to start."
+    : (validationError ?? "Press Cmd+Enter to submit.");
+  const showsValidationError = !nameOpen && validationError !== null;
 
   const entityTypeLabel =
     workItemTypeSummary?.definition.name ??
@@ -651,10 +663,10 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
         />
         <Typography
           variant="caption"
-          color={validationError ? "error.main" : "text.secondary"}
+          color={showsValidationError ? "error.main" : "text.secondary"}
           sx={{ mt: 0.5, display: "block", px: 1.5 }}
         >
-          {validationError ?? "Press Cmd+Enter to submit."}
+          {promptHint}
         </Typography>
         <DiscussSubmitError error={submitError} />
         {machines.length === 0 ? (
@@ -769,6 +781,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                 services={[{ serviceId: placeServiceId }]}
                 choices={placeChoice ? { [placeServiceId]: placeChoice } : {}}
                 disabled={isLoading}
+                workItemName={focalWorkItem?.name ?? null}
+                registerOpenNameField={registerOpenNameField}
                 onChange={setPlaceChoice}
                 onUnavailableChange={setPlacesUnavailable}
               />
@@ -873,7 +887,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             !selectedMachineId ||
             !selection ||
             attachments.blocked ||
-            placesUnavailable
+            placesUnavailable ||
+            nameOpen
           }
           data-testid="discuss-modal-ask"
           aria-label={
@@ -903,7 +918,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             !selectedMachineId ||
             !selection ||
             attachments.blocked ||
-            placesUnavailable
+            placesUnavailable ||
+            nameOpen
           }
           data-testid="discuss-modal-submit"
           aria-label={

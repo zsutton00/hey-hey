@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
-  Box,
   Button,
   Stack,
   TextField,
@@ -15,6 +14,9 @@ import {
   buildPlaceOptions,
   type PlaceOption,
 } from "./runtime/hooks/placeOptions";
+import type { SuggestBranchName } from "./runtime/hooks/useBranchNameSuggester";
+import { NewBranchNameRow } from "./NewBranchNameRow";
+import type { RegisterOpenNameField } from "./useOpenNameFields";
 import type { ServicePlacesEntry } from "./runtime/hooks/useServicePlaces";
 
 type ReadyEntry = Extract<ServicePlacesEntry, { status: "ready" }>;
@@ -42,6 +44,12 @@ export interface WorkInSelectProps {
   /** Message from a failed branch search, or null. */
   searchError: string | null;
   disabled: boolean;
+  /** Names a new worktree; null when there is no work item to name it after. */
+  suggestBranchName: SuggestBranchName | null;
+  /** The Services this field applies to; a suggested name is free in all. */
+  branchNameServiceIds: readonly string[];
+  /** Held while the new worktree name is open, so nothing starts early. */
+  registerOpenNameField: RegisterOpenNameField;
   /** Receives the typed text so the caller can search branches while typing. */
   onBranchQueryChange: (query: string) => void;
   onChange: (choice: ServicePlaceChoice) => void;
@@ -136,12 +144,22 @@ export const WorkInSelect = ({
   searching,
   searchError,
   disabled,
+  suggestBranchName,
+  branchNameServiceIds,
+  registerOpenNameField,
   onBranchQueryChange,
   onChange,
 }: WorkInSelectProps) => {
   const [typed, setTyped] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newBranchName, setNewBranchName] = useState("");
+  const [naming, setNaming] = useState(false);
+  const newWorktreeButton = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (!naming && returnFocus.current) {
+      returnFocus.current = false;
+      newWorktreeButton.current?.focus();
+    }
+  }, [naming]);
   const readyEntry = entry.status === "ready" ? entry : null;
 
   const menuOptions = useMemo(
@@ -210,7 +228,6 @@ export const WorkInSelect = ({
     if (option === null || option.kind !== "place") {
       return;
     }
-    setCreating(false);
     setTyped(null);
     onBranchQueryChange("");
     if (option.key === MAIN_FOLDER_OPTION_KEY || option.branch === null) {
@@ -220,15 +237,37 @@ export const WorkInSelect = ({
     onChange(choiceForBranch(serviceId, entry, option.branch));
   };
 
-  const createWorktree = (): void => {
-    setCreating(false);
-    onChange({
-      serviceId,
-      kind: "WORKTREE",
-      branch: newBranchName.trim(),
-      newBranch: true,
-    });
+  const closeNaming = (): void => {
+    returnFocus.current = true;
+    setNaming(false);
   };
+
+  // The warning and note below the field describe the earlier choice, which is
+  // out of sight while a name is open.
+  if (naming) {
+    return (
+      <Stack data-testid="work-in" data-service-id={serviceId}>
+        <NewBranchNameRow
+          startingBranch={mainBranch}
+          suggestBranchName={suggestBranchName}
+          serviceIds={branchNameServiceIds}
+          registerOpenNameField={registerOpenNameField}
+          disabled={disabled}
+          width={FIELD_WIDTH}
+          onAccept={(branch) => {
+            closeNaming();
+            onChange({
+              serviceId,
+              kind: "WORKTREE",
+              branch,
+              newBranch: true,
+            });
+          }}
+          onCancel={closeNaming}
+        />
+      </Stack>
+    );
+  }
 
   const noOptionsText =
     searchError !== null
@@ -356,44 +395,16 @@ export const WorkInSelect = ({
           sx={{ width: FIELD_WIDTH, minWidth: 0 }}
         />
         <Button
+          ref={newWorktreeButton}
           variant="outlined"
           disabled={disabled}
-          onClick={() => {
-            setNewBranchName("");
-            setCreating(true);
-          }}
+          onClick={() => setNaming(true)}
           data-testid="work-in-new-worktree-button"
           sx={{ whiteSpace: "nowrap", height: 40, flexShrink: 0 }}
         >
           New worktree
         </Button>
       </Stack>
-
-      {creating ? (
-        <Stack spacing={1} data-testid="work-in-new">
-          <TextField
-            size="small"
-            autoFocus
-            label="New branch name"
-            value={newBranchName}
-            onChange={(event) => setNewBranchName(event.target.value)}
-            helperText={`Starts from ${mainBranch ?? "the main folder's current commit"}.`}
-            data-testid="work-in-new-input"
-            sx={{ width: FIELD_WIDTH, maxWidth: "100%" }}
-          />
-          <Box>
-            <Button
-              size="small"
-              variant="contained"
-              disabled={newBranchName.trim() === ""}
-              onClick={createWorktree}
-              data-testid="work-in-new-confirm"
-            >
-              Use new worktree
-            </Button>
-          </Box>
-        </Stack>
-      ) : null}
 
       {conflict ? (
         <Alert severity="warning" data-testid="work-in-conflict">

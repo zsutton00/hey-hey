@@ -64,6 +64,7 @@ const buildProps = (
   repositoryPaths: {},
   lockedWorktreeBranch: null,
   servicePlaces: { status: "idle" },
+  suggestBranchName: null,
   onBranchQueryChange: vi.fn(),
   sessionPlaceChoice: null,
   perServicePlaceChoices: null,

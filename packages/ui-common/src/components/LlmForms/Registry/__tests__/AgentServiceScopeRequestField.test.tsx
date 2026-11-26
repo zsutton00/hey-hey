@@ -25,6 +25,9 @@ const workInMock = vi.hoisted(() => ({
 vi.mock("../../../../data/hooks/useAgentSession", () => ({
   useAgentSession: () => ({ agentSession: { machineId: "machine-1" } }),
 }));
+vi.mock("../../../../data/hooks/useWorkItem", () => ({
+  useWorkItem: () => ({ workItem: null }),
+}));
 vi.mock("../../../AgentSession/ServicesWorkIn", () => ({
   ServicesWorkIn: ({
     services,

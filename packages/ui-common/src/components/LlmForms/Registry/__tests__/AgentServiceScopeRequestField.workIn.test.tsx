@@ -7,6 +7,9 @@ import { AgentServiceScopeRequestField } from "../AgentServiceScopeRequestField"
 const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   places: { current: { status: "loading" } as unknown },
+  session: { current: { machineId: "machine-1" } as Record<string, unknown> },
+  workItem: vi.fn(),
+  readPlaces: vi.fn(),
 }));
 
 vi.mock(
@@ -29,7 +32,18 @@ vi.mock("../../../../data/hooks/useServices", () => ({
   }),
 }));
 vi.mock("../../../../data/hooks/useAgentSession", () => ({
-  useAgentSession: () => ({ agentSession: { machineId: "machine-1" } }),
+  useAgentSession: () => ({ agentSession: mocks.session.current }),
+}));
+vi.mock("../../../../data/hooks/useWorkItem", () => ({
+  useWorkItem: mocks.workItem,
+}));
+vi.mock("../../../../data/hooks/useUserPairedMachines", () => ({
+  useUserPairedMachines: () => ({
+    machines: [{ machineId: "machine-1" }],
+  }),
+}));
+vi.mock("../../../AgentSession/runtime/hooks/readServicePlaces", () => ({
+  readServicePlaces: mocks.readPlaces,
 }));
 vi.mock("../../../AgentSession/runtime/hooks/useServicePlaces", () => ({
   useServicePlaces: () => mocks.places.current,
@@ -94,6 +108,79 @@ const card = () => (
 describe("AgentServiceScopeRequestField Work in readiness", () => {
   beforeEach(() => {
     mocks.submit.mockReset();
+    mocks.session.current = { machineId: "machine-1" };
+    mocks.workItem.mockReset();
+    mocks.workItem.mockReturnValue({ workItem: null });
+    mocks.readPlaces.mockReset();
+  });
+
+  it("holds Approve, never Deny, while a name from the session's work item is open", async () => {
+    mocks.places.current = readyPlaces("main");
+    mocks.session.current = {
+      machineId: "machine-1",
+      entityType: "TASK",
+      entityId: "task-1",
+    };
+    mocks.workItem.mockReturnValue({
+      workItem: { name: "Fix the pairing poll" },
+    });
+    mocks.readPlaces.mockResolvedValue(
+      new Map([
+        [
+          "service-api",
+          {
+            serviceId: "service-api",
+            status: "ok",
+            mainFolder: { path: "/api", branch: "main" },
+            worktrees: [],
+            branchMatches: ["fix-the-pairing-poll"],
+            branchMatchesTruncated: false,
+          },
+        ],
+      ]),
+    );
+    render(card());
+    const approve = screen.getByTestId("agent-service-scope-approve");
+
+    await userEvent.click(screen.getByTestId("work-in-new-worktree-button"));
+    await screen.findByDisplayValue("fix-the-pairing-poll-2");
+
+    expect(mocks.workItem).toHaveBeenCalledWith("org-1", "task", "task-1", {
+      projectId: "project-1",
+      enabled: true,
+    });
+    expect(approve).toBeDisabled();
+    expect(screen.getByTestId("agent-service-scope-deny")).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(approve);
+
+    expect(mocks.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePlaceChoices: [
+          {
+            serviceId: "service-api",
+            kind: "WORKTREE",
+            branch: "fix-the-pairing-poll-2",
+            newBranch: true,
+          },
+        ],
+      }),
+    );
+  });
+
+  it("still denies while a name is open, and starts empty without a work item", async () => {
+    mocks.places.current = readyPlaces("main");
+    render(card());
+
+    await userEvent.click(screen.getByTestId("work-in-new-worktree-button"));
+    expect(screen.getByTestId("work-in-new-input")).toHaveValue("");
+    await userEvent.click(screen.getByTestId("agent-service-scope-deny"));
+
+    expect(mocks.submit).toHaveBeenCalledWith(
+      expect.objectContaining({ decision: "deny" }),
+    );
+    expect(mocks.readPlaces).not.toHaveBeenCalled();
   });
 
   it("cannot approve the proposal before where the Service works is shown, but can deny", async () => {

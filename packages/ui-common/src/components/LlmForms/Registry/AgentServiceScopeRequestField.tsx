@@ -3,11 +3,14 @@ import React from "react";
 import { useServices } from "../../../data/hooks/useServices";
 import { useSubmitControllerAuthorizedPermissionDecision } from "../../../data/hooks/useSubmitControllerAuthorizedPermissionDecision";
 import { useAgentSession } from "../../../data/hooks/useAgentSession";
+import { useWorkItem } from "../../../data/hooks/useWorkItem";
 import { ServicesWorkIn } from "../../AgentSession/ServicesWorkIn";
+import { useOpenNameFields } from "../../AgentSession/useOpenNameFields";
 import { resolveChoice } from "../../AgentSession/resolveChoice";
-import type {
-  AgentRequestServiceScopePayload,
-  ServicePlaceChoice,
+import {
+  EntityType,
+  type AgentRequestServiceScopePayload,
+  type ServicePlaceChoice,
 } from "../../../api";
 import type { FieldComponentProps, FieldConfig } from "./types";
 type ServiceScopeFieldConfig = Omit<FieldConfig, "payload"> & {
@@ -44,6 +47,17 @@ export const AgentServiceScopeRequestField: React.FC<
     projectId,
     agentSessionId,
   );
+  const attachedWorkItemId =
+    agentSession?.entityType === EntityType.Task
+      ? agentSession.entityId
+      : undefined;
+  const { workItem } = useWorkItem(
+    organizationId,
+    "task",
+    attachedWorkItemId ?? "",
+    { projectId, enabled: Boolean(attachedWorkItemId) },
+  );
+  const { nameOpen, registerOpenNameField } = useOpenNameFields();
   const [changedChoices, setChangedChoices] = React.useState<
     Record<string, ServicePlaceChoice>
   >({});
@@ -112,6 +126,7 @@ export const AgentServiceScopeRequestField: React.FC<
   const approveBlocked =
     serviceResolutionUnavailable ||
     placesUnavailable ||
+    nameOpen ||
     unchosenServiceIds.length > 0;
   const submit = React.useCallback(
     async (decision: "approve" | "deny") => {
@@ -214,6 +229,8 @@ export const AgentServiceScopeRequestField: React.FC<
           }))}
           choices={choices}
           disabled={disabledButtons}
+          workItemName={workItem?.name ?? null}
+          registerOpenNameField={registerOpenNameField}
           onUnavailableChange={setPlacesUnavailable}
           onChange={(choice) =>
             setChangedChoices((current) => ({

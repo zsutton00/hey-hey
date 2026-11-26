@@ -22,6 +22,7 @@ import { useModalService } from "../../contexts/ModalService";
 import { useGuidedWalkthroughControls } from "../GuidedWalkthrough";
 import { buildAddServiceWalkthrough } from "../Help/buildAddServiceWalkthrough";
 import { getDeployment } from "../../services/runtimeConfig";
+import { useBranchNameSuggester } from "./runtime/hooks/useBranchNameSuggester";
 
 export interface SessionLaunchOptions {
   provider: AgentProvider | null;
@@ -170,6 +171,13 @@ export const AgenticSetupSection = ({
     projectModeCatalog: projectModeCatalog.catalog,
   });
 
+  const suggestBranchName = useBranchNameSuggester({
+    organizationId,
+    projectId,
+    machineId: selectedMachine?.machineId ?? null,
+    workItemName: taskData?.name ?? null,
+  });
+
   const modals = useModalService();
   const walkthroughs = useGuidedWalkthroughControls();
   const handleAddService = useCallback((): void => {
@@ -218,6 +226,7 @@ export const AgenticSetupSection = ({
         repositoryPaths={setup.repositoryPaths}
         lockedWorktreeBranch={setup.lockedWorktreeBranch}
         servicePlaces={setup.servicePlaces}
+        suggestBranchName={suggestBranchName}
         onBranchQueryChange={setup.setBranchQuery}
         sessionPlaceChoice={setup.sessionPlaceChoice}
         perServicePlaceChoices={setup.perServicePlaceChoices}

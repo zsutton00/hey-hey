@@ -59,6 +59,11 @@ import type {
   ServicePlacesEntry,
   ServicePlacesState,
 } from "./runtime/hooks/useServicePlaces";
+import type { SuggestBranchName } from "./runtime/hooks/useBranchNameSuggester";
+import {
+  useOpenNameFields,
+  type RegisterOpenNameField,
+} from "./useOpenNameFields";
 import type { MachineResolutionMode } from "./runtime/coding/useMachineResolution";
 import type { AgentBridgeRecoveryState } from "./agentBridgeRecoveryState";
 import { ServiceDirectoryBindingControl } from "../Services/ServiceDirectoryBindingControl";
@@ -461,6 +466,8 @@ interface WorkInChoicesProps {
   disabled: boolean;
   sessionChoice: ServicePlaceChoice | null;
   perServiceChoices: Readonly<Record<string, ServicePlaceChoice>> | null;
+  suggestBranchName: SuggestBranchName | null;
+  registerOpenNameField: RegisterOpenNameField;
   onBranchQueryChange: (query: string) => void;
   onChangeSession: (choice: ServicePlaceChoice) => void;
   onChangeService: (choice: ServicePlaceChoice) => void;
@@ -476,6 +483,8 @@ const WorkInChoices = ({
   disabled,
   sessionChoice,
   perServiceChoices,
+  suggestBranchName,
+  registerOpenNameField,
   onBranchQueryChange,
   onChangeSession,
   onChangeService,
@@ -510,6 +519,8 @@ const WorkInChoices = ({
     searching,
     searchError,
     disabled,
+    suggestBranchName,
+    registerOpenNameField,
     onBranchQueryChange,
   };
 
@@ -526,6 +537,7 @@ const WorkInChoices = ({
               serviceId={serviceId}
               entry={entryFor(serviceId)}
               value={placeFor(serviceId, { sessionChoice, perServiceChoices })}
+              branchNameServiceIds={[serviceId]}
               onChange={onChangeService}
             />
           </Stack>
@@ -536,6 +548,7 @@ const WorkInChoices = ({
           serviceId={launchServiceId}
           entry={entryFor(launchServiceId)}
           value={sessionChoice}
+          branchNameServiceIds={serviceIds}
           onChange={onChangeSession}
         />
       )}
@@ -589,6 +602,8 @@ export interface AgentSetupViewProps {
   /** A Plan's branch; when set, Work in shows it and cannot be changed. */
   lockedWorktreeBranch: string | null;
   servicePlaces: ServicePlacesState;
+  /** Names a new worktree after the work item; null when there is none. */
+  suggestBranchName: SuggestBranchName | null;
   onBranchQueryChange: (query: string) => void;
   /** The one choice for every Service; null is the default (main folder). */
   sessionPlaceChoice: ServicePlaceChoice | null;
@@ -662,6 +677,7 @@ export const AgentSetupView = ({
   repositoryPaths,
   lockedWorktreeBranch,
   servicePlaces,
+  suggestBranchName,
   onBranchQueryChange,
   sessionPlaceChoice,
   perServicePlaceChoices,
@@ -697,6 +713,18 @@ export const AgentSetupView = ({
   onAddService,
 }: AgentSetupViewProps) => {
   const [serviceSearchValue, setServiceSearchValue] = useState("");
+  const { nameOpen, registerOpenNameField } = useOpenNameFields();
+  // The prompt editor's keyboard shortcut submits even while the button is off.
+  const handleSubmitPrompt = (): void => {
+    if (!nameOpen) {
+      onSubmitPrompt();
+    }
+  };
+  const submitDisabledReason = nameOpen
+    ? "Accept or cancel the new branch name before submitting."
+    : canStartCoding
+      ? null
+      : "Complete the Service, repository, runtime, and machine setup before submitting.";
   const compatibleSessionMethodGroups = useMemo(() => {
     const compatibleMethods = new Set(compatibleSessionMethods);
     return SESSION_METHOD_GROUPS.map((group) => ({
@@ -1068,6 +1096,8 @@ export const AgentSetupView = ({
                     disabled={submittingPrompt}
                     sessionChoice={sessionPlaceChoice}
                     perServiceChoices={perServicePlaceChoices}
+                    suggestBranchName={suggestBranchName}
+                    registerOpenNameField={registerOpenNameField}
                     onBranchQueryChange={onBranchQueryChange}
                     onChangeSession={onChangeSessionPlace}
                     onChangeService={onChangeServicePlace}
@@ -1141,15 +1171,12 @@ export const AgentSetupView = ({
                   submitDisabled={
                     submittingPrompt ||
                     !canStartCoding ||
+                    nameOpen ||
                     Boolean(promptAttachments?.blocked)
                   }
-                  submitDisabledReason={
-                    canStartCoding
-                      ? null
-                      : "Complete the Service, repository, runtime, and machine setup before submitting."
-                  }
+                  submitDisabledReason={submitDisabledReason}
                   onPromptChange={onPromptDraftChange}
-                  onSubmitPrompt={onSubmitPrompt}
+                  onSubmitPrompt={handleSubmitPrompt}
                   errorMessages={launchErrorMessages}
                   {...(promptPlaceholder
                     ? { placeholder: promptPlaceholder }

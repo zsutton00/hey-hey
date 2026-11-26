@@ -6,6 +6,8 @@ import {
   useServicePlaces,
   type ServicePlacesEntry,
 } from "./runtime/hooks/useServicePlaces";
+import { useBranchNameSuggester } from "./runtime/hooks/useBranchNameSuggester";
+import type { RegisterOpenNameField } from "./useOpenNameFields";
 
 const NOT_RETURNED_ENTRY: ServicePlacesEntry = {
   status: "error",
@@ -28,6 +30,10 @@ export interface ServicesWorkInProps {
   /** Current choice per Service; a missing entry means the main folder unless the Service requires a choice. */
   choices: Readonly<Record<string, ServicePlaceChoice>>;
   disabled: boolean;
+  /** Names a new worktree; null when the surface is about no work item. */
+  workItemName: string | null;
+  /** Lets the caller hold its start action while a branch name is open. */
+  registerOpenNameField: RegisterOpenNameField;
   onChange: (choice: ServicePlaceChoice) => void;
   /**
    * True until every listed Service's places are shown and its choice can be
@@ -45,6 +51,8 @@ export const ServicesWorkIn = ({
   services,
   choices,
   disabled,
+  workItemName,
+  registerOpenNameField,
   onChange,
   onUnavailableChange,
 }: ServicesWorkInProps) => {
@@ -56,6 +64,12 @@ export const ServicesWorkIn = ({
     machineId,
     serviceIds: services.map((service) => service.serviceId),
     branchQuery,
+  });
+  const suggestBranchName = useBranchNameSuggester({
+    organizationId,
+    projectId,
+    machineId,
+    workItemName,
   });
 
   const unavailable =
@@ -102,6 +116,9 @@ export const ServicesWorkIn = ({
             searching={places.searching}
             searchError={places.searchError}
             disabled={disabled}
+            suggestBranchName={suggestBranchName}
+            branchNameServiceIds={[serviceId]}
+            registerOpenNameField={registerOpenNameField}
             onBranchQueryChange={setBranchQuery}
             onChange={onChange}
           />

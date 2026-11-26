@@ -51,7 +51,7 @@ const roleState = vi.hoisted(() => ({
   isPlatformAdmin: false,
 }));
 const focalWorkItemState = vi.hoisted(() => ({
-  workItem: { type: "STANDARD" } as { type: string } | undefined,
+  workItem: { type: "STANDARD" } as { type: string; name?: string } | undefined,
   workItemTypeSummary: undefined as
     { definition: unknown; effectiveSource?: unknown } | undefined,
 }));
@@ -299,13 +299,37 @@ vi.mock("../../data/hooks/useUserPairedMachines", () => ({
   }),
 }));
 
-vi.mock("../AgentSession/ServicesWorkIn", () => ({
-  ServicesWorkIn: ({
+const workInState = vi.hoisted(() => ({ real: false }));
+vi.mock("../AgentSession/runtime/hooks/useServicePlaces", () => ({
+  useServicePlaces: () => ({
+    status: "ready",
+    searching: false,
+    searchError: null,
+    byServiceId: {
+      "service-1": {
+        status: "ready",
+        mainFolder: { path: "/repo", branch: "dev" },
+        worktrees: [],
+        recentBranches: [],
+        branchMatches: [],
+        branchMatchesTruncated: false,
+      },
+    },
+  }),
+}));
+vi.mock("../AgentSession/runtime/hooks/readServicePlaces", () => ({
+  readServicePlaces: async () => new Map(),
+}));
+
+vi.mock("../AgentSession/ServicesWorkIn", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../AgentSession/ServicesWorkIn")>();
+  const MockServicesWorkIn = ({
     services,
     onChange,
     onUnavailableChange,
   }: {
-    services: { serviceId: string }[];
+    services: readonly { serviceId: string }[];
     onChange: (choice: unknown) => void;
     onUnavailableChange: (unavailable: boolean) => void;
   }) => {
@@ -339,8 +363,19 @@ vi.mock("../AgentSession/ServicesWorkIn", () => ({
         </button>
       </>
     );
-  },
-}));
+  };
+
+  return {
+    ServicesWorkIn: (
+      props: React.ComponentProps<typeof actual.ServicesWorkIn>,
+    ) =>
+      workInState.real ? (
+        <actual.ServicesWorkIn {...props} />
+      ) : (
+        <MockServicesWorkIn {...props} />
+      ),
+  };
+});
 
 vi.mock("../Selectors/ServiceSelector", () => ({
   ServiceSelector: ({
@@ -445,6 +480,7 @@ beforeEach(() => {
   roleState.isPlatformAdmin = false;
   focalWorkItemState.workItem = { type: "STANDARD" };
   focalWorkItemState.workItemTypeSummary = undefined;
+  workInState.real = false;
   localStorage.clear();
   setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
   setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
@@ -1867,5 +1903,113 @@ describe("pre-conversation Skill selection", () => {
     expect(screen.getByTestId("mock-discuss-select-skill")).toHaveTextContent(
       "Choose Skill",
     );
+  });
+});
+
+describe("DiscussModal while a new worktree name is open", () => {
+  const startButtons = () => [
+    screen.getByTestId("discuss-modal-ask"),
+    screen.getByTestId("discuss-modal-submit"),
+  ];
+  const pressSubmitShortcut = () =>
+    act(() => {
+      editorCommands.enter?.({
+        metaKey: true,
+        isComposing: false,
+        preventDefault: () => {},
+      });
+    });
+  const openNameField = async () => {
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "start on a new branch" },
+    });
+    fireEvent.click(screen.getByTestId("mock-select-service-1"));
+    await userEvent.click(screen.getByTestId("work-in-new-worktree-button"));
+  };
+
+  beforeEach(() => {
+    workInState.real = true;
+    focalWorkItemState.workItem = {
+      type: "STANDARD",
+      name: "Fix the pairing poll",
+    };
+  });
+
+  it("holds both starts and the shortcut, and Escape closes only the name field", async () => {
+    const { props } = renderModal();
+    await openNameField();
+    await screen.findByDisplayValue("fix-the-pairing-poll");
+
+    for (const button of startButtons()) {
+      expect(button).toBeDisabled();
+    }
+    expect(
+      screen.getByText("Accept or cancel the new branch name to start."),
+    ).toBeInTheDocument();
+    pressSubmitShortcut();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByTestId("work-in-new-input"), "{Escape}");
+
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("work-in-select")).toHaveValue(
+      "dev · main folder",
+    );
+    for (const button of startButtons()) {
+      expect(button).toBeEnabled();
+    }
+    expect(screen.getByText("Press Cmd+Enter to submit.")).toBeInTheDocument();
+  });
+
+  it("launches the accepted name as a new worktree", async () => {
+    const { props } = renderModal();
+    await openNameField();
+    await screen.findByDisplayValue("fix-the-pairing-poll");
+
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(screen.getByTestId("discuss-modal-submit"));
+
+    expect(props.onSubmit.mock.calls[0]?.[0].servicePlaceChoices).toEqual([
+      {
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "fix-the-pairing-poll",
+        newBranch: true,
+      },
+    ]);
+  });
+
+  it("releases the hold when the Service, and so the field, is removed", async () => {
+    renderModal();
+    await openNameField();
+
+    fireEvent.click(screen.getByTestId("mock-select-service-none"));
+
+    expect(screen.queryByTestId("work-in-new")).toBeNull();
+    for (const button of startButtons()) {
+      expect(button).toBeEnabled();
+    }
+  });
+
+  it("keeps a half-typed name, still held, through minimization", async () => {
+    render(
+      <MemoryRouter>
+        <HostedModalFixture>
+          <DiscussModal {...defaultProps()} />
+          <ModalRestoreControls />
+        </HostedModalFixture>
+      </MemoryRouter>,
+    );
+    await openNameField();
+    const nameField = screen.getByTestId("work-in-new-input");
+    fireEvent.change(nameField, { target: { value: "half-typ" } });
+
+    await userEvent.click(screen.getByTestId("modal-minimize"));
+    await userEvent.click(
+      screen.getByRole("button", { name: /Restore Discuss/ }),
+    );
+
+    expect(screen.getByTestId("work-in-new-input")).toHaveValue("half-typ");
+    expect(screen.getByTestId("discuss-modal-submit")).toBeDisabled();
   });
 });

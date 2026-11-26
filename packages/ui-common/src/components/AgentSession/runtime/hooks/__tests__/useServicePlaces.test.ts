@@ -87,6 +87,22 @@ beforeEach(() => {
 });
 
 describe("useServicePlaces", () => {
+  it("does not re-read places, which would close an open name field, when only the heartbeat changes", async () => {
+    mocks.read.mockResolvedValue(
+      placesResponse([okEntry("svc-a"), okEntry("svc-b")]),
+    );
+    const { result, rerender } = renderHook(() => useServicePlaces(options));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    mocks.machines = [
+      { ...mocks.machines[0]!, lastSeen: "2026-11-25T00:00:00Z" },
+    ];
+    rerender();
+
+    expect(result.current.status).toBe("ready");
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps one Service's read error from blocking the others", async () => {
     mocks.read.mockResolvedValue(
       placesResponse([

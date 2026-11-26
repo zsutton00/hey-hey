@@ -22,11 +22,23 @@ vi.mock("../PromptEditor", () => ({
   PromptEditor: ({
     onSubmitPrompt,
     submitDisabled,
+    submitDisabledReason,
   }: {
     onSubmitPrompt: () => void;
     submitDisabled: boolean;
+    submitDisabledReason: string | null;
   }) => (
     <div data-testid="prompt-editor">
+      {/* Like the real editor, its shortcut submits whatever the button says. */}
+      <textarea
+        data-testid="prompt-input"
+        onKeyDown={(event) => {
+          if (event.metaKey && event.key === "Enter") {
+            onSubmitPrompt();
+          }
+        }}
+      />
+      <p>{submitDisabledReason}</p>
       <button type="button" disabled={submitDisabled} onClick={onSubmitPrompt}>
         Submit Prompt
       </button>
@@ -138,6 +150,7 @@ const buildProps = (
   },
   lockedWorktreeBranch: null,
   servicePlaces: READY_PLACES,
+  suggestBranchName: null,
   onBranchQueryChange: vi.fn(),
   sessionPlaceChoice: null,
   perServicePlaceChoices: null,
@@ -862,5 +875,106 @@ describe("AgentSetupView", () => {
         name: "CLI update required — machine-legacy",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AgentSetupView while a new worktree name is open", () => {
+  const twoServices = {
+    selectedServiceIds: ["service-1", "service-2"],
+    additionalServices: [{ id: "service-2", name: "Worker" }],
+  };
+  const submitButton = () =>
+    screen.getByRole("button", { name: "Submit Prompt" });
+  const pressSubmitShortcut = () =>
+    fireEvent.keyDown(screen.getByTestId("prompt-input"), {
+      key: "Enter",
+      metaKey: true,
+    });
+  const newWorktreeButtons = () =>
+    screen.getAllByTestId("work-in-new-worktree-button");
+
+  it("holds the button and the shortcut until the name is cancelled", async () => {
+    const user = userEvent.setup();
+    const onSubmitPrompt = vi.fn();
+    const suggestBranchName = vi.fn(async () => "fix-the-pairing-poll");
+    render(
+      <AgentSetupView
+        {...buildProps({ ...twoServices, onSubmitPrompt, suggestBranchName })}
+      />,
+    );
+
+    await user.click(screen.getByTestId("work-in-new-worktree-button"));
+
+    // One name for every selected Service, so it is checked in all of them.
+    await screen.findByDisplayValue("fix-the-pairing-poll");
+    expect(suggestBranchName).toHaveBeenCalledWith(["service-1", "service-2"]);
+    expect(submitButton()).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Accept or cancel the new branch name before submitting.",
+      ),
+    ).toBeInTheDocument();
+    pressSubmitShortcut();
+    expect(onSubmitPrompt).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(submitButton()).toBeEnabled();
+    pressSubmitShortcut();
+    expect(onSubmitPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays held until every Service's name field is closed", async () => {
+    const user = userEvent.setup();
+    const suggestBranchName = vi.fn(async () => "task-name");
+    const onChangeServicePlace = vi.fn();
+    render(
+      <AgentSetupView
+        {...buildProps({
+          ...twoServices,
+          perServicePlaceChoices: {},
+          suggestBranchName,
+          onChangeServicePlace,
+        })}
+      />,
+    );
+
+    await user.click(newWorktreeButtons()[0] as HTMLElement);
+    await user.click(newWorktreeButtons()[0] as HTMLElement);
+    expect(suggestBranchName.mock.calls).toEqual([
+      [["service-1"]],
+      [["service-2"]],
+    ]);
+
+    await user.click(
+      screen.getAllByTestId("work-in-new-accept")[0] as HTMLElement,
+    );
+    expect(onChangeServicePlace).toHaveBeenCalledWith({
+      serviceId: "service-1",
+      kind: "WORKTREE",
+      branch: "task-name",
+      newBranch: true,
+    });
+    expect(submitButton()).toBeDisabled();
+
+    await user.click(screen.getByTestId("work-in-new-cancel"));
+    expect(submitButton()).toBeEnabled();
+  });
+
+  it.each([
+    ["switching to one choice", { perServicePlaceChoices: null }],
+    ["a Plan's branch arriving", { lockedWorktreeBranch: "plan/shared" }],
+    ["removing the Services", { selectedServiceIds: [] }],
+  ])("releases the hold when %s removes the field", async (_how, change) => {
+    const user = userEvent.setup();
+    const props = buildProps({ ...twoServices, perServicePlaceChoices: {} });
+    const view = render(<AgentSetupView {...props} />);
+    await user.click(newWorktreeButtons()[0] as HTMLElement);
+    expect(submitButton()).toBeDisabled();
+
+    view.rerender(<AgentSetupView {...props} {...change} />);
+
+    expect(screen.queryByTestId("work-in-new")).toBeNull();
+    expect(submitButton()).toBeEnabled();
   });
 });
