@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { opendir } from 'node:fs/promises';
 import path from 'node:path';
 import {
   AgentRequestWorktreeAttachPayloadDecisionEnum,
@@ -489,6 +489,10 @@ export class WorktreeAttachCoordinator {
       this.dependencies.session().launchServiceId === request.serviceId &&
       path.resolve(previousFolder) !== path.resolve(request.worktreePath);
     try {
+      const problem = await findFolderProblem(request.worktreePath);
+      if (problem) {
+        throw new Error(problem);
+      }
       const repoPath = await this.dependencies.repoStore.resolvePathForService(
         toServiceId(request.serviceId),
       );
@@ -755,10 +759,16 @@ const describeRecordedPlace = (place: {
 /** Why the folder cannot be worked in, or null when it is a readable directory. */
 const findFolderProblem = async (folder: string): Promise<string | null> => {
   try {
-    return (await stat(folder)).isDirectory() ? null : `${folder} is not a folder.`;
+    const directory = await opendir(folder);
+    await directory.close();
+    return null;
   } catch (error) {
-    return isNodeError(error) && error.code === 'ENOENT'
-      ? `${folder} no longer exists.`
-      : `${folder} could not be read: ${messageOf(error)}`;
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      return `${folder} no longer exists.`;
+    }
+    if (isNodeError(error) && error.code === 'ENOTDIR') {
+      return `${folder} is not a folder.`;
+    }
+    return `${folder} could not be opened: ${messageOf(error)}`;
   }
 };

@@ -20,7 +20,7 @@ export type ActiveServicePlace = {
 };
 
 /**
- * - NOT_APPROVED: no approved card matches this request, Service, branch and path.
+ * - NOT_APPROVED: no eligible approved card matches this request, Service, branch and path.
  * - STALE: a later approved attach for the Service has already been applied.
  * - APPLY: the request is approved and nothing later has been applied.
  */
@@ -120,7 +120,7 @@ export function decideWorktreeAttach(input: {
       card.branch === change.branch &&
       card.worktreePath === change.worktreePath,
   );
-  if (!requested) {
+  if (!requested || requested.failed) {
     return 'NOT_APPROVED';
   }
 

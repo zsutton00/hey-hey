@@ -864,6 +864,35 @@ describe('worktree attach decision', () => {
     expect(continued).not.toContain(`previously worked in ${target}`);
   });
 
+  it('keeps the Run paused when the confirmed worktree disappears before local apply', async () => {
+    const target = addWorktree('feature/changes');
+    const platform = new FakePlatform();
+    platform.answerWith = (change) => {
+      git(repo, 'worktree', 'remove', target);
+      return {
+        serviceId: change['serviceId'],
+        kind: 'WORKTREE',
+        branch: change['branch'],
+        worktreePath: target,
+      };
+    };
+
+    const outcome = await requestThenDecide({ platform });
+
+    expect(outcome.result.outcome).toBe('failed');
+    expect(platform.card().decision).toBe('approve');
+    expect(platform.recordedPlace?.worktreePath).toBe(target);
+    expect(outcome.run.session.worktreeState?.[SERVICE_ID]).toBeUndefined();
+    expect(outcome.currentState()).toBe('AWAITING_APPROVAL');
+    expect(outcome.turns).toHaveLength(1);
+
+    git(repo, 'worktree', 'add', target, 'feature/changes');
+    await expect(outcome.answer('approve')).resolves.toMatchObject({ outcome: 'delivered' });
+    expect(platform.attachCalls).toHaveLength(1);
+    expect(outcome.run.session.worktreeState?.[SERVICE_ID]?.worktreePath).toBe(target);
+    await vi.waitFor(() => expect(outcome.turns).toHaveLength(2));
+  });
+
   it('still tells the agent about a denial whose card could not be updated, and repairs the card on a repeat answer', async () => {
     const target = addWorktree('feature/changes');
     const platform = new FakePlatform();

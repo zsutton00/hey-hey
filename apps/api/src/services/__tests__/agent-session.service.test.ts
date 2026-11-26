@@ -898,6 +898,19 @@ describe('AgentSessionService', () => {
         expect(activeWorktree()).toBe('/repo/.worktrees/x');
       });
 
+      it('keeps the current place when a failed approval is replayed', async () => {
+        decide('x', '2026-11-24T10:00:00.000Z');
+        await attach('x');
+        decide('y', '2026-11-24T10:05:00.000Z', {
+          failureReason: 'The worktree was no longer registered',
+        });
+        const before = snapshot();
+
+        await expect(attach('y')).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(snapshot()).toEqual(before);
+      });
+
       it('applies A when B was approved but never applied', async () => {
         decide('x', '2026-11-24T10:00:00.000Z');
         decide('y', '2026-11-24T10:05:00.000Z');

@@ -300,6 +300,13 @@ const readCapturedServicePlaces = (
 
 const worktreeAttachRequestPresentationSchema = z.object({
   messageId: z.string().min(1),
+  settledCard: z
+    .object({
+      decision: z.enum(['approve', 'deny']),
+      decidedAt: z.string().min(1),
+      failureReason: z.string().optional(),
+    })
+    .optional(),
   request: z.object({
     id: z.string().min(1),
     runId: z.string().nullable(),
@@ -1600,6 +1607,22 @@ export class RunStore {
     });
   }
 
+  public saveAttachedWorktree(
+    runId: string,
+    workspace: Pick<AgenticSession, 'scope' | 'worktreeState' | 'servicePlaceChoices'>,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      Object.assign(run, workspace, { updatedAt: this.now().toISOString() });
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
   /**
    * Records one Service's worktree as soon as it resolves, keeping the other
    * Services' entries, so a launch that fails on a later Service can be retried
@@ -1894,14 +1917,26 @@ export class RunStore {
     });
   }
 
-  public updateRunWorktreeAttachRequestPresentations(
+  public updateRunWorktreeAttachRequestPresentation(
     runId: string,
-    presentations: readonly WorktreeAttachRequestPresentation[],
+    requestId: string,
+    presentation: WorktreeAttachRequestPresentation | null,
+    abandonContinuation = false,
   ): Promise<AgenticSession> {
     return this.withMetadataLock(runId, async () => {
       const run = await readRunMetadata(this.runFamilies, runId);
       if (!run) throw new SessionValidationError(`Unknown agentic session: ${runId}`);
-      run.worktreeAttachRequestPresentations = [...presentations];
+      const presentations = (run.worktreeAttachRequestPresentations ?? []).filter(
+        (entry) => entry.request.id !== requestId,
+      );
+      if (presentation) {
+        presentations.push(presentation);
+      }
+      run.worktreeAttachRequestPresentations = presentations;
+      if (abandonContinuation) {
+        delete run.serviceScopeContinuation;
+        delete run.serviceScopeContinuationInput;
+      }
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;

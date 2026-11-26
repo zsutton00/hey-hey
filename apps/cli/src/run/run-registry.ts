@@ -140,6 +140,15 @@ export class RunRegistry {
       this.dependencies.monitorProjectContext.learnAndSubscribe(run.projectId);
     }
     this.dependencies.runLifecycleEvents.publishRunRegistered(args.runId);
+    void run.worktreeAttachCoordinator.repairRestoredCards().catch((error: unknown) => {
+      this.dependencies.runCollaborators.logger.error(
+        'run-registry.worktree_card_recovery_failed',
+        {
+          runId: args.runId,
+          error,
+        },
+      );
+    });
     return run;
   }
 

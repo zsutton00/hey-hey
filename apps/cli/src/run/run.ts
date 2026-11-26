@@ -3026,34 +3026,13 @@ export class Run {
       { serviceId, kind: 'WORKTREE', branch: worktree.branch, newBranch: false },
     ];
 
-    try {
-      if (attachedScope) {
-        await this.runStore.updateRunScope(this.runId, attachedScope);
-      }
-      await this.runStore.updateRunWorktreeState(this.runId, attachedWorktree);
-      await this.runStore.updateRunServicePlaceChoices(this.runId, attachedChoices);
-    } catch (error) {
-      try {
-        if (priorScope) {
-          await this.runStore.updateRunScope(this.runId, priorScope);
-        }
-        await this.runStore.updateRunWorktreeState(this.runId, priorWorktree ?? {});
-        await this.runStore.updateRunServicePlaceChoices(this.runId, priorChoices ?? []);
-      } catch (rollbackError) {
-        this.logger.error('local.run.worktree_attach.apply_rollback_failed', {
-          runId: this.runId,
-          serviceId,
-          error: rollbackError,
-        });
-      }
-      throw error;
-    }
-
-    this.refreshSessionFields({
+    const attachedWorkspace = {
       ...(attachedScope ? { scope: attachedScope } : {}),
       worktreeState: attachedWorktree,
       servicePlaceChoices: attachedChoices,
-    });
+    };
+    await this.runStore.saveAttachedWorktree(this.runId, attachedWorkspace);
+    this.refreshSessionFields(attachedWorkspace);
     // The boundary was built from the folder the Service left.
     await this.resetWorkspaceWriteBoundaryForScopeChange();
     this.logger.info('local.run.worktree_attach.applied', {

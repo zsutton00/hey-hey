@@ -126,6 +126,10 @@ export class RunServiceScope {
     }
     const persistedAttachPresentations = session.worktreeAttachRequestPresentations ?? [];
     for (const presentation of persistedAttachPresentations) {
+      if (presentation.settledCard) {
+        this.settledAttachRequestIds.add(presentation.request.id);
+        continue;
+      }
       this.attachRequests.set(presentation.request.id, {
         request: presentation.request,
         messageId: presentation.messageId,
@@ -134,7 +138,7 @@ export class RunServiceScope {
     }
     this.restoreApprovalWait(
       persistedPresentations[0]?.request,
-      persistedAttachPresentations[0]?.request,
+      persistedAttachPresentations.find((presentation) => !presentation.settledCard)?.request,
     );
     this.continuation =
       session.serviceScopeContinuation ??
@@ -246,9 +250,9 @@ export class RunServiceScope {
     this.settledAttachRequestIds.delete(request.id);
     this.attachRequests.set(request.id, { request, messageId, data });
     this.deps.readStateChanged();
-    this.saveAttachPresentations(
-      [...this.otherAttachPresentations(request.id), { request, messageId }],
+    this.saveAttachPresentation(
       request.id,
+      { request, messageId },
       'local.run.worktree_attach.presentations.persist_failed',
     );
   }
@@ -257,12 +261,43 @@ export class RunServiceScope {
     this.attachRequests.delete(requestId);
     this.settledAttachRequestIds.add(requestId);
     this.deps.readStateChanged();
-    this.saveAttachPresentations(
-      this.otherAttachPresentations(requestId),
-      requestId,
-      'local.run.worktree_attach.presentations.settle_failed',
-    );
+    const presentation = this.deps
+      .session()
+      .worktreeAttachRequestPresentations?.find((entry) => entry.request.id === requestId);
+    if (!presentation?.settledCard) {
+      this.saveAttachPresentation(
+        requestId,
+        null,
+        'local.run.worktree_attach.presentations.settle_failed',
+      );
+    }
     this.deps.requestSettled();
+  }
+
+  public async saveWorktreeAttachCardSettlement(
+    presentation: WorktreeAttachRequestPresentation,
+  ): Promise<void> {
+    await this.persistAttachPresentation(presentation.request.id, presentation, true);
+  }
+
+  public eraseWorktreeAttachCardSettlement(requestId: string): Promise<void> {
+    return this.persistAttachPresentation(requestId, null);
+  }
+
+  private async persistAttachPresentation(
+    requestId: string,
+    presentation: WorktreeAttachRequestPresentation | null,
+    abandonContinuation = false,
+  ): Promise<void> {
+    const updated = await this.deps.runStore.updateRunWorktreeAttachRequestPresentation(
+      this.deps.runId,
+      requestId,
+      presentation,
+      abandonContinuation,
+    );
+    this.deps.patchSession({
+      worktreeAttachRequestPresentations: updated.worktreeAttachRequestPresentations ?? [],
+    });
   }
 
   private otherAttachPresentations(requestId: string): WorktreeAttachRequestPresentation[] {
@@ -271,17 +306,19 @@ export class RunServiceScope {
     );
   }
 
-  private saveAttachPresentations(
-    presentations: WorktreeAttachRequestPresentation[],
+  private saveAttachPresentation(
     requestId: string,
+    presentation: WorktreeAttachRequestPresentation | null,
     failureEvent: string,
   ): void {
+    const presentations = this.otherAttachPresentations(requestId);
+    if (presentation) {
+      presentations.push(presentation);
+    }
     this.deps.patchSession({ worktreeAttachRequestPresentations: presentations });
-    void this.deps.runStore
-      .updateRunWorktreeAttachRequestPresentations(this.deps.runId, presentations)
-      .catch((error: unknown) =>
-        this.deps.logger.error(failureEvent, { runId: this.deps.runId, requestId, error }),
-      );
+    void this.persistAttachPresentation(requestId, presentation).catch((error: unknown) => {
+      this.deps.logger.error(failureEvent, { runId: this.deps.runId, requestId, error });
+    });
   }
 
   public findPendingServiceScopeRequest(

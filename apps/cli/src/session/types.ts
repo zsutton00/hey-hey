@@ -96,6 +96,11 @@ export interface ServiceScopeRequestPresentation {
 export interface WorktreeAttachRequestPresentation {
   request: AgentSessionWorktreeAttachRequest;
   messageId: string;
+  settledCard?: {
+    decision: 'approve' | 'deny';
+    decidedAt: string;
+    failureReason?: string;
+  };
 }
 
 export interface RecoverableTurnCheckpoint {
