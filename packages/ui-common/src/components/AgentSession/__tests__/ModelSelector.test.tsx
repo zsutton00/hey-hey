@@ -450,6 +450,36 @@ describe("ModelSelector", () => {
     expect(onReasoningEffortChange).not.toHaveBeenCalled();
   });
 
+  it("selects the embedder's model and effort on a provider change", async () => {
+    const onModelChange = vi.fn();
+    const onReasoningEffortChange = vi.fn();
+    const resolveProviderSwitch = vi.fn(() => ({
+      model: "gpt-5.6-luna",
+      reasoningEffort: "xhigh" as const,
+    }));
+
+    render(
+      <ModelSelector
+        {...buildProps({
+          onModelChange,
+          onReasoningEffortChange,
+          resolveProviderSwitch,
+        })}
+      />,
+    );
+
+    const user = await openSelect("model-selector-provider-select");
+    await user.click(
+      screen.getByTestId("model-selector-provider-option-codex"),
+    );
+
+    expect(resolveProviderSwitch).toHaveBeenCalledWith(
+      ConversationStartRunRequestDtoProviderEnum.Codex,
+    );
+    expect(onModelChange).toHaveBeenCalledExactlyOnceWith("gpt-5.6-luna");
+    expect(onReasoningEffortChange).toHaveBeenCalledExactlyOnceWith("xhigh");
+  });
+
   it("on provider change to Opencode, cascades to first model and null effort", async () => {
     const onProviderChange = vi.fn();
     const onModelChange = vi.fn();

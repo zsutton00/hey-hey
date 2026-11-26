@@ -11,6 +11,13 @@ import {
 const options: OpenItemsTriageRunOptions = {
   mode: OpenItemsTriageMode.SpringCleaning,
   guidance: "Focus on stale bugs",
+  machineId: "machine",
+  runtime: {
+    provider: "codex",
+    model: "gpt-6-luna",
+    reasoningEffort: "xhigh",
+    fastMode: false,
+  },
 };
 const run: TriageReviewEvent = { type: "run", options };
 
@@ -69,7 +76,7 @@ describe("triage review lifecycle", () => {
     const started = play(run);
     const other: TriageReviewEvent = {
       type: "run",
-      options: { mode: OpenItemsTriageMode.TidyUp, guidance: "" },
+      options: { ...options, mode: OpenItemsTriageMode.TidyUp, guidance: "" },
     };
     expect(reduceTriageReview(started, other)).toBe(started);
   });

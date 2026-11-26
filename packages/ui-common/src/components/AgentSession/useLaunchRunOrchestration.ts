@@ -52,8 +52,7 @@ export interface StartRunWorktree {
  * looks the conversationId up from the active run state.
  */
 type ConversationIdSource =
-  | string
-  | ((runId: string) => string | null | undefined);
+  string | ((runId: string) => string | null | undefined);
 
 interface UseLaunchRunOrchestrationInput {
   organizationId: string | null;
@@ -106,7 +105,11 @@ interface StartRunInputCommon {
   conversationId: string;
   model?: string;
   config?: AgentSessionConfig | null;
-  reasoningEffort?: ReasoningEffort;
+  /**
+   * Sent as given; `null` sends no effort, for a model that offers none.
+   * Omitting it sends medium.
+   */
+  reasoningEffort?: ReasoningEffort | null;
   fastMode?: boolean;
   /**
    * Structured first row the API seeds ahead of the run's opening turn. A USER
@@ -300,9 +303,13 @@ export const useLaunchRunOrchestration = ({
         ...armFields,
         model: input.model as string,
         ...(input.config !== undefined ? { config: input.config } : {}),
-        reasoningEffort:
-          (input.reasoningEffort as ConversationStartRunRequestDtoReasoningEffortEnum) ??
-          ConversationStartRunRequestDtoReasoningEffortEnum.Medium,
+        ...(input.reasoningEffort === null
+          ? {}
+          : {
+              reasoningEffort:
+                input.reasoningEffort ??
+                ConversationStartRunRequestDtoReasoningEffortEnum.Medium,
+            }),
         provider: input.provider as ConversationStartRunRequestDtoProviderEnum,
         ...(input.fastMode !== undefined ? { fastMode: input.fastMode } : {}),
         ...(input.skillSelection

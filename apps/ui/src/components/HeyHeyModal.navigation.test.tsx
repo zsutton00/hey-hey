@@ -1,7 +1,7 @@
 import { ThemeProvider } from "@mui/material";
 import { createHeyTheme } from "@hey-hey/ui-common/context";
 import { useEffect, useState, type ReactNode } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   MemoryRouter,
@@ -31,6 +31,11 @@ import { createOpenItemEntity } from "@hey-hey/ui-common/context";
 import { HeyHeyModal } from "./HeyHeyModal";
 import { OpenItemsPreviewHost } from "./OpenItemsPreviewHost";
 import { OpenItemsTriageAction } from "./Explorer/OpenItemsTriageAction";
+import { renderWithQueryClient } from "../test/renderWithQueryClient";
+import {
+  installReadyTriageRuntime,
+  pressTriageStart,
+} from "../test/openItemsTriageStart";
 
 const evidence = vi.hoisted(() => ({
   pageCleanup: vi.fn(),
@@ -262,7 +267,7 @@ function Application() {
   );
 }
 function mount() {
-  return render(
+  return renderWithQueryClient(
     <ThemeProvider theme={createHeyTheme("light")}>
       <ModalProvider>
         <ActionsCapsuleProvider>
@@ -276,6 +281,7 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  installReadyTriageRuntime();
   evidence.launch.mockResolvedValue(true);
   evidence.session.mockResolvedValue({ agentSessionId: "review" });
 });
@@ -378,7 +384,8 @@ describe("application-owned modal navigation", () => {
     mount();
     await user.click(screen.getByTestId("open-items-triage-action"));
     expect(evidence.session).not.toHaveBeenCalled();
-    await user.click(await screen.findByTestId("triage-start-tidy-up"));
+    await screen.findByTestId("open-items-triage-help");
+    await pressTriageStart(user, "triage-start-tidy-up");
     const draft = await screen.findByLabelText("Triage follow-up");
     await user.type(draft, "Keep my follow-up");
     await user.click(screen.getByTestId("modal-minimize"));

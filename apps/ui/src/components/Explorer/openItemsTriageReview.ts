@@ -3,8 +3,9 @@
  * (running ↔ results), and Run Again back through resolving to a new session,
  * plus the close gates every dismissal path goes through.
  * A review lives for exactly one modal opening; reopening starts a new one.
- * The mode and guidance chosen at Run belong to the review: Run Again and Try
- * again reuse them, so every phase after help carries them.
+ * The mode, guidance, machine and runtime chosen at Run belong to the review:
+ * follow-ups, Run Again and Try again reuse them, so every phase after help
+ * carries them.
  */
 
 import type { OpenItemsTriageRunOptions } from "@hey-hey/ui-common/components";
@@ -48,7 +49,7 @@ export interface TriageReviewState {
 }
 
 export type TriageReviewEvent =
-  /** The start screen's Tidy up / Spring cleaning with the typed guidance. */
+  /** The start screen's Tidy up / Spring cleaning with what was chosen there. */
   | { type: "run"; options: OpenItemsTriageRunOptions }
   /** Run Again and Try again: a new session with the review's own options. */
   | { type: "rerun" }

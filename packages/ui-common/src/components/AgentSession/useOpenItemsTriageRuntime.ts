@@ -1,8 +1,9 @@
 import type { AgentSkillSelection, RunAttachmentReference } from "../../api";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LocalPromptType,
   type AgentSessionDto,
+  type MachineDto,
   type RunCreatePayloadOpenItemsTriage,
   type OpenItemsTriageMode,
   type OpenItemsTriageRequestKind,
@@ -10,33 +11,84 @@ import {
 import { apiClient } from "../../clients/client";
 import { useLaunchRunOrchestration } from "./useLaunchRunOrchestration";
 import { useAgentRunLifecycle } from "./useAgentRunLifecycle";
-import { useSurfaceSelection } from "./useSurfaceSelection";
-import { useMachineResolution } from "./runtime/coding/useMachineResolution";
+import type { SurfaceSelection } from "./surfaceSelectionMemory";
+import { useUserPairedMachines } from "../../data/hooks/useUserPairedMachines";
+import { isMachineExecutionReady } from "./runtime/coding/machineExecutionReadiness";
+import {
+  resolveMachineUnavailableState,
+  type AgentBridgeRecoveryState,
+} from "./agentBridgeRecoveryState";
 import { bindGraphConversationAgentSessionMachine } from "../InteractionComponent/bindGraphConversationAgentSessionMachine";
+import { logError } from "./runtime/coding/agent-session-helpers";
 
-/** The mode and guidance a review started with; every request repeats them. */
+/**
+ * What a review was started with: its mode and guidance, and the machine and
+ * runtime chosen for it. Every request of the review repeats them.
+ */
 export interface OpenItemsTriageRunOptions {
   mode: OpenItemsTriageMode;
   guidance: string;
+  machineId: string;
+  runtime: SurfaceSelection;
 }
+
+/** The state of the review's own machine; no other machine ever stands in. */
+const resolveReviewMachineState = ({
+  machines,
+  machineId,
+  isReady,
+  error,
+}: {
+  machines: MachineDto[];
+  machineId: string;
+  isReady: boolean;
+  error: unknown;
+}): AgentBridgeRecoveryState => {
+  if (error) {
+    return { type: "status_unavailable" };
+  }
+
+  if (!isReady) {
+    return { type: "loading" };
+  }
+
+  const machine = machines.find(
+    (candidate) => candidate.machineId === machineId,
+  );
+  if (!machine) {
+    return { type: "bound_machine_missing" };
+  }
+
+  return isMachineExecutionReady(machine)
+    ? { type: "ready", machine }
+    : resolveMachineUnavailableState(machine);
+};
 
 export function useOpenItemsTriageRuntime(
   organizationId: string,
   projectId: string,
   session: AgentSessionDto,
-  { mode, guidance }: OpenItemsTriageRunOptions,
+  { mode, guidance, machineId, runtime }: OpenItemsTriageRunOptions,
 ) {
   const requestKind = useRef<OpenItemsTriageRequestKind>("freshPass");
   const conversationId = session.conversationId;
-  const machines = useMachineResolution(session.machineId ?? null);
-  const machineId = machines.selectedMachine?.machineId;
-  // Triage runs on the CLI of the resolved machine, so that CLI's catalog
-  // decides the model; nothing is chosen before it has loaded.
-  const { selection } = useSurfaceSelection({
-    surfaceId: null,
-    catalogSource: machineId ? { organizationId, projectId, machineId } : null,
-    resetKey: null,
+  const paired = useUserPairedMachines();
+  const machineState = resolveReviewMachineState({
+    machines: paired.machines,
+    machineId,
+    isReady: paired.isReady,
+    error: paired.error,
   });
+  const ready = machineState.type === "ready";
+  useEffect(() => {
+    if (paired.error) {
+      logError(
+        "useOpenItemsTriageRuntime: machine list unavailable",
+        paired.error,
+        { agentSessionId: session.id, machineId },
+      );
+    }
+  }, [paired.error, session.id, machineId]);
   const launch = useLaunchRunOrchestration({
     organizationId,
     projectId,
@@ -88,13 +140,10 @@ export function useOpenItemsTriageRuntime(
     contextMetadata,
     enabled: !!conversationId,
     launch,
-    ...(selection
-      ? {
-          provider: selection.provider,
-          model: selection.model,
-          reasoningEffort: selection.reasoningEffort ?? "medium",
-        }
-      : {}),
+    provider: runtime.provider,
+    model: runtime.model,
+    reasoningEffort: runtime.reasoningEffort,
+    ...(runtime.fastMode !== undefined ? { fastMode: runtime.fastMode } : {}),
     arm: {
       kind: "handler",
       promptType: LocalPromptType.OpenItemsTriage,
@@ -102,7 +151,7 @@ export function useOpenItemsTriageRuntime(
     },
     buildHandlerTurn,
     deferInitialDispatch: true,
-    ...(machineId ? { machineId } : {}),
+    machineId,
   });
   const sending = useRef(false);
   const [pending, setPending] = useState(false);
@@ -123,12 +172,9 @@ export function useOpenItemsTriageRuntime(
       setError(null);
       requestKind.current = kind;
       try {
-        if (!machineId) {
-          throw new Error("A ready CLI machine is required to run triage.");
-        }
-        if (!selection) {
+        if (!ready) {
           throw new Error(
-            "The machine's model catalog has not loaded, so no model is chosen yet.",
+            "The machine chosen for this review is not ready to run triage.",
           );
         }
         if (session.machineId !== machineId) {
@@ -143,6 +189,11 @@ export function useOpenItemsTriageRuntime(
         if (!result.ok) throw new Error(result.error);
         return { messageId: result.messageId };
       } catch (cause) {
+        logError("useOpenItemsTriageRuntime: send failed", cause, {
+          agentSessionId: session.id,
+          machineId,
+          requestKind: kind,
+        });
         setError(
           cause instanceof Error
             ? cause.message
@@ -155,10 +206,10 @@ export function useOpenItemsTriageRuntime(
       }
     },
     [
+      ready,
       machineId,
       organizationId,
       projectId,
-      selection,
       session.id,
       session.machineId,
       sendUserMessage,
@@ -168,8 +219,8 @@ export function useOpenItemsTriageRuntime(
     send,
     pending,
     error,
-    ready: !!machineId && selection !== null,
-    machines,
+    ready,
+    machineState,
     stopRun: lifecycle.stopRun,
     stoppingRun: lifecycle.stoppingRun,
   };

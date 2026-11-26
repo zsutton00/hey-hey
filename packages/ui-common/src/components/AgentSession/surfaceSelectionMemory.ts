@@ -1,6 +1,6 @@
-import type {
+import {
   ConversationStartRunRequestDtoProviderEnum,
-  ConversationStartRunRequestDtoReasoningEffortEnum,
+  type ConversationStartRunRequestDtoReasoningEffortEnum,
 } from "../../api";
 import {
   listEfforts,
@@ -82,6 +82,9 @@ export const PROPOSAL_AGENT_FIX_SURFACE_ID = "proposal-agent-fix";
 /** Stable memory id shared by fresh Service Import onboarding setup. */
 export const SERVICE_IMPORT_SURFACE_ID = "service-import";
 
+/** Stable memory id for the runtime chosen on the Open Items triage start screen. */
+export const OPEN_ITEMS_TRIAGE_SURFACE_ID = "open-items-triage";
+
 /**
  * Returns the stable memory id for the primary conversation on one GoalPage.
  * Each goal remembers its own runtime choice so changing one goal never
@@ -97,10 +100,23 @@ export interface SurfaceSelection {
   fastMode?: boolean;
 }
 
-const isCatalogProvider = (
+/**
+ * A selection as a surface saved it, before any catalog has been consulted: its
+ * model and effort may no longer be offered.
+ */
+export interface StoredSurfaceSelection {
+  provider: ConversationStartRunRequestDtoProviderEnum;
+  model: string;
+  reasoningEffort: string | null;
+  fastMode?: boolean;
+}
+
+const isKnownProvider = (
   value: string,
 ): value is ConversationStartRunRequestDtoProviderEnum =>
-  listProviders().some((provider) => provider === value);
+  Object.values<string>(ConversationStartRunRequestDtoProviderEnum).includes(
+    value,
+  );
 
 const selectDefaultReasoningEffort = (
   efforts: readonly ConversationStartRunRequestDtoReasoningEffortEnum[],
@@ -158,12 +174,9 @@ const getLocalStorage = (): Storage | null => {
   }
 };
 
-export const reconcileSurfaceSelection = (value: {
-  provider: ConversationStartRunRequestDtoProviderEnum;
-  model: string;
-  reasoningEffort: string | null;
-  fastMode?: boolean;
-}): SurfaceSelection | null => {
+export const reconcileSurfaceSelection = (
+  value: StoredSurfaceSelection,
+): SurfaceSelection | null => {
   if (!listProviders().includes(value.provider)) {
     return null;
   }
@@ -196,7 +209,9 @@ export const reconcileSurfaceSelection = (value: {
   };
 };
 
-const validateSelection = (value: unknown): SurfaceSelection | null => {
+const parseStoredSelection = (
+  value: unknown,
+): StoredSurfaceSelection | null => {
   if (typeof value !== "object" || value === null) {
     return null;
   }
@@ -210,7 +225,7 @@ const validateSelection = (value: unknown): SurfaceSelection | null => {
     return null;
   }
 
-  if (!isCatalogProvider(provider)) {
+  if (!isKnownProvider(provider)) {
     return null;
   }
 
@@ -224,17 +239,22 @@ const validateSelection = (value: unknown): SurfaceSelection | null => {
   if (fastMode !== undefined && typeof fastMode !== "boolean") {
     return null;
   }
-  return reconcileSurfaceSelection({
+  return {
     provider,
     model,
     reasoningEffort: reasoningEffort ?? null,
     ...(typeof fastMode === "boolean" ? { fastMode } : {}),
-  });
+  };
 };
 
-export const readSurfaceSelection = (
+/**
+ * The surface's saved selection exactly as stored, for a surface that resolves
+ * it against the catalog by its own rules. Most surfaces want
+ * {@link readSurfaceSelection}.
+ */
+export const readStoredSurfaceSelection = (
   surfaceId: string,
-): SurfaceSelection | null => {
+): StoredSurfaceSelection | null => {
   const storage = getLocalStorage();
   if (!storage) {
     return null;
@@ -254,7 +274,15 @@ export const readSurfaceSelection = (
   } catch {
     return null;
   }
-  return validateSelection(parsed);
+  return parseStoredSelection(parsed);
+};
+
+/** The surface's saved selection reconciled to the active catalog. */
+export const readSurfaceSelection = (
+  surfaceId: string,
+): SurfaceSelection | null => {
+  const stored = readStoredSurfaceSelection(surfaceId);
+  return stored ? reconcileSurfaceSelection(stored) : null;
 };
 
 export const writeSurfaceSelection = (

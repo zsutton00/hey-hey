@@ -59,7 +59,15 @@ const session: AgentSessionDto = {
   autoDecide: false,
 };
 
-const tidyUp = { mode: OpenItemsTriageMode.TidyUp, guidance: "" };
+const chosen = {
+  machineId: "machine-1",
+  runtime: {
+    provider: "claude" as const,
+    model: "claude-haiku-5-5",
+    reasoningEffort: "xhigh" as const,
+  },
+};
+const tidyUp = { ...chosen, mode: OpenItemsTriageMode.TidyUp, guidance: "" };
 
 describe("useOpenItemsTriageRuntime machine binding", () => {
   beforeEach(() => {
@@ -158,14 +166,17 @@ describe("useOpenItemsTriageRuntime machine binding", () => {
     expect(mocks.send).toHaveBeenCalledWith("Keep this item", undefined, []);
   });
 
-  it("rejects dispatch when no CLI machine is ready", async () => {
+  it("rejects dispatch when the chosen machine is no longer listed", async () => {
     mocks.machines = [];
     const { result } = renderHook(() =>
       useOpenItemsTriageRuntime("org-1", "project-1", session, tidyUp),
     );
+    expect(result.current.machineState).toEqual({
+      type: "bound_machine_missing",
+    });
     await act(async () => {
       await expect(result.current.send("freshPass", "")).rejects.toThrow(
-        "ready CLI machine",
+        "machine chosen for this review",
       );
     });
     expect(mocks.bind).not.toHaveBeenCalled();
@@ -173,27 +184,35 @@ describe("useOpenItemsTriageRuntime machine binding", () => {
     expect(result.current.pending).toBe(false);
   });
 
-  it("requires a choice among ready machines before binding and starting", async () => {
-    mocks.machines.push({
-      ...mocks.machines[0],
-      machineId: "machine-2",
-      name: "Second CLI",
-    });
-    const { result } = renderHook(() =>
+  it("waits for its own machine instead of using another ready one", async () => {
+    const [ready] = mocks.machines;
+    const other = { ...ready, machineId: "machine-2", name: "Second CLI" };
+    mocks.machines = [{ ...ready, executionReadiness: "DISCONNECTED" }, other];
+    const { result, rerender } = renderHook(() =>
       useOpenItemsTriageRuntime("org-1", "project-1", session, tidyUp),
     );
     expect(result.current.ready).toBe(false);
+    expect(result.current.machineState).toMatchObject({
+      type: "disconnected",
+      machine: { machineId: "machine-1" },
+    });
+    expect(mocks.lifecycleInput).toHaveBeenLastCalledWith(
+      expect.objectContaining({ machineId: "machine-1" }),
+    );
+    await act(async () => {
+      await expect(result.current.send("freshPass", "")).rejects.toThrow(
+        "machine chosen for this review",
+      );
+    });
     expect(mocks.bind).not.toHaveBeenCalled();
-    act(() => result.current.machines.setSelectedMachineId("machine-2"));
-    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    mocks.machines = [ready, other];
+    rerender();
     await act(async () => {
       await result.current.send("freshPass", "");
     });
     expect(mocks.bind).toHaveBeenCalledWith(
-      expect.objectContaining({ machineId: "machine-2" }),
-    );
-    expect(mocks.lifecycleInput).toHaveBeenLastCalledWith(
-      expect.objectContaining({ machineId: "machine-2" }),
+      expect.objectContaining({ machineId: "machine-1" }),
     );
     expect(mocks.send).toHaveBeenCalledOnce();
   });
@@ -230,6 +249,7 @@ describe("useOpenItemsTriageRuntime mode and guidance", () => {
     async (mode) => {
       const { result } = renderHook(() =>
         useOpenItemsTriageRuntime("org-1", "project-1", session, {
+          ...chosen,
           mode,
           guidance: "  Focus on stale bugs  ",
         }),
@@ -252,6 +272,7 @@ describe("useOpenItemsTriageRuntime mode and guidance", () => {
   it("accepts a fresh pass without guidance", async () => {
     const { result } = renderHook(() =>
       useOpenItemsTriageRuntime("org-1", "project-1", session, {
+        ...chosen,
         mode: OpenItemsTriageMode.SpringCleaning,
         guidance: "",
       }),
@@ -273,6 +294,7 @@ describe("useOpenItemsTriageRuntime mode and guidance", () => {
   it("keeps the mode and sends guidance separately on a follow-up", async () => {
     const { result } = renderHook(() =>
       useOpenItemsTriageRuntime("org-1", "project-1", session, {
+        ...chosen,
         mode: OpenItemsTriageMode.SpringCleaning,
         guidance: "Focus on stale bugs",
       }),

@@ -124,7 +124,11 @@ export interface UseAgentRunLifecycleInput {
   buildHandlerTurn?: (text: string) => RunCreatePayload & UserMessageAgentInput;
   model?: string;
   config?: AgentSessionConfig | null;
-  reasoningEffort?: ReasoningEffort;
+  /**
+   * `null` means the chosen model offers no effort, so none is sent. Omitting it
+   * leaves the launch's default.
+   */
+  reasoningEffort?: ReasoningEffort | null;
   fastMode?: boolean;
   /**
    * When true, the lifecycle does NOT auto-fire the start-run at mount. Instead
@@ -366,7 +370,7 @@ export const useAgentRunLifecycle = ({
         conversationId: agentSessionConversationId,
         ...(model ? { model } : {}),
         ...(config !== undefined ? { config } : {}),
-        ...(reasoningEffort ? { reasoningEffort } : {}),
+        ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
         ...(fastMode !== undefined ? { fastMode } : {}),
         ...(initialMessage ? { initialMessage } : {}),
         ...(skillSelection ? { skillSelection } : {}),

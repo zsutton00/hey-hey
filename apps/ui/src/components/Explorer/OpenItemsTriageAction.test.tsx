@@ -23,12 +23,18 @@ function TestHost() {
 }
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { useEffect } from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenItemsTriageReviewBinding } from "../../pages/AgentSession/OpenItemsTriagePage";
 import { OpenItemsTriageAction } from "./OpenItemsTriageAction";
+import { renderWithQueryClient } from "../../test/renderWithQueryClient";
+import {
+  installReadyTriageRuntime,
+  pressTriageStart,
+  triageMachine,
+} from "../../test/openItemsTriageStart";
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -39,6 +45,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@hey-hey/ui-common/data", async (original) => ({
   ...(await original<typeof import("@hey-hey/ui-common/data")>()),
+  // Spreading the original module resolves this hook circularly as undefined.
+  useUserPairedMachines: (
+    await import("../../../../../packages/ui-common/src/data/hooks/useUserPairedMachines")
+  ).useUserPairedMachines,
   useOpenItemsTriageSession: () => ({
     mutate: mocks.mutate,
     isPending: false,
@@ -77,6 +87,8 @@ vi.mock("./OpenItemsTriageContent", () => ({
         data-requests={review.requestMessageIds.join(",")}
         data-mode={review.options.mode}
         data-guidance={review.options.guidance}
+        data-machine={review.options.machineId}
+        data-runtime={JSON.stringify(review.options.runtime)}
       >
         <h2 id="open-items-triage-title">Open Items triage</h2>
         <button data-testid="mock-page-close" onClick={onClose}>
@@ -114,7 +126,7 @@ function Location() {
 }
 const mount = () => {
   const onHeaderClick = vi.fn();
-  render(
+  renderWithQueryClient(
     <MemoryRouter initialEntries={["/projects/project-1/tasks/t"]}>
       <ModalProvider>
         <div data-testid="header" onClick={onHeaderClick}>
@@ -130,8 +142,17 @@ const mount = () => {
 };
 const open = () =>
   userEvent.click(screen.getByTestId("open-items-triage-action"));
-const tidyUp = async () =>
-  userEvent.click(await screen.findByTestId("triage-start-tidy-up"));
+const tidyUp = () => pressTriageStart(userEvent, "triage-start-tidy-up");
+const chosenRuntime = JSON.stringify({
+  provider: "claude",
+  model: "claude-haiku-5-5",
+  reasoningEffort: "xhigh",
+});
+const expectChosenRuntime = () => {
+  const page = screen.getByTestId("triage-page");
+  expect(page).toHaveAttribute("data-machine", triageMachine.machineId);
+  expect(page).toHaveAttribute("data-runtime", chosenRuntime);
+};
 const run = async (guidance?: string) => {
   if (guidance)
     await userEvent.type(
@@ -170,10 +191,9 @@ describe("Open Items triage modal", () => {
       await screen.findByTestId("triage-start-guidance-input"),
       "Focus on stale bugs",
     );
-    await userEvent.click(
-      await screen.findByTestId("triage-start-spring-cleaning"),
-    );
+    await pressTriageStart(userEvent, "triage-start-spring-cleaning");
     await screen.findByTestId("triage-page");
+    expectChosenRuntime();
     await click("sim-submitted");
     const abandoned = mocks.bindings.get("session")!;
     await click("sim-launch-failed");
@@ -205,6 +225,7 @@ describe("Open Items triage modal", () => {
       "data-guidance",
       "Focus on stale bugs",
     );
+    expectChosenRuntime();
     await click("sim-submitted");
     act(() => {
       abandoned.onFreshPassSubmitted("old-request");
@@ -237,6 +258,7 @@ describe("Open Items triage modal", () => {
       "",
     );
     // Run Again does too, without the user re-entering anything.
+    expectChosenRuntime();
     expect(screen.getByTestId("triage-page")).toHaveAttribute(
       "data-mode",
       "springCleaning",
@@ -253,6 +275,7 @@ describe("Open Items triage modal", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    installReadyTriageRuntime();
     mocks.agentSession = { id: "session", conversationId: "conversation" };
     mocks.agentSessionError = null;
     mocks.mutate.mockResolvedValue({
@@ -304,9 +327,7 @@ describe("Open Items triage modal", () => {
   it("Spring cleaning starts a review in that mode without any guidance", async () => {
     mount();
     await open();
-    await userEvent.click(
-      await screen.findByTestId("triage-start-spring-cleaning"),
-    );
+    await pressTriageStart(userEvent, "triage-start-spring-cleaning");
     const page = await screen.findByTestId("triage-page");
     expect(mocks.mutate).toHaveBeenCalledTimes(1);
     expect(page).toHaveAttribute("data-mode", "springCleaning");

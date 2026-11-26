@@ -53,6 +53,15 @@ const session: AgentSessionDto = {
   monitoringEnabled: false,
   autoDecide: false,
 };
+const chosen = {
+  machineId: "machine",
+  runtime: {
+    provider: "codex" as const,
+    model: "gpt-6-luna",
+    reasoningEffort: "xhigh" as const,
+    fastMode: false,
+  },
+};
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.bind.mockResolvedValue(undefined);
@@ -76,6 +85,7 @@ it("binds before the real lifecycle authorizes a typed first run, then sends typ
   );
   const { result } = renderHook(() =>
     useOpenItemsTriageRuntime("org", "project", session, {
+      ...chosen,
       mode: OpenItemsTriageMode.SpringCleaning,
       guidance: "Close stale bugs",
     }),
@@ -99,8 +109,7 @@ it("binds before the real lifecycle authorizes a typed first run, then sends typ
       intent: expect.objectContaining({
         attachments: [],
         handlerPromptType: "open_items_triage",
-        provider: expect.any(String),
-        model: expect.any(String),
+        ...chosen.runtime,
         payload: {
           promptType: "open_items_triage",
           projectId: "project",
@@ -131,6 +140,55 @@ it("binds before the real lifecycle authorizes a typed first run, then sends typ
     }),
   );
 });
+it.each([
+  [
+    "Fast mode turned on",
+    {
+      provider: "codex" as const,
+      model: "gpt-6-luna",
+      reasoningEffort: "max" as const,
+      fastMode: true,
+    },
+    { reasoningEffort: "max", fastMode: true },
+    [],
+  ],
+  [
+    "a model with no effort levels",
+    {
+      provider: "opencode" as const,
+      model: "opencode-default",
+      reasoningEffort: null,
+    },
+    {},
+    ["reasoningEffort", "fastMode"],
+  ],
+])(
+  "starts the run on exactly the chosen runtime with %s",
+  async (_case, runtime, sent, omitted) => {
+    const { result } = renderHook(() =>
+      useOpenItemsTriageRuntime("org", "project", session, {
+        machineId: "machine",
+        runtime,
+        mode: OpenItemsTriageMode.TidyUp,
+        guidance: "",
+      }),
+    );
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => {
+      await result.current.send("freshPass", "");
+    });
+    const [{ intent }] = mocks.start.mock.calls[0];
+    expect(intent).toMatchObject({
+      provider: runtime.provider,
+      model: runtime.model,
+      ...sent,
+    });
+    for (const field of omitted) {
+      expect(intent).not.toHaveProperty(field);
+    }
+    expect(mocks.access).toHaveBeenCalledWith("machine");
+  },
+);
 it("surfaces an authorization failure and can retry the launch", async () => {
   mocks.start.mockResolvedValueOnce({
     state: "failed",
@@ -139,6 +197,7 @@ it("surfaces an authorization failure and can retry the launch", async () => {
   });
   const { result } = renderHook(() =>
     useOpenItemsTriageRuntime("org", "project", session, {
+      ...chosen,
       mode: OpenItemsTriageMode.SpringCleaning,
       guidance: "Close stale bugs",
     }),
@@ -155,5 +214,6 @@ it("surfaces an authorization failure and can retry the launch", async () => {
     await result.current.send("freshPass", "");
   });
   expect(mocks.start).toHaveBeenCalledTimes(2);
+  expect(mocks.start.mock.calls[1][0].intent).toMatchObject(chosen.runtime);
   expect(result.current.error).toBeNull();
 });

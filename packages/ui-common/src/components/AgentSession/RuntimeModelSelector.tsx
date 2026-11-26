@@ -5,7 +5,11 @@ import type {
   ConversationStartRunRequestDtoReasoningEffortEnum,
 } from "../../api";
 import { AntigravityIcon } from "../Activity/providerIcons";
-import { listCatalogNotices, listProviders } from "./capabilityCatalog";
+import {
+  activateCapabilityCatalogMachine,
+  listCatalogNotices,
+  listProviders,
+} from "./capabilityCatalog";
 import {
   FavoriteModelSelector,
   type FavoriteModelSelectorProps,
@@ -81,7 +85,7 @@ export const CatalogNotices = ({ testIdPrefix }: { testIdPrefix: string }) => (
  */
 export type RuntimeModelSelectorProps = Omit<
   FavoriteModelSelectorProps,
-  "provider" | "model" | "reasoningEffort"
+  "provider" | "model" | "reasoningEffort" | "catalogMachineId"
 > & {
   provider: ConversationStartRunRequestDtoProviderEnum | null;
   model: string | null;
@@ -100,6 +104,7 @@ export const RuntimeModelSelector = ({
   ...props
 }: RuntimeModelSelectorProps) => {
   const state = useRuntimeModelCatalog(catalogSource);
+  const catalogMachineId = catalogSource?.machineId ?? null;
   const testIdPrefix = props.testIdPrefix ?? "model-selector";
   const ready = state.status === "ready";
   const reconciledSelection =
@@ -131,6 +136,8 @@ export const RuntimeModelSelector = ({
   const fastMode = props.fastMode;
 
   useEffect(() => {
+    // Another picker may have rendered since; these callbacks are about ours.
+    activateCapabilityCatalogMachine(catalogMachineId);
     if (catalogDefault) {
       onProviderChange(catalogDefault.provider);
       onModelChange(catalogDefault.model);
@@ -152,6 +159,7 @@ export const RuntimeModelSelector = ({
     }
   }, [
     catalogDefault,
+    catalogMachineId,
     fastMode,
     model,
     onFastModeChange,
@@ -231,6 +239,7 @@ export const RuntimeModelSelector = ({
     <Stack spacing={1} data-testid={`${testIdPrefix}-catalog-ready`}>
       <FavoriteModelSelector
         {...props}
+        catalogMachineId={catalogMachineId}
         provider={reconciledSelection.provider}
         fastMode={reconciledSelection.fastMode ?? false}
         model={reconciledSelection.model}

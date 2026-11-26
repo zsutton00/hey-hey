@@ -30,7 +30,7 @@ import {
   savedOnboardingRuntime,
 } from "../LocalOnboarding/localOnboardingRuntime";
 import { LocalOnboardingLaunchButton } from "./LocalOnboardingLaunchButton";
-import { buildLowCostSurfaceSelection } from "./lowCostModelDefault";
+import { buildLowCostSurfaceSelection } from "../../utils/lowCostModelDefault";
 import {
   buildLocalOnboardingBinding,
   type LocalOnboardingTarget,

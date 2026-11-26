@@ -44,6 +44,7 @@ import {
   type ConversationStartRunRequestDtoReasoningEffortEnum,
 } from "../../api";
 import {
+  activateCapabilityCatalogMachine,
   listEfforts,
   listModels,
   listProviders,
@@ -141,6 +142,25 @@ interface ModelSelectorBaseProps {
   machineSelection?: ModelSelectorMachineSelectionProps;
   /** Control placed at the end of the selector row, e.g. a machine picker. */
   rowEnd?: ReactNode;
+  /**
+   * The machine whose catalog this selector offers. The catalog helpers answer
+   * from whichever machine was activated last, so the selector activates its own
+   * before it renders and before it reports a change.
+   */
+  catalogMachineId?: string | null;
+  /**
+   * The model and effort a switch to `provider` selects. Without it, or when it
+   * returns null, the switch selects the provider's first model and keeps the
+   * current effort when that model offers it.
+   */
+  resolveProviderSwitch?: (
+    provider: ConversationStartRunRequestDtoProviderEnum,
+  ) => ProviderSwitchSelection | null;
+}
+
+export interface ProviderSwitchSelection {
+  model: string;
+  reasoningEffort: ConversationStartRunRequestDtoReasoningEffortEnum | null;
 }
 
 export interface ModelSelectorMachineSelectionProps {
@@ -632,7 +652,18 @@ export const ModelSelector = ({
   disabled = false,
   machineSelection,
   rowEnd,
+  resolveProviderSwitch,
+  catalogMachineId,
 }: ModelSelectorProps) => {
+  // Change callbacks run later than the render that read the catalog, so what
+  // they and the embedder look up must be pointed at this machine again.
+  const activateOwnCatalog = () => {
+    if (catalogMachineId !== undefined) {
+      activateCapabilityCatalogMachine(catalogMachineId);
+    }
+  };
+  activateOwnCatalog();
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fullMeasureRef = useRef<HTMLDivElement | null>(null);
   const chipsMeasureRef = useRef<HTMLDivElement | null>(null);
@@ -773,18 +804,24 @@ export const ModelSelector = ({
     if (newProvider === provider) {
       return;
     }
-    const newModels = listModels(newProvider);
-    const firstModel = newModels[0];
-    if (!firstModel) {
+    activateOwnCatalog();
+    const supplied = resolveProviderSwitch?.(newProvider) ?? null;
+    const newModel = supplied?.model ?? listModels(newProvider)[0]?.id;
+    if (!newModel) {
       return;
     }
     onProviderChange(newProvider);
-    onModelChange(firstModel.id);
-    const newEfforts = listEfforts(newProvider, firstModel.id);
-    if (reasoningEffort === null || !newEfforts.includes(reasoningEffort)) {
+    onModelChange(newModel);
+    const newEfforts = listEfforts(newProvider, newModel);
+    if (supplied) {
+      onReasoningEffortChange(supplied.reasoningEffort);
+    } else if (
+      reasoningEffort === null ||
+      !newEfforts.includes(reasoningEffort)
+    ) {
       onReasoningEffortChange(newEfforts.length > 0 ? newEfforts[0] : null);
     }
-    if (fastMode === true && !supportsFastMode(newProvider, firstModel.id)) {
+    if (fastMode === true && !supportsFastMode(newProvider, newModel)) {
       onFastModeChange(false);
     }
   };
@@ -793,6 +830,7 @@ export const ModelSelector = ({
     if (newModel === model) {
       return;
     }
+    activateOwnCatalog();
     onModelChange(newModel);
     const newEfforts = listEfforts(provider, newModel);
     if (reasoningEffort === null || !newEfforts.includes(reasoningEffort)) {
@@ -806,9 +844,15 @@ export const ModelSelector = ({
   const handleEffortChange = (
     event: SelectChangeEvent<ConversationStartRunRequestDtoReasoningEffortEnum>,
   ) => {
+    activateOwnCatalog();
     onReasoningEffortChange(
       event.target.value as ConversationStartRunRequestDtoReasoningEffortEnum,
     );
+  };
+
+  const handleFastModeChange = (nextFastMode: boolean) => {
+    activateOwnCatalog();
+    onFastModeChange(nextFastMode);
   };
 
   const handleFavoriteChange = (event: SelectChangeEvent<string>) => {
@@ -820,6 +864,7 @@ export const ModelSelector = ({
       (candidate) => candidate.id === event.target.value,
     );
     if (favorite) {
+      activateOwnCatalog();
       setPreferredFavoriteId(favorite.id);
       onApplyFavorite(favorite);
     }
@@ -849,7 +894,7 @@ export const ModelSelector = ({
       disabled={disabled}
       fastMode={fastMode}
       fastModeSupported={fastModeSupported}
-      onFastModeChange={onFastModeChange}
+      onFastModeChange={handleFastModeChange}
       machineSelection={includeMachine ? machineSelection : undefined}
       direction={direction}
       rowEnd={rowEndContent}

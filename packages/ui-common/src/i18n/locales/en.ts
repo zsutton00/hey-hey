@@ -14,6 +14,14 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "changeWalkthrough.inTheDesign": "In the design",
+  "changeWalkthrough.showMore": "Show {{count}} more",
+  "changeWalkthrough.openPreview":
+    "Open {{diagram}} with {{highlighted}} highlighted",
+  "changeWalkthrough.openConnectedPreview":
+    "Open {{diagram}} with {{highlighted}} highlighted, connected to {{neighbours}}",
+  "diagramCloseup.moreConnections_one": "+{{count}} more connection",
+  "diagramCloseup.moreConnections_other": "+{{count}} more connections",
   "projectNavigation.overview": "Overview",
   "projectNavigation.sessions": "Sessions",
   "projectNavigation.work": "Work",
@@ -477,6 +485,8 @@ export const en = {
   "triage.help.removes": "Removes items you no longer need",
   "triage.help.groups": "Groups related items together",
   "triage.help.tracks": "Tracks ongoing work on a Goal",
+  "triage.help.machinesUnavailable":
+    "Your machines could not be loaded, so triage cannot start. {{cause}}",
   "triage.run": "Run",
   "triage.discard.message":
     "Closing triage will discard these results. You won’t be able to return to them. Changes you’ve already applied will remain.",

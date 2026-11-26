@@ -206,7 +206,9 @@ export function OpenItemsTriageReview({
       {phase.kind === "help" ? (
         <TriageModalState onClose={handleRequestClose}>
           <OpenItemsTriageHelp
-            onRun={(mode, guidance) => void handleRun({ mode, guidance })}
+            organizationId={organizationId}
+            projectId={projectId}
+            onRun={(options) => void handleRun(options)}
           />
         </TriageModalState>
       ) : phase.kind === "resolving" ? (

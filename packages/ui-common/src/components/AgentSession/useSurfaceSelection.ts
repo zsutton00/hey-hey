@@ -30,7 +30,7 @@ export interface UseSurfaceSelectionResult {
 /**
  * Selection state for a surface that embeds a model picker. The catalog is
  * requested for the machine in `catalogSource` (null until one is picked).
- * `surfaceId` is the surface's memory key, or null when it keeps none.
+ * `surfaceId` is the surface's memory key.
  * `fallbackProvider` seeds the catalog default from that provider when nothing
  * is remembered and the catalog offers it.
  * Whenever `resetKey` changes (a dialog opening, say) the held choice is
@@ -43,7 +43,7 @@ export const useSurfaceSelection = ({
   resetKey,
   fallbackProvider = null,
 }: {
-  surfaceId: string | null;
+  surfaceId: string;
   fallbackProvider?: SurfaceSelection["provider"] | null;
   catalogSource: RuntimeModelCatalogSource | null;
   resetKey: string | number | boolean | null;
@@ -52,7 +52,7 @@ export const useSurfaceSelection = ({
   const catalogDefault = useMemo(
     () =>
       catalogState.status === "ready"
-        ? ((surfaceId ? readSurfaceSelection(surfaceId) : null) ??
+        ? (readSurfaceSelection(surfaceId) ??
           (fallbackProvider
             ? reconcileSurfaceSelection({
                 provider: fallbackProvider,

@@ -1,22 +1,47 @@
 import { useState } from "react";
-import { Box, Button, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { OpenItemsTriageMode } from "@hey-hey/contracts/api";
+import {
+  AgentBridgeRecoveryNotice,
+  RuntimeModelSelector,
+  type OpenItemsTriageRunOptions,
+} from "@hey-hey/ui-common/components";
+import { useOpenItemsTriageChoice } from "./useOpenItemsTriageChoice";
 
 export const TRIAGE_HELP_DESCRIPTION_ID = "open-items-triage-help-description";
 
 /**
  * The start screen every opening shows; nothing runs until a mode button is
- * pressed. It holds only the guidance being typed — the review owner keeps the
- * mode and guidance a review starts with.
+ * pressed, and neither can be until the machine and model are chosen. It holds
+ * the guidance and choice being made — the review owner keeps what a review
+ * starts with.
  */
 export function OpenItemsTriageHelp({
+  organizationId,
+  projectId,
   onRun,
 }: {
-  onRun: (mode: OpenItemsTriageMode, guidance: string) => void;
+  organizationId: string;
+  projectId: string;
+  onRun: (options: OpenItemsTriageRunOptions) => void;
 }) {
   const { t } = useTranslation();
   const [guidance, setGuidance] = useState("");
+  const { picker, choice, machinesError, unreadyMachines } =
+    useOpenItemsTriageChoice(organizationId, projectId);
+  const handleRun = (mode: OpenItemsTriageMode) => {
+    if (choice) {
+      onRun({ mode, guidance, ...choice });
+    }
+  };
   return (
     <Stack
       data-testid="open-items-triage-help"
@@ -58,6 +83,32 @@ export function OpenItemsTriageHelp({
         }}
       />
       <Stack
+        spacing={1}
+        data-testid="triage-start-model-picker"
+        sx={{ width: "100%", minWidth: 0 }}
+      >
+        {machinesError ? (
+          <Alert severity="error" data-testid="triage-start-machines-error">
+            {t("triage.help.machinesUnavailable", {
+              cause: machinesError.message,
+              defaultValue:
+                "Your machines could not be loaded, so triage cannot start. {{cause}}",
+            })}
+          </Alert>
+        ) : (
+          <>
+            <RuntimeModelSelector {...picker} />
+            {unreadyMachines && (
+              <AgentBridgeRecoveryNotice
+                state={unreadyMachines}
+                presentation="inline"
+                testId="triage-start-machine-recovery"
+              />
+            )}
+          </>
+        )}
+      </Stack>
+      <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1.5}
         justifyContent="center"
@@ -66,14 +117,16 @@ export function OpenItemsTriageHelp({
         <Button
           data-testid="triage-start-tidy-up"
           variant="contained"
-          onClick={() => onRun(OpenItemsTriageMode.TidyUp, guidance)}
+          disabled={!choice}
+          onClick={() => handleRun(OpenItemsTriageMode.TidyUp)}
         >
           {t("triage.help.tidyUp", "Tidy up")}
         </Button>
         <Button
           data-testid="triage-start-spring-cleaning"
           variant="outlined"
-          onClick={() => onRun(OpenItemsTriageMode.SpringCleaning, guidance)}
+          disabled={!choice}
+          onClick={() => handleRun(OpenItemsTriageMode.SpringCleaning)}
         >
           {t("triage.help.springCleaning", "Spring cleaning")}
         </Button>

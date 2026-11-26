@@ -102,12 +102,7 @@ vi.mock("@hey-hey/ui-common/components", async (original) => ({
       pending: false,
       error: null,
       ready: true,
-      machines: {
-        isReady: true,
-        mode: "one",
-        machines: [],
-        selectedMachine: { machineId: "machine" },
-      },
+      machineState: { type: "ready" },
       stopRun: mocks.stopRun,
       stoppingRun: false,
     };
@@ -180,10 +175,20 @@ beforeEach(() => {
   );
 });
 
+const options: OpenItemsTriageReviewBinding["options"] = {
+  mode: OpenItemsTriageMode.TidyUp,
+  guidance: "",
+  machineId: "machine",
+  runtime: {
+    provider: "claude",
+    model: "claude-haiku-5-5",
+    reasoningEffort: "xhigh",
+  },
+};
 const binding = (
   overrides: Partial<OpenItemsTriageReviewBinding> = {},
 ): OpenItemsTriageReviewBinding => ({
-  options: { mode: OpenItemsTriageMode.TidyUp, guidance: "" },
+  options,
   requestMessageIds: [],
   onFreshPassSubmitted: vi.fn(),
   onFollowUpSubmitted: vi.fn(),
@@ -396,16 +401,16 @@ describe("triage page within a modal review", () => {
     [OpenItemsTriageMode.TidyUp, ""],
     [OpenItemsTriageMode.SpringCleaning, "Focus on stale bugs"],
   ])(
-    "runs on the review's own %s mode and guidance for every request",
+    "runs on the review's own %s mode, guidance and runtime for every request",
     async (mode, guidance) => {
-      const review = binding({ options: { mode, guidance } });
+      const review = binding({ options: { ...options, mode, guidance } });
       mount("NOT_STARTED", { review });
       await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
       expect(mocks.runtime).toHaveBeenLastCalledWith(
         "org",
         "project",
         expect.objectContaining({ id: "session" }),
-        { mode, guidance },
+        review.options,
       );
     },
   );

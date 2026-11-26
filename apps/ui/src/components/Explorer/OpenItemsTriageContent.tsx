@@ -19,9 +19,7 @@ import {
 } from "@hey-hey/contracts/api";
 import {
   OpenItemsTriageResults,
-  MachinePicker,
   AgentBridgeRecoveryNotice,
-  resolveAgentBridgeRecoveryState,
   getAgentSessionCurrentStatePresentation,
   useOpenItemsTriageRuntime,
   type OpenItemsTriageRunOptions,
@@ -70,7 +68,7 @@ type TriageStopResult = { ok: true } | { ok: false; error: string };
  * review. Run Again goes back to the caller, which creates a new session.
  */
 export interface OpenItemsTriageReviewBinding {
-  /** The mode and guidance the review started with; every request repeats them. */
+  /** What the review started with; every request repeats it. */
   options: OpenItemsTriageRunOptions;
   requestMessageIds: readonly string[];
   onFreshPassSubmitted: (messageId: string) => void;
@@ -196,12 +194,6 @@ export function OpenItemsTriagePage({
   useEffect(() => {
     onActivity?.(pending ? "running" : "results", runActive);
   }, [onActivity, pending, runActive]);
-  const recovery = resolveAgentBridgeRecoveryState({
-    type: "inventory",
-    isLoading: !runtime.machines.isReady,
-    machines: runtime.machines.machines,
-    selectedMachineId: runtime.machines.selectedMachine?.machineId ?? null,
-  });
   const { ready, send, stopRun } = runtime;
   const onFreshPassSubmitted = review.onFreshPassSubmitted;
   const onFollowUpSubmitted = review.onFollowUpSubmitted;
@@ -363,25 +355,13 @@ export function OpenItemsTriagePage({
                 )}
             </Alert>
           )}
-          {!preview &&
-            !runtime.ready &&
-            (runtime.machines.mode === "many" ? (
-              <MachinePicker
-                machines={runtime.machines.machines}
-                selectedMachineId={
-                  runtime.machines.selectedMachine?.machineId ?? null
-                }
-                onSelect={runtime.machines.setSelectedMachineId}
-                disabled={pending}
-                mobileMode="editor"
-              />
-            ) : (
-              <AgentBridgeRecoveryNotice
-                state={recovery}
-                presentation="inline"
-                testId="triage-machine-recovery"
-              />
-            ))}
+          {!preview && !runtime.ready && (
+            <AgentBridgeRecoveryNotice
+              state={runtime.machineState}
+              presentation="inline"
+              testId="triage-machine-recovery"
+            />
+          )}
           <OpenItemsTriageResults
             organizationId={organizationId}
             projectId={projectId}
