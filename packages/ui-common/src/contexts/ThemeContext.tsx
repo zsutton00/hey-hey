@@ -47,10 +47,12 @@ export interface ConversationAlertPalette {
   error: ConversationAlertTone;
 }
 
-/** Surfaces inside plain agent text, which has no bubble of its own. */
+/** Surfaces of an agent message. */
 export interface ConversationSurfacePalette {
-  /** Gray card fill for reports shown inline in an agent message. */
-  report: string;
+  /** Gray fill of a final reply and of the report cards and code blocks in it. */
+  reply: string;
+  /** Outline that keeps report cards and code blocks distinct on that gray. */
+  replyBorder: string;
   /** Subtle fill for inline code in agent text. */
   inlineCode: string;
 }
@@ -292,7 +294,8 @@ const buildConversationPalette = (isDark: boolean) => {
   };
 
   const conversationSurface: ConversationSurfacePalette = {
-    report: isDark ? "#2a2a2a" : "#f1f2f4",
+    reply: isDark ? "#2a2a2a" : "#f1f2f4",
+    replyBorder: isDark ? "rgba(255, 255, 255, 0.14)" : "rgba(0, 0, 0, 0.14)",
     inlineCode: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
   };
 

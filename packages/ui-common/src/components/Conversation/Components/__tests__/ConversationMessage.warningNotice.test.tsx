@@ -4,7 +4,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
-import { MessageType } from "../../../../api";
+import {
+  MessageType,
+  ReportAudience,
+  ReportType,
+  type ReportDto,
+} from "../../../../api";
+import { InterstitialThought } from "../../../LlmForms/Registry/InterstitialField";
+import { SystemMessage } from "../SystemMessage";
 import { ConversationMessage as ResolvedConversationMessage } from "../ConversationMessage";
 import { resolveConversationForm } from "../../utils/conversationResponseModel";
 import { useConversationContext } from "../ConversationContext";
@@ -207,6 +214,27 @@ describe("warning-severity system notice (real message body)", () => {
   );
 });
 
+// Shaped like the report a coding turn saves.
+const implementReport: ReportDto = {
+  id: "report-1",
+  organizationId: "org-1",
+  projectId: "project-1",
+  reportType: ReportType.Implement,
+  audience: ReportAudience.ProjectVisible,
+  title: "Implementation report",
+  payload: {
+    reportType: "IMPLEMENT",
+    summary: "Open completed the requested work.",
+    filesChanged: ["apps/cli/src/server/task-monitor-start.ts"],
+  },
+  version: 1,
+  schemaVersion: 1,
+  sourceExecutionId: "exec-1",
+  createdAt: "2026-11-24T00:00:00.000Z",
+  expiresAt: "2026-12-24T00:00:00.000Z",
+  entities: [],
+};
+
 describe("agent final reply (real message body)", () => {
   beforeEach(() => {
     vi.mocked(useConversationContext).mockReturnValue({
@@ -223,44 +251,149 @@ describe("agent final reply (real message body)", () => {
     } as unknown as ReturnType<typeof useConversationContext>);
   });
 
-  it.each(["light", "dark"] as const)(
-    "renders as plain text on the page with no bubble in %s mode",
-    async (mode) => {
-      const theme = createHeyTheme(mode);
-      const base = createMockConversationMessage();
-      const conversationMessage = createMockConversationMessage({
-        message: {
-          ...base.message,
-          id: "msg-1",
-          type: MessageType.System,
-          data: { type: "AGENT", response: "Here is what I changed." } as never,
-        },
-      });
+  const renderAgentMessage = async (
+    mode: "light" | "dark",
+    data: Record<string, unknown>,
+  ) => {
+    const base = createMockConversationMessage();
+    const conversationMessage = createMockConversationMessage({
+      message: {
+        ...base.message,
+        id: "msg-1",
+        type: MessageType.System,
+        data: {
+          type: "AGENT",
+          response: "Run this:\n\n```\nconst a = 1;\n```",
+          ...data,
+        } as never,
+      },
+    });
 
+    render(
+      <MemoryRouter>
+        <ThemeProvider theme={createHeyTheme(mode)}>
+          <ConversationMessage
+            conversationMessage={conversationMessage}
+            messageIndex={0}
+            totalMessages={1}
+          />
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+
+    const shell = await screen.findByTestId(/^system-message-/);
+    await waitFor(() => expect(shell.querySelector("pre")).not.toBeNull());
+    return {
+      shell,
+      codeBlock: shell.querySelector("pre") as HTMLElement,
+      blockCode: shell.querySelector("pre code") as HTMLElement,
+    };
+  };
+
+  it.each([
+    ["light", "rgb(241, 242, 244)", "#f1f2f4"],
+    ["dark", "rgb(42, 42, 42)", "#2a2a2a"],
+  ] as const)(
+    "sits on the %s gray, with an outlined code block in the same gray",
+    async (mode, gray, grayHex) => {
+      const { shell, codeBlock, blockCode } = await renderAgentMessage(
+        mode,
+        {},
+      );
+      const style = getComputedStyle(shell);
+
+      expect(style.backgroundColor).toBe(gray);
+      expect(style.borderTopStyle).not.toBe("solid");
+      expect(style.boxShadow).toBe("none");
+      expect(style.borderRadius).not.toBe("");
+      // The fill is an overridable variable, which jsdom leaves unresolved.
+      expect(getComputedStyle(codeBlock).backgroundColor).toContain(grayHex);
+      expect(getComputedStyle(codeBlock).borderTopStyle).toBe("solid");
+      expect(getComputedStyle(blockCode).backgroundColor).toBe(
+        "rgba(0, 0, 0, 0)",
+      );
+    },
+  );
+
+  it("fades a completed reply's content and keeps its gray at full strength", async () => {
+    const { shell } = await renderAgentMessage("light", {});
+
+    expect(getComputedStyle(shell).opacity).not.toBe("0.7");
+    expect(getComputedStyle(shell.firstElementChild!).opacity).toBe("0.7");
+  });
+
+  it.each([
+    ["a Session Monitor message", { type: "SESSION_MONITOR" }],
+    ["an informational system notice", { presentation: "notice" }],
+  ])("leaves %s on its own treatment", async (_label, data) => {
+    const theme = createHeyTheme("light");
+    const { shell, codeBlock } = await renderAgentMessage("light", data);
+
+    expect(getComputedStyle(shell).backgroundColor).not.toBe(
+      "rgb(241, 242, 244)",
+    );
+    expect(getComputedStyle(shell).borderTopStyle).toBe("solid");
+    expect(getComputedStyle(shell).opacity).toBe("0.7");
+    expect(shell).toHaveStyle({ color: theme.palette.text.primary });
+    expect(getComputedStyle(codeBlock).borderTopStyle).not.toBe("solid");
+  });
+
+  it.each(["light", "dark"] as const)(
+    "outlines a report card when the reply has a report and no text in %s mode",
+    (mode) => {
       render(
         <MemoryRouter>
-          <ThemeProvider theme={theme}>
-            <ConversationMessage
-              conversationMessage={conversationMessage}
-              messageIndex={0}
-              totalMessages={1}
+          <ThemeProvider theme={createHeyTheme(mode)}>
+            <SystemMessage
+              animationType="minimal"
+              type="AGENT"
+              inlineReports={[implementReport]}
             />
           </ThemeProvider>
         </MemoryRouter>,
       );
 
-      const reply = await screen.findByTestId("system-message-AGENT");
-      await waitFor(() =>
-        expect(reply).toHaveTextContent("Here is what I changed."),
-      );
-      const style = getComputedStyle(reply);
+      const card = screen.getByTestId("system-message-inline-report");
+      const shell = screen.getByTestId("system-message-AGENT");
+      const viewer = screen.getByTestId("report-viewer-report-1");
 
-      expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
-      expect(style.borderTopStyle).not.toBe("solid");
-      expect(style.boxShadow).toBe("none");
-      expect(reply).toHaveStyle({ color: theme.palette.text.primary });
+      expect(getComputedStyle(viewer).borderTopStyle).not.toBe("solid");
+      expect(getComputedStyle(card).borderTopStyle).toBe("solid");
+      expect(getComputedStyle(card).backgroundColor).toBe(
+        getComputedStyle(shell).backgroundColor,
+      );
     },
   );
+
+  it("keeps thinking narration plain and muted, without fill or outlines", async () => {
+    render(
+      <MemoryRouter>
+        <ThemeProvider theme={createHeyTheme("light")}>
+          <InterstitialThought
+            isActive={false}
+            messageType="AGENT"
+            position="only"
+            thought={"Reading:\n\n```\nconst a = 1;\n```"}
+          />
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+
+    const shell = screen.getByTestId("system-message-AGENT");
+    await waitFor(() => expect(shell.querySelector("pre")).not.toBeNull());
+    const style = getComputedStyle(shell);
+
+    expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(style.borderTopStyle).not.toBe("solid");
+    expect(style.boxShadow).toBe("none");
+    // jsdom resolves neither theme variables nor `inherit`: the shell takes
+    // the muted token and the text takes the shell's color.
+    expect(style.color).toContain("text-secondary");
+    expect(getComputedStyle(shell.querySelector("p")!).color).toBe("inherit");
+    expect(
+      getComputedStyle(shell.querySelector("pre")!).borderTopStyle,
+    ).not.toBe("solid");
+  });
 });
 
 const relativeLuminance = (color: string): number => {

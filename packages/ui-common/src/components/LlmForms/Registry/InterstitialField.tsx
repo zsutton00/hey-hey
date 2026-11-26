@@ -119,6 +119,7 @@ export const InterstitialThought: React.FC<InterstitialThoughtProps> = ({
           enableTypingAnimation={false}
           inlineReports={inlineReports}
           isCompleted
+          isNarration
           type={messageType}
           text={thought}
           renderTimestamp={false}

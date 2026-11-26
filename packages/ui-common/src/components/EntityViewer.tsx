@@ -35,6 +35,7 @@ import {
   DISABLED_CONVERSATION_SCROLL_POLICY,
 } from "./Conversation/ConversationViewer";
 import { SystemMessage } from "./Conversation/Components/SystemMessage";
+import { isInterstitialMessageData } from "./LlmForms/Registry/InterstitialField";
 import { InteractionComponent } from "./InteractionComponent/InteractionComponent";
 import { EntityStarToggle } from "./Entity/EntityStarToggle";
 import { DesignDocReadView } from "./shared";
@@ -270,6 +271,7 @@ const MessageReadView: React.FC<{ message: MessageRecordDto }> = ({
         animationType="minimal"
         messageData={data}
         type={data?.type ?? "SYSTEM"}
+        isNarration={data !== undefined && isInterstitialMessageData(data)}
         isCompleted
       />
     );

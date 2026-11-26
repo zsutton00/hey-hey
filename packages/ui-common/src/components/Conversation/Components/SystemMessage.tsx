@@ -13,11 +13,15 @@ import {
 import React, { Suspense, useMemo } from "react";
 import type { Components } from "react-markdown";
 import { FadeIn } from "../../../animations";
-import type { SystemMessageData } from "../../../api";
+import {
+  SystemMessageDataTypeEnum,
+  type SystemMessageData,
+} from "../../../api";
 import type { ReportDto } from "../../../api";
 import type { MessageRetryState } from "../../../types/conversation";
 import { ReportViewer } from "../../Reports";
 import { ReportOpenQuestions } from "../../Reports/ReportViewer";
+import { unframedReportStyles } from "../../Reports/viewer/ReportViewerFrame";
 import {
   ReportProposedUpdates,
   type ProposedUpdateCardContext,
@@ -45,6 +49,7 @@ import {
   SYSTEM_MESSAGE_LINK_COLOR_VAR,
 } from "./systemMessageStyleVars";
 import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
+import { getNoticeSeverity } from "./MessageAuthorCaption";
 
 const MermaidCodeBlock = React.lazy(() =>
   import("../../shared/MermaidCodeBlock").then((mod) => ({
@@ -86,6 +91,8 @@ interface SystemMessageProps {
   showStreamingSkeleton?: boolean;
   /** Whether a timestamp should be rendered for the message, affects bottom margin */
   renderTimestamp?: boolean;
+  /** Thinking narration, which stays plain text instead of a final reply. */
+  isNarration?: boolean;
   /** Inline reports to render inside the SystemMessage */
   inlineReports?: ReportDto[];
   /**
@@ -239,6 +246,27 @@ const SystemMessageAnchor = ({
 };
 
 /**
+ * The Markdown renderer sets its own text color and size, so narration's muted
+ * style has to be handed to it.
+ */
+const NARRATION_MARKDOWN_SX = {
+  color: "inherit",
+  fontSize: "inherit",
+  lineHeight: "inherit",
+} as const;
+
+const FLUSH_REPORT_SX = {
+  ...unframedReportStyles,
+  // Dark mode paints Paper with an overlay image that would show as a panel.
+  backgroundImage: "none",
+} as const;
+
+/** Automated notices and monitor messages are not the agent's final reply. */
+const hasOwnTreatment = (messageData: SystemMessageData | undefined) =>
+  getNoticeSeverity(messageData) !== null ||
+  messageData?.type === SystemMessageDataTypeEnum.SessionMonitor;
+
+/**
  * SystemMessage component that handles both thinking states and message display
  * with smooth typing animation transitions.
  */
@@ -254,6 +282,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
     enableTypingAnimation = true,
     sx = {},
     renderTimestamp,
+    isNarration = false,
     messageData,
     retryState,
     type,
@@ -284,14 +313,22 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
 
   const markdownComponents = useSystemMessageMarkdownComponents();
 
-  const { base, inner } = getStyles(
+  const isFinalReply =
+    !hasErrorStyle && !isNarration && !hasOwnTreatment(messageData);
+
+  const {
+    base,
+    inner,
+    report: reportCard,
+  } = getStyles({
     hasErrorStyle,
+    isFinalReply,
     theme,
     isCompleted,
     animationConfig,
     awaitingResponse,
     renderTimestamp,
-  );
+  });
 
   if (
     !displayText &&
@@ -376,6 +413,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
                 sx={{ color: "inherit" }}
               >
                 <MarkdownRenderer
+                  sx={isNarration ? NARRATION_MARKDOWN_SX : undefined}
                   components={markdownComponents}
                   allowMentionEscapes
                 >
@@ -391,15 +429,12 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
                 <Box
                   key={report.id}
                   data-testid="system-message-inline-report"
-                  sx={{
-                    bgcolor: theme.palette.conversationSurface.report,
-                    color: "text.primary",
-                    borderRadius: 3,
-                    p: { xs: 1.5, sm: 2 },
-                  }}
+                  sx={reportCard}
                 >
                   <ReportViewer
                     report={report}
+                    // A reply's report card is the only frame around it.
+                    sx={isFinalReply ? FLUSH_REPORT_SX : undefined}
                     renderHeader={false}
                     renderOpenQuestions={false}
                     renderUpdates={proposedUpdateCards === undefined}
@@ -507,14 +542,54 @@ export const useSystemMessageMarkdownComponents = (): Components => {
   );
 };
 
-function getStyles(
-  hasErrorStyle: string | boolean | undefined,
-  theme: Theme,
-  isCompleted: boolean,
-  animationConfig: AnimationConfig,
-  awaitingResponse: boolean,
-  renderTimestamp: boolean | undefined,
-) {
+function getStyles({
+  hasErrorStyle,
+  isFinalReply,
+  theme,
+  isCompleted,
+  animationConfig,
+  awaitingResponse,
+  renderTimestamp,
+}: {
+  hasErrorStyle: string | boolean | undefined;
+  isFinalReply: boolean;
+  theme: Theme;
+  isCompleted: boolean;
+  animationConfig: AnimationConfig;
+  awaitingResponse: boolean;
+  renderTimestamp: boolean | undefined;
+}) {
+  const { reply, replyBorder, inlineCode } = theme.palette.conversationSurface;
+  const outline = `1px solid ${replyBorder}`;
+
+  const completedFade = {
+    opacity: isCompleted ? 0.7 : 1,
+    transition: `opacity ${0.3 / animationConfig.speedMultiplier}s ease`,
+  };
+  const flatShell = {
+    border: "none",
+    boxShadow: "none",
+    color: theme.palette.text.primary,
+  };
+  // A completed reply fades its content only, so the gray stays at full
+  // strength.
+  const replyShell = {
+    ...flatShell,
+    backgroundColor: reply,
+    borderRadius: 1,
+    px: { xs: 1.5, sm: 2.5 },
+    py: { xs: 1.5, sm: 2 },
+    "& > *": completedFade,
+  };
+  // Notices, monitor messages and narration style this plain shell themselves.
+  const plainShell = {
+    ...flatShell,
+    ...completedFade,
+    backgroundColor: "transparent",
+  };
+  const errorShell = { ...completedFade, ...getErrorShellStyle(theme) };
+  const messageShell = isFinalReply ? replyShell : plainShell;
+
   return {
     base: {
       display: "inline-flex",
@@ -522,18 +597,14 @@ function getStyles(
       boxSizing: "border-box",
       flexDirection: "column",
       mb: renderTimestamp ? 0 : 3,
-      opacity: isCompleted ? 0.7 : 1,
-      transition: `opacity ${0.3 / animationConfig.speedMultiplier}s ease`,
-      ...(hasErrorStyle
-        ? getErrorShellStyle(theme)
-        : {
-            // Agent messages are plain text on the page: no bubble, so your
-            // blue messages and the conversation cards are what stand out.
-            backgroundColor: "transparent",
-            border: "none",
-            boxShadow: "none",
-            color: theme.palette.text.primary,
-          }),
+      ...(hasErrorStyle ? errorShell : messageShell),
+    },
+    report: {
+      bgcolor: reply,
+      color: "text.primary",
+      borderRadius: isFinalReply ? 1 : 3,
+      border: isFinalReply ? outline : "none",
+      p: { xs: 1.5, sm: 2 },
     },
     inner: {
       width: "100%",
@@ -580,20 +651,22 @@ function getStyles(
           marginBottom: 2,
         },
         "& pre": {
-          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${theme.palette.conversationSurface.report})`,
+          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${reply})`,
+          border: isFinalReply ? outline : "none",
           borderRadius: 1,
           padding: 1,
           overflowX: "auto",
           whiteSpace: "pre-wrap",
         },
         "& code": {
-          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${theme.palette.conversationSurface.inlineCode})`,
+          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${inlineCode})`,
           borderRadius: "4px",
           padding: "0 4px",
           fontSize: "0.95em",
           overflowWrap: "anywhere",
           wordBreak: "break-word",
         },
+        ...(isFinalReply ? replyMarkdownStyles : {}),
         "& a": {
           overflowWrap: "anywhere",
           wordBreak: "break-word",
@@ -616,6 +689,18 @@ function getStyles(
     },
   };
 }
+
+const replyMarkdownStyles = {
+  // The inline code fill would shade each line of a code block.
+  "& pre code": { backgroundColor: "transparent", padding: 0 },
+  // Keeps an outlined code block off the text above it.
+  "& * + pre": { marginTop: 1.5 },
+  // The reply's padding is the only space below its last block.
+  "& ul:last-child, & ol:last-child, & pre:last-child": { marginBottom: 0 },
+  "& ul:last-child > li:last-child, & ol:last-child > li:last-child": {
+    marginBottom: 0,
+  },
+};
 
 function getErrorShellStyle(theme: Theme) {
   const isDark = theme.palette.mode === "dark";

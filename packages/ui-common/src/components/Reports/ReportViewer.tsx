@@ -57,6 +57,7 @@ import {
   type PlanReportInteractionContext,
   type ReportViewerTitleLink,
 } from "./viewer";
+import { unframedReportStyles } from "./viewer/ReportViewerFrame";
 import { getCodingResearchUncertainties } from "./viewer/codingResearchSubagentParentUncertainties";
 import {
   narrowFeatureSyncDecisionReport,
@@ -179,12 +180,6 @@ export const ReportOpenQuestions: React.FC<{
     />
   );
 };
-
-const unframedReportStyles = {
-  p: 0,
-  border: "none",
-  backgroundColor: "transparent",
-} as const;
 
 /** ReportViewerFrame merges a function or object sx; the unframed styles win. */
 const withUnframedReportSx = (

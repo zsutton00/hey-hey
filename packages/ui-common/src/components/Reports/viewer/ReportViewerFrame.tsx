@@ -32,6 +32,13 @@ const SANS_FONT_FAMILY =
 // Experiment: read-only reports use Atkinson Hyperlegible Mono (loaded in apps/ui/index.html).
 const READ_ONLY_REPORT_FONT_FAMILY = `"Atkinson Hyperlegible Mono", ${SANS_FONT_FAMILY}`;
 
+/** For surfaces that already frame the report themselves. */
+export const unframedReportStyles = {
+  p: 0,
+  border: "none",
+  backgroundColor: "transparent",
+} as const;
+
 export interface ReportViewerTitleLink {
   entityId: string;
   projectId: string;
