@@ -145,10 +145,17 @@ export function futureTargetUpdates(
 ): UpdateTaskDto | UpdateDesignDocDto {
   const result = future.result;
   if ('type' in result) {
+    const baselineTag =
+      'type' in future.baseline.content
+        ? future.baseline.content.tag
+        : undefined;
+    const tagChanged = (result.tag ?? null) !== (baselineTag ?? null);
     return {
       name: result.name,
       priority: result.priority,
-      tag: result.tag,
+      // Reconciliation turns a listed but missing tag into null, which types
+      // that forbid tags reject. Omitting an unchanged tag keeps the live one.
+      ...(tagChanged ? { tag: result.tag } : {}),
       initiativeId: result.initiativeId ?? undefined,
       parentTaskId: result.parentTaskId ?? null,
       assigneeId: result.assigneeId ?? null,
