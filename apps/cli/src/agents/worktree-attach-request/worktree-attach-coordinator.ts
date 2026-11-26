@@ -149,7 +149,32 @@ export class WorktreeAttachCoordinator {
     { pending: WorktreeAttachRequestEntry; outcome: CardOutcome }
   >();
 
-  public constructor(private readonly dependencies: WorktreeAttachCoordinatorDependencies) {}
+  public constructor(private readonly dependencies: WorktreeAttachCoordinatorDependencies) {
+    for (const { request, messageId, settledCard } of dependencies.session()
+      .worktreeAttachRequestPresentations ?? []) {
+      if (settledCard) {
+        this.settledDecisions.set(request.id, settledCard.decision);
+        this.unrecordedCards.set(request.id, {
+          pending: { request, messageId, data: null },
+          outcome: settledCard,
+        });
+      }
+    }
+  }
+
+  public async repairRestoredCards(): Promise<void> {
+    for (const { pending, outcome } of this.unrecordedCards.values()) {
+      const { request } = pending;
+      await this.decide({
+        requestId: request.id,
+        sessionId: request.sessionId,
+        agentType: request.agentType,
+        idempotencyToken: request.idempotencyToken,
+        decision: outcome.decision,
+        reason: null,
+      });
+    }
+  }
 
   public request(args: RequestWorktreeAttachArgs): Promise<WorktreeAttachRequestResult> {
     const result = this.admissions.then(() => this.admit(args));
@@ -357,6 +382,11 @@ export class WorktreeAttachCoordinator {
     const { logger, runId } = this.dependencies;
     try {
       await this.recordDecision(unrecorded.pending, unrecorded.outcome);
+      await this.dependencies.runStore.persistIdempotencyToken(
+        runId,
+        unrecorded.pending.request.idempotencyToken,
+      );
+      await this.dependencies.serviceScope.eraseWorktreeAttachCardSettlement(requestId);
     } catch (error) {
       logger.error('local.worktree_attach.decision.card_repair_failed', {
         runId,
@@ -590,6 +620,29 @@ export class WorktreeAttachCoordinator {
   ): Promise<string | null> {
     const { logger, runId, serviceScope } = this.dependencies;
     const { request } = pending;
+    const resumes = outcome.continuation !== undefined;
+    if (!resumes) {
+      const settledCard = {
+        decision: outcome.decision,
+        decidedAt: outcome.decidedAt,
+        ...(outcome.failureReason ? { failureReason: outcome.failureReason } : {}),
+      };
+      try {
+        await serviceScope.saveWorktreeAttachCardSettlement({
+          request,
+          messageId: pending.messageId,
+          settledCard,
+        });
+      } catch (error) {
+        logger.error('local.worktree_attach.decision.settlement_persist_failed', {
+          runId,
+          requestId: request.id,
+          error,
+        });
+        throw error;
+      }
+      this.unrecordedCards.set(request.id, { pending, outcome: settledCard });
+    }
     let cardFailure: string | null = null;
     if (!outcome.cardRecorded) {
       try {
@@ -602,21 +655,12 @@ export class WorktreeAttachCoordinator {
           error,
         });
         cardFailure = cardFailureReason(error);
-        this.unrecordedCards.set(request.id, {
-          pending,
-          outcome: {
-            decision: outcome.decision,
-            decidedAt: outcome.decidedAt,
-            ...(outcome.failureReason ? { failureReason: outcome.failureReason } : {}),
-          },
-        });
       }
     }
 
     serviceScope.settleWorktreeAttachRequest(request.id);
     this.settledDecisions.set(request.id, outcome.decision);
     this.platformMoves.delete(request.id);
-    const resumes = outcome.continuation !== undefined;
     try {
       await this.dependencies.runStore.persistIdempotencyToken(runId, request.idempotencyToken);
     } finally {
@@ -628,6 +672,18 @@ export class WorktreeAttachCoordinator {
         if (outcome.agentNotice) {
           serviceScope.queueAgentNotice(outcome.agentNotice);
         }
+      }
+    }
+    if (!resumes && !cardFailure) {
+      try {
+        await serviceScope.eraseWorktreeAttachCardSettlement(request.id);
+        this.unrecordedCards.delete(request.id);
+      } catch (error) {
+        logger.error('local.worktree_attach.decision.settlement_cleanup_failed', {
+          runId,
+          requestId: request.id,
+          error,
+        });
       }
     }
     return cardFailure;

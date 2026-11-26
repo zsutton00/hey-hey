@@ -888,6 +888,29 @@ describe('worktree attach decision', () => {
     );
   });
 
+  it('repairs a denied card from the saved decision after CLI restart', async () => {
+    addWorktree('feature/changes');
+    const platform = new FakePlatform();
+    const outcome = await requestThenDecide({
+      platform,
+      decision: 'deny',
+      beforeDecision: () => {
+        platform.failCardUpdates = 1;
+      },
+    });
+    expect(outcome.result.outcome).toBe('failed');
+    expect(platform.cards.size).toBe(0);
+
+    const restartedStore = await openStore();
+    const session = (await restartedStore.getRun(RUN_ID))!;
+    const restarted = startDecidingRun(restartedStore, session, platform);
+    await vi.waitFor(() => expect(platform.card()).toMatchObject({ decision: 'deny' }));
+
+    expect(restarted.currentState()).not.toBe('AWAITING_APPROVAL');
+    expect(restarted.turns).toHaveLength(0);
+    expect(platform.attachCalls).toHaveLength(0);
+  });
+
   it('changes nothing on denial and tells the agent', async () => {
     const target = addWorktree('feature/changes');
 
