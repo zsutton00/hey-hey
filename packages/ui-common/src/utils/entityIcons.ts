@@ -43,6 +43,7 @@ import { ConversationIcon } from "./icons/Conversation";
 import { DecisionIcon } from "./icons/Decision";
 import { DesignIcon } from "./icons/Design";
 import { DesignDocIcon } from "./icons/DesignDoc";
+import { DiagramElementIcon } from "./icons/DiagramElement";
 import { IntegrationIcon } from "./icons/Integration";
 import { InitiativeIcon } from "./icons/Initiative";
 import { MessageIcon } from "./icons/Message";
@@ -79,6 +80,7 @@ const entityIconMap = {
   decision: DecisionIcon,
   workflow: AccountTreeIcon,
   workflowstep: AccountTreeIcon,
+  diagram_element: DiagramElementIcon,
   feature: FeatureIcon,
   goal: GoalIcon,
   initiative: InitiativeIcon,
@@ -256,6 +258,7 @@ const workItemTypeColors: Readonly<Record<string, EntityColors>> = {
 const workItemTypeIcons: Readonly<Record<string, ComponentType<SvgIconProps>>> =
   {
     mockup: workItemIconMap.design,
+    DIAGRAM_ELEMENT: DiagramElementIcon,
   };
 
 const transparentEntityColors: EntityColors = {
@@ -306,7 +309,9 @@ export const resolveWorkItemIcon = (
     return TaskMonitorIcon;
   }
 
-  if (definition.iconKey === undefined) return undefined;
+  // Built-in types without a palette token resolve by type key. Adding a
+  // token would be rejected by released clients that validate the palette.
+  if (definition.iconKey === undefined) return workItemTypeIcons[taskType];
 
   return workItemIconMap[definition.iconKey];
 };

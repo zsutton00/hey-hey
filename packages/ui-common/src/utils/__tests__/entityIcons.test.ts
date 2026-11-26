@@ -10,6 +10,7 @@ import { AgentSessionIcon } from "../icons/AgentSession";
 import { ContractIcon } from "../icons/Contract";
 import { DecisionIcon } from "../icons/Decision";
 import { DesignIcon } from "../icons/Design";
+import { DiagramElementIcon } from "../icons/DiagramElement";
 import { FeatureIcon } from "../icons/Feature";
 import { ProposalIcon } from "../icons/Proposal";
 import { TaskMonitorIcon } from "../icons/TaskMonitor";
@@ -145,6 +146,20 @@ describe("entityIcons", () => {
       resolveWorkItemIcon("TASK_MONITOR", definition("TASK_MONITOR", "task")),
     ).toBe(TaskMonitorIcon);
     expect(getEntityIcon("TASK_MONITOR")).toBe(TaskMonitorIcon);
+  });
+
+  it("uses the Diagram Element icon for the canonical type, which stores no icon key", () => {
+    expect(getEntityIcon("diagram_element")).toBe(DiagramElementIcon);
+    expect(
+      resolveWorkItemIconPresentation(
+        "DIAGRAM_ELEMENT",
+        definition("DIAGRAM_ELEMENT", undefined),
+        "CANONICAL",
+      ),
+    ).toEqual({
+      Icon: DiagramElementIcon,
+      colors: { background: "plan.main", color: "plan.contrastText" },
+    });
   });
 
   it("uses the standard-task fallback only when the task type is absent", () => {
