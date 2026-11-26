@@ -6379,7 +6379,7 @@ components:
           maxItems: 20
           items:
             type: string
-          description: Local branches matching the query, most recently committed first. Without a query, the most recent branches.
+          description: Local branches matching the query. A branch named exactly the query, or under it, is always included and comes first; the rest follow, most recently committed first. Without a query, the most recent branches.
         branchMatchesTruncated:
           type: boolean
           description: True when more matching branches exist than were returned.

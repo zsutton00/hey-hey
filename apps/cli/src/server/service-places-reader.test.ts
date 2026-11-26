@@ -114,6 +114,35 @@ describe('ServicePlacesReader', () => {
     expect(none).toMatchObject({ status: 'ok', branchMatches: [], branchMatchesTruncated: false });
   });
 
+  it.each([
+    ['named exactly the query', 'Fix-The-Poll'],
+    ['under the query', 'fix-the-poll/spike'],
+  ])('returns an older branch %s ahead of 20 newer matches', async (_case, blocking) => {
+    const repo = await makeRepo('crowded');
+    git(repo, 'branch', blocking);
+    git(repo, 'checkout', '-q', '-b', 'newer');
+    // Dated after the first commit, so every look-alike sorts ahead of it.
+    vi.stubEnv('GIT_COMMITTER_DATE', '2099-01-01T00:00:00Z');
+    git(repo, 'commit', '-q', '--allow-empty', '-m', 'newer');
+    vi.unstubAllEnvs();
+    for (let i = 0; i < 20; i += 1) {
+      git(repo, 'branch', `old/fix-the-poll-${i}`);
+    }
+    await store.setBinding(serviceIdFor(12) as never, repo);
+
+    const [entry] = await reader.read({
+      serviceIds: [serviceIdFor(12)],
+      branchQuery: 'fix-the-poll',
+    });
+
+    if (entry?.status !== 'ok') {
+      throw new Error('expected ok entry');
+    }
+    expect(entry.branchMatches).toHaveLength(20);
+    expect(entry.branchMatches[0]).toBe(blocking);
+    expect(entry.branchMatchesTruncated).toBe(true);
+  });
+
   it('gives each failing Service its own error entry while others still return', async () => {
     const repo = await makeRepo('good');
     const plain = path.join(root, 'plain');

@@ -307,10 +307,11 @@ export interface BranchSearchResult {
 }
 
 /**
- * Searches local branch names, most recently committed first. Matching is
- * case-insensitive; an empty query matches every branch. Git's output is
- * streamed and git is stopped after the first `limit + 1` matches, so a huge
- * branch list neither overflows a buffer nor is read in full. Read-only.
+ * Searches local branch names. Matching is case-insensitive; an empty query
+ * matches every branch. A branch named exactly the query, or under it, stops a
+ * new branch of that name, so those come first and are never lost to the limit.
+ * The other matches follow, most recently committed first. Git's output is
+ * streamed, so a huge branch list does not overflow a buffer. Read-only.
  */
 export const searchLocalBranches = async (
   repoPath: string,
@@ -318,7 +319,9 @@ export const searchLocalBranches = async (
   limit: number,
 ): Promise<BranchSearchResult> => {
   const needle = query.trim().toLowerCase();
-  const matches: string[] = [];
+  const blocking: string[] = [];
+  const others: string[] = [];
+  let matchCount = 0;
   const child = spawn(
     'git',
     ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)', 'refs/heads'],
@@ -335,28 +338,30 @@ export const searchLocalBranches = async (
   });
   // A spawn failure must not surface as unhandled before the await below.
   exitCode.catch(() => undefined);
-  let stoppedEarly = false;
 
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
   for await (const line of lines) {
     const branch = line.trim();
-    if (branch === '' || !branch.toLowerCase().includes(needle)) {
+    const name = branch.toLowerCase();
+    if (branch === '' || !name.includes(needle)) {
       continue;
     }
-    matches.push(branch);
-    if (matches.length > limit) {
-      stoppedEarly = true;
-      child.kill();
-      break;
+    matchCount += 1;
+    if (name === needle) {
+      blocking.unshift(branch);
+    } else if (name.startsWith(`${needle}/`)) {
+      blocking.push(branch);
+    } else if (others.length < limit) {
+      others.push(branch);
     }
   }
 
   const code = await exitCode;
-  if (!stoppedEarly && code !== 0) {
+  if (code !== 0) {
     throw new Error(`git for-each-ref failed (exit ${String(code)}): ${stderr.trim()}`);
   }
 
-  return { branches: matches.slice(0, limit), truncated: matches.length > limit };
+  return { branches: [...blocking, ...others].slice(0, limit), truncated: matchCount > limit };
 };
 
 /**

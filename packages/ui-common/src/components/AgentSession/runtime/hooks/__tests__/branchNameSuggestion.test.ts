@@ -15,14 +15,20 @@ interface Repository {
   branches?: string[];
 }
 
-/** Answers like the machine: substring search, ignoring case, 20 at most. */
+/**
+ * Answers like the machine: substring search ignoring case, 20 at most, with
+ * the branches named the query or under it first.
+ */
 const machineWith = (repositories: Record<string, Repository>) =>
   vi.fn(async (query: string): Promise<ServicePlacesRead> => {
     const entries = Object.entries(repositories).map(
       ([serviceId, repository]): [string, CliReadServicePlacesEntry] => {
-        const matches = (repository.branches ?? []).filter((branch) =>
-          branch.toLowerCase().includes(query.toLowerCase()),
-        );
+        const needle = query.toLowerCase();
+        const blocks = (branch: string): boolean =>
+          `${branch.toLowerCase()}/`.startsWith(`${needle}/`);
+        const matches = (repository.branches ?? [])
+          .filter((branch) => branch.toLowerCase().includes(needle))
+          .sort((a, b) => Number(blocks(b)) - Number(blocks(a)));
 
         return [
           serviceId,
@@ -117,6 +123,14 @@ describe("findUnusedBranchName", () => {
       `${BASE}-2`,
       `${BASE}-3`,
     ]);
+  });
+
+  it("numbers past an exact branch older than a full page of look-alikes", async () => {
+    const read = machineWith({ api: { branches: [...crowd, BASE] } });
+
+    await expect(findUnusedBranchName(BASE, ["api"], read)).resolves.toBe(
+      `${BASE}-2`,
+    );
   });
 
   it("still offers a name after the extra searches are used up", async () => {
