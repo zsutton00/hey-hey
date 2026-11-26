@@ -485,6 +485,7 @@ class FakePlatform {
   public readonly attachCalls: Record<string, unknown>[] = [];
   public recordedPlace: Record<string, unknown> | null = null;
   public failAttachWith: Response | null = null;
+  public dropNextAttachReply = false;
   /** Where the platform says the Service works after a change; the requested worktree by default. */
   public answerWith: ((change: Record<string, unknown>) => Record<string, unknown>) | null = null;
   /** How many of the next card updates the platform rejects. */
@@ -518,6 +519,10 @@ class FakePlatform {
       branch: change['branch'],
       worktreePath: change['worktreePath'],
     };
+    if (this.dropNextAttachReply) {
+      this.dropNextAttachReply = false;
+      throw new TypeError('Connection closed after saving the worktree');
+    }
     return Response.json({ data: { servicePlaces: [this.recordedPlace] } });
   };
 
@@ -781,6 +786,25 @@ describe('worktree attach decision', () => {
     expect(await nextTurnPrompt(outcome.run, outcome.turns)).toContain(
       `Attaching the worktree for branch feature/changes at ${target} failed`,
     );
+  });
+
+  it('retries the same approval when the platform saves the move but loses the reply', async () => {
+    const target = addWorktree('feature/changes');
+    const platform = new FakePlatform();
+    platform.dropNextAttachReply = true;
+
+    const outcome = await requestThenDecide({ platform });
+
+    expect(outcome.result).toMatchObject({ outcome: 'delivered' });
+    expect(platform.attachCalls).toHaveLength(2);
+    expect(platform.attachCalls[1]).toEqual(platform.attachCalls[0]);
+    expect(platform.card()).toMatchObject({ decision: 'approve' });
+    expect(platform.card().failureReason).toBeFalsy();
+    expect(platform.recordedPlace?.worktreePath).toBe(target);
+    expect(outcome.run.session.worktreeState?.[SERVICE_ID]?.worktreePath).toBe(target);
+    await vi.waitFor(() => expect(outcome.turns).toHaveLength(2));
+    await outcome.run.awaitIdle();
+    expect(outcome.turns).toHaveLength(2);
   });
 
   it('keeps the editable folders when the platform cannot record the place', async () => {

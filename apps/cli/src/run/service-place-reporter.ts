@@ -148,7 +148,14 @@ export class ServicePlaceReporter {
       }
 
       logger.debug('local.run.service_places.change_sending', { runId, change });
-      const recordedPlace = await this.sendChange(machineId, change);
+      const recordedPlace = await this.sendChange(machineId, change).catch((error: unknown) => {
+        if (!(error instanceof TypeError)) {
+          throw error;
+        }
+
+        logger.warn('local.run.service_places.change_retrying', { runId, change, error });
+        return this.sendChange(machineId, change);
+      });
       const moved =
         recordedPlace?.kind === AgentSessionServicePlaceKind.Worktree &&
         recordedPlace.branch === change.branch &&
