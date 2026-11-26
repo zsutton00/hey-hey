@@ -105,6 +105,8 @@ export class RunServiceScope {
    */
   private pausedTurn: { turnId: string; approved: boolean } | null = null;
   private heldAdmission: HeldAdmission | null = null;
+  /** What the agent must be told on its next Turn, such as how an attach request was decided. */
+  private agentNotices: string[] = [];
 
   /**
    * Rehydrates persisted request presentations, the pending approval wait and
@@ -218,6 +220,22 @@ export class RunServiceScope {
 
   public hasPendingWorktreeAttachRequest(): boolean {
     return this.attachRequests.size > 0;
+  }
+
+  public hasWorktreeAttachRequestRecord(requestId: string): boolean {
+    return this.attachRequests.has(requestId) || this.isWorktreeAttachRequestSettled(requestId);
+  }
+
+  /** Keeps a note for the agent's next provider Turn. */
+  public queueAgentNotice(text: string): void {
+    this.agentNotices.push(text);
+  }
+
+  /** The notes the next provider Turn delivers; each is delivered once. */
+  public takeAgentNotices(): string[] {
+    const notices = this.agentNotices;
+    this.agentNotices = [];
+    return notices;
   }
 
   public recordWorktreeAttachRequest(
@@ -437,6 +455,7 @@ export class RunServiceScope {
     }
     const continuation = {
       input: activeInput,
+      approvalKind: wait.kind,
       delivery: 'pending' as const,
       interruptedTurnId: activeTurn.turnId,
       capturedAt: new Date().toISOString(),
@@ -491,7 +510,7 @@ export class RunServiceScope {
       });
       return true;
     }
-    if (this.approvalWait?.kind !== 'service_scope' || this.approvalWait.requestId !== requestId) {
+    if (this.approvalWait?.requestId !== requestId) {
       this.deps.logger.debug('local.run.service_scope.approval_wait.settle_skipped', {
         runId: this.deps.runId,
         requestId,
@@ -500,9 +519,10 @@ export class RunServiceScope {
       });
       return false;
     }
+    const { kind } = this.approvalWait;
     this.approvalWait = null;
     this.deps.observeProviderPhase(nextPhase);
-    this.deps.logger.info('local.run.service_scope.approval_wait.settled', {
+    this.deps.logger.info(`local.run.${kind}.approval_wait.settled`, {
       runId: this.deps.runId,
       requestId,
       nextPhase,
@@ -607,10 +627,25 @@ export class RunServiceScope {
       : null;
   }
 
-  public async resumeAfterServiceScopeApproval(): Promise<void> {
+  /**
+   * Continues the paused input after approval. `placeChangeNotice` tells the agent what an
+   * approved attach changed: a resumed provider session gets it with its next Turn, and a
+   * replacement session gets it with the saved checkpoint.
+   */
+  public async resumeAfterServiceScopeApproval(placeChangeNotice?: string): Promise<void> {
     const continuation = this.continuation;
     if (!continuation || continuation.delivery !== 'pending') return;
-    if (this.deps.hasProviderSession()) await this.forgetServiceScopeContinuation();
+    if (this.deps.hasProviderSession()) {
+      await this.forgetServiceScopeContinuation();
+      if (placeChangeNotice) {
+        this.queueAgentNotice(placeChangeNotice);
+      }
+    } else if (placeChangeNotice) {
+      const noted = { ...continuation, placeChangeNotice };
+      await this.deps.runStore.updateRunServiceScopeContinuation(this.deps.runId, noted);
+      this.continuation = noted;
+      this.deps.patchSession({ serviceScopeContinuation: noted });
+    }
     // The continuation Turn owns the held admission from here: it is already started, and
     // the continuation's own end settles it.
     this.heldAdmission = null;
@@ -626,8 +661,12 @@ export class RunServiceScope {
     await this.deps.runStore.updateRunServiceScopeContinuation(this.deps.runId, delivered);
     this.continuation = delivered;
     this.deps.patchSession({ serviceScopeContinuation: delivered });
+    const change =
+      expected.approvalKind === 'worktree_attach'
+        ? 'The session moved to the approved worktree.'
+        : 'Service scope was expanded.';
     await this.deps.postRuntimeNotice(
-      'Service scope was expanded. The provider session was replaced, and execution continued once from the saved interrupted-work checkpoint.',
+      `${change} The provider session was replaced, and execution continued once from the saved interrupted-work checkpoint.`,
       'info',
     );
   }

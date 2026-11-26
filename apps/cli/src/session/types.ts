@@ -108,6 +108,10 @@ export interface RecoverableTurnCheckpoint {
 
 export interface ServiceScopeContinuation {
   input: InternalRunPromptRequest;
+  /** Which approval interrupted the Turn; absent on records saved before attach existed. */
+  approvalKind?: 'service_scope' | 'worktree_attach';
+  /** What an approved attach changed, told to the agent when execution continues. */
+  placeChangeNotice?: string;
   checkpoint: RecoverableTurnCheckpoint;
   delivery: 'pending' | 'delivered';
   interruptedTurnId: string;

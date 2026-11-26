@@ -1204,6 +1204,7 @@ export class Run {
         this.recordResolvedServiceWorktree(serviceId, worktree),
     });
     this.worktreeAttachCoordinator = new WorktreeAttachCoordinator({
+      runStore: this.runStore,
       repoStore: this.repoStore,
       poster: this.poster,
       logger: this.logger,
@@ -1215,6 +1216,10 @@ export class Run {
       provider: () => this.provider,
       session: () => this.session,
       currentAgentId: () => this.currentAgentId(),
+      changePlace: (change) => this.servicePlaceReporter.changePlace(change),
+      applyApprovedWorktreeAttach: (input) => this.applyApprovedWorktreeAttach(input),
+      hasProviderSession: () => this.hasProviderSession,
+      startFreshProviderSession: () => this.discardProviderSessionForScopeChange(),
     });
     this.servicePlaceReporter = new ServicePlaceReporter({
       runId: this.runId,
@@ -2981,6 +2986,84 @@ export class Run {
       await this.resetWorkspaceWriteBoundaryForScopeChange();
     }
     await this.servicePlaceReporter.report(input.workspace);
+  }
+
+  /**
+   * Moves one Service's editable folder to an approved worktree the platform already recorded.
+   * The folder it worked in is replaced, never kept beside it, and the launch Service stays the
+   * same. Changed files reported afterwards resolve against the new worktree.
+   */
+  public async applyApprovedWorktreeAttach(input: {
+    serviceId: string;
+    worktree: LocalWorktreeState;
+  }): Promise<void> {
+    const { serviceId, worktree } = input;
+    const service = this.session.services.find((entry) => entry.id === serviceId);
+    if (!service) {
+      throw new Error(`Service ${serviceId} is not in this Run.`);
+    }
+
+    const priorScope = this.session.scope;
+    const priorWorktree = this.session.worktreeState;
+    const priorChoices = this.session.servicePlaceChoices;
+    const previousRoot = path.resolve(priorWorktree?.[serviceId]?.worktreePath ?? service.path);
+    const attachedScope: LocalRunScope | null = priorScope
+      ? {
+          ...priorScope,
+          allowedRepositoryRoots: Array.from(
+            new Set([
+              ...priorScope.allowedRepositoryRoots.filter(
+                (rootPath) => path.resolve(rootPath) !== previousRoot,
+              ),
+              worktree.worktreePath,
+            ]),
+          ),
+        }
+      : null;
+    const attachedWorktree = { ...priorWorktree, [serviceId]: worktree };
+    const attachedChoices: ServicePlaceChoice[] = [
+      ...(priorChoices ?? []).filter((choice) => choice.serviceId !== serviceId),
+      { serviceId, kind: 'WORKTREE', branch: worktree.branch, newBranch: false },
+    ];
+
+    try {
+      if (attachedScope) {
+        await this.runStore.updateRunScope(this.runId, attachedScope);
+      }
+      await this.runStore.updateRunWorktreeState(this.runId, attachedWorktree);
+      await this.runStore.updateRunServicePlaceChoices(this.runId, attachedChoices);
+    } catch (error) {
+      try {
+        if (priorScope) {
+          await this.runStore.updateRunScope(this.runId, priorScope);
+        }
+        await this.runStore.updateRunWorktreeState(this.runId, priorWorktree ?? {});
+        await this.runStore.updateRunServicePlaceChoices(this.runId, priorChoices ?? []);
+      } catch (rollbackError) {
+        this.logger.error('local.run.worktree_attach.apply_rollback_failed', {
+          runId: this.runId,
+          serviceId,
+          error: rollbackError,
+        });
+      }
+      throw error;
+    }
+
+    this.refreshSessionFields({
+      ...(attachedScope ? { scope: attachedScope } : {}),
+      worktreeState: attachedWorktree,
+      servicePlaceChoices: attachedChoices,
+    });
+    // The boundary was built from the folder the Service left.
+    await this.resetWorkspaceWriteBoundaryForScopeChange();
+    this.logger.info('local.run.worktree_attach.applied', {
+      runId: this.runId,
+      serviceId,
+      previousRoot,
+      worktreePath: worktree.worktreePath,
+      branch: worktree.branch,
+      allowedRepositoryRoots: attachedScope?.allowedRepositoryRoots ?? null,
+    });
   }
 
   private async reconcileAdmittedServiceScope(
@@ -6168,7 +6251,11 @@ export class Run {
       handler.runnerKind === 'provider_session' && Boolean(resolvedPrompt?.trim())
         ? await this.proposalTracker.refresh()
         : { lines: [], proposalIds: [] };
+    // How an attach request was decided reaches the agent once, on its next provider Turn.
+    const placeNotices =
+      handler.runnerKind === 'provider_session' ? this.serviceScope.takeAgentNotices() : [];
     const browserInputBlocks = [
+      ...placeNotices,
       ...(proposalNotices.lines.length > 0 ? [proposalNotices.lines.join('\n')] : []),
       ...(browserTabNotice ? [formatBrowserTabNotice(browserTabNotice)] : []),
       ...(browserAnnotations.length > 0 ? [formatBrowserAnnotations(browserAnnotations)] : []),

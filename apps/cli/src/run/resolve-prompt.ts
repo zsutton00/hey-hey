@@ -34,18 +34,26 @@ import type { SessionRoleGuidance } from '../agents/session-role-guidance/sessio
 import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { ReportChainEntry } from './types';
-import type { RecoverableTurnCheckpoint } from '../session/types';
+import type { RecoverableTurnCheckpoint, ServiceScopeContinuation } from '../session/types';
 import type {
   CachedProviderSessionStartupSegments,
   ProviderSessionDecision,
   ProviderSessionStartupSegments,
 } from './provider-session-startup-input';
 
-export const renderServiceScopeRecovery = (checkpoint: RecoverableTurnCheckpoint): string => {
+export const renderServiceScopeRecovery = (
+  continuation: Pick<ServiceScopeContinuation, 'checkpoint' | 'approvalKind' | 'placeChangeNotice'>,
+): string => {
+  const { checkpoint } = continuation;
+  const approval =
+    continuation.approvalKind === 'worktree_attach'
+      ? 'an approved worktree attach'
+      : 'Service scope approval';
   const lines = [
     '## Interrupted work checkpoint',
     '',
-    'Execution crossed a provider-session boundary after Service scope approval. Continue from this recoverable checkpoint; do not repeat completed work.',
+    `Execution crossed a provider-session boundary after ${approval}. Continue from this recoverable checkpoint; do not repeat completed work.`,
+    ...(continuation.placeChangeNotice ? ['', continuation.placeChangeNotice] : []),
     '',
     `Completed actions: ${checkpoint.completedActions.length > 0 ? checkpoint.completedActions.join('; ') : 'none recorded'}`,
     `Discoveries: ${checkpoint.discoveries.length > 0 ? checkpoint.discoveries.join('; ') : 'none recorded'}`,

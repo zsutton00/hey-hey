@@ -57,6 +57,7 @@ export type QuestionAnswerDeliveryOutcome =
 
 export type PermissionDecisionOwner =
   | { kind: 'service_scope' }
+  | { kind: 'worktree_attach' }
   | { kind: 'review_file_scope' }
   | { kind: 'settled_specialized_request' }
   | { kind: 'task_monitor_intervention'; taskMonitorId: string }
@@ -183,9 +184,12 @@ export class RunRegistry {
   ): Promise<PermissionDecisionOwner> {
     const run = this.runs.get(runId);
     if (run?.serviceScope.getServiceScopeRequest(requestId)) return { kind: 'service_scope' };
+    // A worktree attach is always the person's decision, never the Task Monitor's.
+    if (run?.serviceScope.getWorktreeAttachRequest(requestId)) return { kind: 'worktree_attach' };
     if (run?.hasReviewFileScopeRequestRecord(requestId)) return { kind: 'review_file_scope' };
     if (
       run?.serviceScope.isServiceScopeRequestSettled(requestId) ||
+      run?.serviceScope.isWorktreeAttachRequestSettled(requestId) ||
       run?.isReviewFileScopeRequestSettled(requestId) ||
       (await this.dependencies.runCollaborators.runStore.hasIdempotencyToken(
         runId,
@@ -200,6 +204,34 @@ export class RunRegistry {
     return taskMonitorId
       ? { kind: 'task_monitor_intervention', taskMonitorId }
       : { kind: 'provider_permission' };
+  }
+
+  private async submitWorktreeAttachDecision(
+    run: Run,
+    input: PermissionDecisionRoutingInput,
+  ): Promise<PermissionDecisionDeliveryOutcome> {
+    if (!input.idempotencyToken) {
+      return { outcome: 'dropped', reason: 'worktree_attach_decision_missing_idempotency_token' };
+    }
+    // Place choices belong to Service access requests; an attach names its own worktree.
+    if (input.servicePlaceChoices && input.servicePlaceChoices.length > 0) {
+      return { outcome: 'dropped', reason: 'worktree_attach_decision_place_choice_rejected' };
+    }
+    try {
+      return await run.worktreeAttachCoordinator.decide({
+        requestId: input.requestId,
+        sessionId: input.sessionId,
+        agentType: input.agentType,
+        decision: input.decision === 'approve' ? 'approve' : 'deny',
+        reason: input.reason,
+        idempotencyToken: input.idempotencyToken,
+      });
+    } catch (error) {
+      return {
+        outcome: 'failed',
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   /** Snapshot of all currently-registered Runs. Caller must not mutate. */
@@ -258,6 +290,9 @@ export class RunRegistry {
           reason: error instanceof Error ? error.message : String(error),
         };
       }
+    }
+    if (run.serviceScope.hasWorktreeAttachRequestRecord(input.requestId)) {
+      return this.submitWorktreeAttachDecision(run, input);
     }
     if (run.hasReviewFileScopeRequestRecord(input.requestId)) {
       if (!input.idempotencyToken) {
