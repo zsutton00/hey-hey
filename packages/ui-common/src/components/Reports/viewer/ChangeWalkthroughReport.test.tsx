@@ -236,7 +236,7 @@ let pageWidth = 762;
 
 const openPreview = vi.fn();
 
-const renderParts = (ids: string[]) =>
+const renderReport = (saved: ChangeWalkthroughReportPayload) =>
   render(
     <MemoryRouter>
       <ThemeProvider theme={createHeyTheme("light")}>
@@ -244,11 +244,40 @@ const renderParts = (ids: string[]) =>
           <ChangeWalkthroughReport
             report={report}
             reportTestId="report"
-            payload={withRefs(ids)}
+            payload={saved}
           />
         </PreviewHostProvider>
       </ThemeProvider>
     </MemoryRouter>,
+  );
+
+const renderParts = (ids: string[]) => renderReport(withRefs(ids));
+
+/** A report with one part per entry, each linking the given elements. */
+const renderLinkedParts = (links: Record<string, string[]>) =>
+  renderReport({
+    ...payload,
+    parts: Object.entries(links).map(([name, ids]) => ({
+      name,
+      role: `${name} role.`,
+      relations: `${name} relations.`,
+      diagramElementRefs: ids.map((diagramElementId) => ({ diagramElementId })),
+    })),
+  });
+
+const blocks = () => screen.getAllByTestId("walkthrough-part-block");
+const partNamesByBlock = () =>
+  blocks().map((block) =>
+    within(block)
+      .getAllByRole("heading", { level: 3 })
+      .map((heading) => heading.textContent),
+  );
+/** Waits until no part is waiting to be grouped or previewed. */
+const previewsSettled = () =>
+  waitFor(() =>
+    expect(
+      screen.queryByTestId("walkthrough-part-preview-loading"),
+    ).not.toBeInTheDocument(),
   );
 
 /** Reports each screen's rendered height, as the browser would after layout. */
@@ -396,7 +425,7 @@ describe("ChangeWalkthroughReport", () => {
     const parts = screen.getByTestId("walkthrough-parts");
     const group = screen.getByTestId("walkthrough-group");
     expect(parts).toHaveTextContent("Parts of the system");
-    expect(screen.getByTestId("walkthrough-part")).toHaveTextContent(
+    expect(screen.getByTestId("walkthrough-part-block")).toHaveTextContent(
       "transition-service",
     );
     expect(parts).toHaveTextContent("Moves a message between delivery states.");
@@ -627,16 +656,109 @@ describe("ChangeWalkthroughReport", () => {
           screen.queryByTestId("walkthrough-part-diagram-previews"),
         ).not.toBeInTheDocument(),
       );
-      expect(screen.getByTestId("walkthrough-part")).toBeInTheDocument();
+      expect(screen.getByTestId("walkthrough-part-block")).toBeInTheDocument();
     });
 
     it("shows nothing extra for a part with an empty reference list", async () => {
       renderParts([]);
       await act(async () => {});
 
-      expect(screen.getByTestId("walkthrough-part")).toBeInTheDocument();
+      expect(screen.getByTestId("walkthrough-part-block")).toBeInTheDocument();
       expect(
         screen.queryByTestId("walkthrough-part-diagram-previews"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows parts that link one element in one block and draws it once", async () => {
+      renderLinkedParts({ Queue: [DECIDE], Run: [DECIDE, PICK_UP] });
+
+      // Text is readable before any link has been read.
+      expect(screen.getByText("Queue role.")).toBeInTheDocument();
+      expect(screen.getByText("Run relations.")).toBeInTheDocument();
+      expect(
+        screen.getAllByTestId("walkthrough-part-preview-loading"),
+      ).toHaveLength(2);
+
+      await screen.findByTestId("diagram-closeup");
+      expect(partNamesByBlock()).toEqual([["Queue", "Run"]]);
+      expect(blocks()[0]).toHaveTextContent(
+        /Queue role\..*Queue relations\..*Run role\..*Run relations\..*In the design/,
+      );
+      expect(screen.getAllByText("In the design")).toHaveLength(1);
+      expect(previews().map(highlightedIn)).toEqual([[DECIDE, PICK_UP]]);
+
+      fireEvent.click(screen.getByTestId("walkthrough-diagram-preview-open"));
+      expect(openPreview).toHaveBeenCalledWith({
+        entityType: "task",
+        entityId: DIAGRAM_ID,
+        diagramElementIds: [DECIDE, PICK_UP],
+      });
+    });
+
+    it("joins a chain of shared elements where its first part was", async () => {
+      renderLinkedParts({
+        Queue: [ADMIT],
+        Canceller: [CANCEL],
+        Run: [ADMIT, DECIDE],
+        Expiry: [DECIDE, EXPIRE],
+      });
+
+      await waitFor(() => expect(blocks()).toHaveLength(2));
+      await previewsSettled();
+      expect(partNamesByBlock()).toEqual([
+        ["Queue", "Run", "Expiry"],
+        ["Canceller"],
+      ]);
+
+      // Every linked element, each once, behind the usual one-first rule.
+      const chain = within(blocks()[0]!);
+      expect(chain.getAllByTestId("walkthrough-diagram-preview")).toHaveLength(
+        1,
+      );
+      fireEvent.click(chain.getByRole("button", { name: "Show 2 more" }));
+      await waitFor(() =>
+        expect(
+          chain
+            .getAllByTestId("walkthrough-diagram-preview")
+            .map(highlightedIn),
+        ).toEqual([[ADMIT], [DECIDE], [EXPIRE]]),
+      );
+    });
+
+    it("merges earlier blocks that a later part connects, in report order", async () => {
+      renderLinkedParts({
+        Queue: [ADMIT],
+        Run: [PICK_UP],
+        Launcher: [],
+        Bridge: [PICK_UP, ADMIT],
+      });
+
+      await waitFor(() => expect(blocks()).toHaveLength(2));
+      expect(partNamesByBlock()).toEqual([
+        ["Queue", "Run", "Bridge"],
+        ["Launcher"],
+      ]);
+    });
+
+    it("keeps parts apart when they link different elements of one Diagram", async () => {
+      renderLinkedParts({ Queue: [DECIDE], Run: [PICK_UP] });
+      await waitFor(() => expect(previews()).toHaveLength(2));
+
+      expect(partNamesByBlock()).toEqual([["Queue"], ["Run"]]);
+      expect(previews().map(highlightedIn)).toEqual([[DECIDE], [PICK_UP]]);
+    });
+
+    it("does not group parts by an element that no longer resolves", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const stale = ["element-retired", "element-deleted", "element-old"];
+      renderLinkedParts({ Queue: [...stale, ADMIT], Run: stale });
+
+      await screen.findByTestId("diagram-closeup");
+      await previewsSettled();
+      expect(partNamesByBlock()).toEqual([["Queue"], ["Run"]]);
+      expect(previews().map(highlightedIn)).toEqual([[ADMIT]]);
+      expect(
+        within(blocks()[1]!).queryByTestId("walkthrough-part-diagram-previews"),
       ).not.toBeInTheDocument();
     });
   });

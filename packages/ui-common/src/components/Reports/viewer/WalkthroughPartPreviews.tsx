@@ -7,9 +7,18 @@ import { DiagramScreenFlowMeasure } from "../../shared/WorkflowMentionInlineRend
 import { useWalkthroughPreviews } from "./useWalkthroughPreviews";
 import { WalkthroughDiagramPreview } from "./WalkthroughDiagramPreview";
 
+export const WalkthroughPreviewsLoading: React.FC = () => (
+  <Skeleton
+    variant="rounded"
+    height={DIAGRAM_CLOSEUP_MIN_HEIGHT}
+    data-testid="walkthrough-part-preview-loading"
+  />
+);
+
 /**
- * Where a walkthrough part sits in the design: close-ups of the Diagrams its
- * linked elements are in. The first shows; the rest wait behind "Show N more".
+ * Where a block of walkthrough parts sits in the design: close-ups of the
+ * Diagrams their linked elements are in. The first shows; the rest wait behind
+ * "Show N more".
  */
 export const WalkthroughPartPreviews: React.FC<{
   organizationId: string;
@@ -36,11 +45,7 @@ export const WalkthroughPartPreviews: React.FC<{
       sx={{ minWidth: 0 }}
     >
       {isLoading ? (
-        <Skeleton
-          variant="rounded"
-          height={DIAGRAM_CLOSEUP_MIN_HEIGHT}
-          data-testid="walkthrough-part-preview-loading"
-        />
+        <WalkthroughPreviewsLoading />
       ) : (
         <>
           <Typography

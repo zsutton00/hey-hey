@@ -100,7 +100,7 @@ const fitsTogether = (
 };
 
 /**
- * The close-ups of one walkthrough part, in report order: one per Diagram when
+ * The close-ups of one block of walkthrough parts, in report order: one per Diagram when
  * its linked elements fit in it together, otherwise one per element. The screen
  * flows in `screenFlows` must be measured and reported to `handleMeasure`.
  */

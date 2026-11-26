@@ -2,17 +2,11 @@ import { Box, Stack, Typography } from "@mui/material";
 import type { ChangeWalkthroughReportPayload } from "../../../api";
 import { useProjectContext } from "../../../contexts/ProjectContext";
 import { SyntaxHighlightedCodeBlock } from "../../CodingPlan/SyntaxHighlightedCodeBlock";
-import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { ReportItemCard, ReportLabeledText } from "./reportPrimitives";
 import type { ReportRenderer } from "./rendererContract";
-import { WalkthroughPartPreviews } from "./WalkthroughPartPreviews";
+import { WalkthroughMarkdown } from "./WalkthroughMarkdown";
+import { WalkthroughParts } from "./WalkthroughParts";
 import { WalkthroughSourceLink } from "./WalkthroughSourceLink";
-
-const WalkthroughMarkdown = ({ text }: { text: string }) => (
-  <MarkdownRenderer mentionMode="minimal" sx={{ fontSize: "0.875rem" }}>
-    {text}
-  </MarkdownRenderer>
-);
 
 export const ChangeWalkthroughReport: ReportRenderer<
   ChangeWalkthroughReportPayload
@@ -33,46 +27,14 @@ export const ChangeWalkthroughReport: ReportRenderer<
         value={<WalkthroughMarkdown text={payload.summary} />}
       />
       {payload.parts?.length ? (
-        <Stack spacing={1.5} data-testid="walkthrough-parts">
-          <Typography
-            component="h2"
-            variant="subtitle2"
-            sx={{ fontWeight: 650 }}
-          >
-            Parts of the system
-          </Typography>
-          {payload.parts.map((part, partIndex) => (
-            <ReportItemCard
-              key={partIndex}
-              title={
-                <Typography
-                  component="h3"
-                  variant="subtitle1"
-                  sx={{ fontWeight: 650 }}
-                >
-                  {part.name}
-                </Typography>
-              }
-              testId="walkthrough-part"
-            >
-              <Stack spacing={1}>
-                <WalkthroughMarkdown text={part.role} />
-                <WalkthroughMarkdown text={part.relations} />
-                {part.diagramElementRefs?.length &&
-                organizationId &&
-                projectId ? (
-                  <WalkthroughPartPreviews
-                    organizationId={organizationId}
-                    projectId={projectId}
-                    elementIds={part.diagramElementRefs.map(
-                      ({ diagramElementId }) => diagramElementId,
-                    )}
-                  />
-                ) : null}
-              </Stack>
-            </ReportItemCard>
-          ))}
-        </Stack>
+        <WalkthroughParts
+          parts={payload.parts}
+          scope={
+            organizationId && projectId
+              ? { organizationId, projectId }
+              : undefined
+          }
+        />
       ) : null}
       {payload.groups.map((group, groupIndex) => (
         <ReportItemCard
