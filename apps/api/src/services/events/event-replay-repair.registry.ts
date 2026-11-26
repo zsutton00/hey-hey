@@ -1,5 +1,6 @@
 import {
   EntityType,
+  AgentUncertaintySystemMessageDataCategoryEnum,
   ReportRelatedEntityType,
   ReportType,
 } from '@hey-hey/contracts/api/models';
@@ -480,13 +481,7 @@ const AgentUncertaintySystemMessageDataSchema = z
   .object({
     type: z.literal('AGENT_UNCERTAINTY'),
     severity: z.enum(['low', 'medium', 'high']),
-    category: z.enum([
-      'lack_of_evidence',
-      'conflict',
-      'ambiguity',
-      'not_implemented',
-      'question',
-    ]),
+    category: z.nativeEnum(AgentUncertaintySystemMessageDataCategoryEnum),
     statement: z.string().trim().min(1),
   })
   .passthrough();

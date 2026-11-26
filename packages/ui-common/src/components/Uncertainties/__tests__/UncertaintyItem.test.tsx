@@ -17,6 +17,27 @@ const render = (ui: React.ReactElement) =>
   baseRender(ui, { wrapper: themeWrapper });
 
 describe("UncertaintyItem", () => {
+  it("shows Feature Sync with Discuss as its only control", async () => {
+    const onDiscuss = vi.fn();
+    render(
+      <UncertaintyItem
+        category={AgentUncertaintySystemMessageDataCategoryEnum.FeatureSync}
+        severity="medium"
+        statement="The Mockup shows the export control in the toolbar, but it moved to the menu."
+        testId="uncertainty"
+        onDiscuss={onDiscuss}
+      />,
+    );
+
+    expect(screen.getByText("Feature Sync")).toBeVisible();
+    const discuss = screen.getByRole("button", {
+      name: "Discuss this uncertainty",
+    });
+    expect(screen.getAllByRole("button")).toEqual([discuss]);
+    await userEvent.click(discuss);
+    expect(onDiscuss).toHaveBeenCalledOnce();
+  });
+
   it("marks question uncertainties as needing an answer", () => {
     render(
       <UncertaintyItem

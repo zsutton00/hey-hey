@@ -48,7 +48,7 @@ When an active task exists, propose one reviewable task update for material dive
 // Mockup, Diagram and Contract duties come from session-role guidance for the
 // types actually in context, and the tool's description says how to raise a
 // concern. Only the Run's own Feature Sync history is a session fact.
-const featureSyncRanInstruction = `Feature Sync ran in this session: do not call \`suggest_feature_verification\` for anything Feature Sync already updated. Feature Sync running clears only what it updated; anything else that still stands is raised, including open findings from the approved plan and user direction changes after the plan.`;
+const featureSyncRanInstruction = `Feature Sync ran in this session: do not call \`suggest_feature_verification\` for anything Feature Sync already updated. Feature Sync running clears only what it updated; use the uncertainty rubric for remaining drift, including open findings from the approved plan and user direction changes after the plan. At completion, skip any suggestion for a concern already raised as an uncertainty or suggested in this session.`;
 
 const replyGuidance = `Reply to the user in ordinary prose and Markdown. Keep required reports and proposals separate from this final response.`;
 

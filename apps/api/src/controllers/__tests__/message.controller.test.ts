@@ -338,21 +338,30 @@ describe('MessageController', () => {
       expect(messageService.addMessageFromAdapter).not.toHaveBeenCalled();
     });
 
-    it('accepts and persists a valid structured agent uncertainty', async () => {
-      const data = {
-        type: 'AGENT_UNCERTAINTY',
-        severity: 'medium',
-        category: 'question',
-        statement: 'Which service owns this boundary?',
-      } satisfies AgentUncertaintySystemMessageData;
+    it.each([
+      ['question', 'Which service owns this boundary?'],
+      [
+        'feature_sync',
+        'The Mockup shows toolbar export, but the feature now puts export in the menu.',
+      ],
+    ] as const)(
+      'accepts and persists a %s uncertainty',
+      async (category, statement) => {
+        const data = {
+          type: 'AGENT_UNCERTAINTY',
+          severity: 'medium',
+          category,
+          statement,
+        } satisfies AgentUncertaintySystemMessageData;
 
-      await post(data);
+        await post(data);
 
-      expect(messageService.addMessageFromAdapter).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'SYSTEM', data }),
-        testIds.organization,
-      );
-    });
+        expect(messageService.addMessageFromAdapter).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'SYSTEM', data }),
+          testIds.organization,
+        );
+      },
+    );
 
     it.each([
       {

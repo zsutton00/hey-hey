@@ -1,5 +1,6 @@
 import type {
   AgentSessionDto,
+  AgentUncertaintySystemMessageData,
   DesignDocResponseDto,
   FullEntityContextDto,
   ProjectResponseDto,
@@ -8,10 +9,7 @@ import type {
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/contract';
 
 export type CurrentEntityDto =
-  | ProjectResponseDto
-  | DesignDocResponseDto
-  | TaskResponseDto
-  | AgentSessionDto;
+  ProjectResponseDto | DesignDocResponseDto | TaskResponseDto | AgentSessionDto;
 
 export interface ExistingLoadedEntityPromptContext {
   kind: 'entity';
@@ -24,11 +22,7 @@ export interface AgentSessionTranscriptEntry {
   role: 'user' | 'assistant' | 'uncertainty';
   turn: number;
   content?: string;
-  uncertainty?: {
-    severity: 'low' | 'medium' | 'high';
-    category: 'lack_of_evidence' | 'conflict' | 'ambiguity' | 'not_implemented' | 'question';
-    statement: string;
-  };
+  uncertainty?: Pick<AgentUncertaintySystemMessageData, 'severity' | 'category' | 'statement'>;
 }
 
 interface AgentSessionPromptContext {
@@ -42,5 +36,4 @@ interface AgentSessionPromptContext {
 }
 
 export type LoadedEntityPromptContext =
-  | ExistingLoadedEntityPromptContext
-  | AgentSessionPromptContext;
+  ExistingLoadedEntityPromptContext | AgentSessionPromptContext;

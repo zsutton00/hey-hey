@@ -225,9 +225,17 @@ describe('createSubmissionToolsHttpHandler', () => {
   });
 
   it.each(
-    (['lack_of_evidence', 'conflict', 'ambiguity', 'not_implemented', 'question'] as const).flatMap(
-      (category) =>
-        (['low', 'medium', 'high'] as const).map((severity) => [category, severity] as const),
+    (
+      [
+        'lack_of_evidence',
+        'conflict',
+        'ambiguity',
+        'not_implemented',
+        'question',
+        'feature_sync',
+      ] as const
+    ).flatMap((category) =>
+      (['low', 'medium', 'high'] as const).map((severity) => [category, severity] as const),
     ),
   )(
     'persists %s uncertainty at %s severity before returning success',
@@ -252,30 +260,40 @@ describe('createSubmissionToolsHttpHandler', () => {
         logger: makeLogger(),
         getRun: () => run,
       });
-      const { req, res, captured } = makeReqRes(registration.token, {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: {
-          name: 'raise_uncertainty',
-          arguments: { category, severity, statement: 'The recorded evidence is incomplete.' },
-        },
-      });
+      const statements =
+        category === 'feature_sync'
+          ? [
+              'The export Mockup shows a toolbar action that moved to the menu.',
+              'The import Diagram shows a confirmation step that the feature now skips.',
+            ]
+          : ['The recorded evidence is incomplete.'];
 
-      await handler(req, res);
+      for (const [index, statement] of statements.entries()) {
+        const { req, res, captured } = makeReqRes(registration.token, {
+          jsonrpc: '2.0',
+          id: index + 1,
+          method: 'tools/call',
+          params: {
+            name: 'raise_uncertainty',
+            arguments: { category, severity, statement },
+          },
+        });
 
-      expect(poster.createOutOfBand).toHaveBeenCalledTimes(1);
-      expect(dataAsRecord(outOfBandCall(poster).dto)).toMatchObject({
-        type: 'AGENT_UNCERTAINTY',
-        category,
-        severity,
-        statement: 'The recorded evidence is incomplete.',
-        providerSessionId: 'provider-session-1',
-        promptHandler: LocalPromptType.CodingFreeform,
-      });
-      expect(captured.body).toMatchObject({
-        result: { content: [{ type: 'text', text: 'Uncertainty recorded.' }] },
-      });
+        await handler(req, res);
+
+        expect(captured.body).toMatchObject({
+          result: { content: [{ type: 'text', text: 'Uncertainty recorded.' }] },
+        });
+        expect(poster.createOutOfBand).toHaveBeenCalledTimes(index + 1);
+        expect(dataAsRecord(outOfBandCall(poster, index).dto)).toMatchObject({
+          type: 'AGENT_UNCERTAINTY',
+          category,
+          severity,
+          statement,
+          providerSessionId: 'provider-session-1',
+          promptHandler: LocalPromptType.CodingFreeform,
+        });
+      }
       expect(run.setLastSubmissionAction).not.toHaveBeenCalled();
     },
   );

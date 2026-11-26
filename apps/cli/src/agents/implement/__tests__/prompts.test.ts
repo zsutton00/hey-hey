@@ -34,11 +34,12 @@ describe('buildImplementPrompt', () => {
     expect(result).toContain('each project-context finding and its current disposition');
     expect(result).toContain('Check each relevant finding against its cited governing context');
     expect(result).toContain('suggest_feature_verification');
-    expect(result).toContain('affected Feature, and impacted entities');
+    expect(result).toContain('rubric as soon as you notice it');
     expect(result).toContain('exactly one visible disposition');
     expect(result).toContain('state the evidence in your completion message');
     expect(result).toContain('is not raising it');
     expect(result).toContain('clears only what it actually updated');
+    expect(result).toContain('Skip concerns already raised or suggested');
     expect(result).toContain('never reopens implementation readiness');
   });
 

@@ -52,7 +52,7 @@ export interface CliReadServicePlacesOkEntry {
      */
     'worktrees': Array<CliReadServicePlacesOkEntryWorktreesInner>;
     /**
-     * Local branches matching the query, most recently committed first. Without a query, the most recent branches.
+     * Local branches matching the query. A branch named exactly the query, or under it, is always included and comes first; the rest follow, most recently committed first. Without a query, the most recent branches.
      * @type {Array<string>}
      * @memberof CliReadServicePlacesOkEntry
      */

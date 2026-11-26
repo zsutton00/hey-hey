@@ -4485,7 +4485,7 @@ SystemMessageData:
       description: Severity for AGENT_UNCERTAINTY messages.
     category:
       type: string
-      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question, feature_sync]
       description: Single category for AGENT_UNCERTAINTY messages.
     statement:
       type: string
@@ -4631,7 +4631,7 @@ AgentUncertaintyToolInput:
       enum: [low, medium, high]
     category:
       type: string
-      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question, feature_sync]
     statement:
       type: string
       minLength: 1
@@ -4650,7 +4650,7 @@ AgentUncertaintySystemMessageData:
       enum: [low, medium, high]
     category:
       type: string
-      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question, feature_sync]
     statement:
       type: string
       minLength: 1

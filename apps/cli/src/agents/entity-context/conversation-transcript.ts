@@ -1,25 +1,19 @@
-import type {
-  MessageResponseDto,
-  SystemMessageData,
-  UserMessageData,
+import {
+  AgentUncertaintySystemMessageDataCategoryEnum,
+  type AgentUncertaintySystemMessageData,
+  type MessageResponseDto,
+  type SystemMessageData,
+  type UserMessageData,
 } from '@hey-hey/contracts/api/models';
 import type { AgentSessionTranscriptEntry } from './types';
 
 const isAgentUncertaintyMessage = (
   data: SystemMessageData,
-): data is SystemMessageData & {
-  type: 'AGENT_UNCERTAINTY';
-  severity: 'low' | 'medium' | 'high';
-  category: 'lack_of_evidence' | 'conflict' | 'ambiguity' | 'not_implemented' | 'question';
-  statement: string;
-} =>
+): data is SystemMessageData & AgentUncertaintySystemMessageData =>
   data.type === 'AGENT_UNCERTAINTY' &&
   (data.severity === 'low' || data.severity === 'medium' || data.severity === 'high') &&
-  (data.category === 'lack_of_evidence' ||
-    data.category === 'conflict' ||
-    data.category === 'ambiguity' ||
-    data.category === 'not_implemented' ||
-    data.category === 'question') &&
+  data.category !== undefined &&
+  Object.values(AgentUncertaintySystemMessageDataCategoryEnum).includes(data.category) &&
   typeof data.statement === 'string' &&
   data.statement.trim().length > 0;
 

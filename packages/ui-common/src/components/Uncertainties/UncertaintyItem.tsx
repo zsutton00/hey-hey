@@ -16,6 +16,7 @@ export const UNCERTAINTY_CATEGORY_LABELS: Record<
   ambiguity: "Ambiguity",
   not_implemented: "Not implemented",
   question: "Question",
+  feature_sync: "Feature Sync",
 };
 
 // Sizes are px strings: in MUI `sx`, a bare `1` means 100%, which would make
@@ -136,23 +137,29 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
     );
   }
 
+  const isFeatureSync = category === "feature_sync";
+
   return (
     <ConversationCard
       data-testid={testId}
-      tone={{ severity }}
+      tone={{ severity: isFeatureSync ? "low" : severity }}
       icon={<UncertaintyBadge />}
-      kindLabel="Uncertainty"
+      kindLabel={
+        isFeatureSync ? UNCERTAINTY_CATEGORY_LABELS.feature_sync : "Uncertainty"
+      }
       headerDivider={false}
       chips={
         <>
           <Box component="span" sx={visuallyHidden}>
             {`${severity} severity`}
           </Box>
-          <Chip
-            label={UNCERTAINTY_CATEGORY_LABELS[category]}
-            size="small"
-            variant="outlined"
-          />
+          {!isFeatureSync && (
+            <Chip
+              label={UNCERTAINTY_CATEGORY_LABELS[category]}
+              size="small"
+              variant="outlined"
+            />
+          )}
         </>
       }
       lead={

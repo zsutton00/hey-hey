@@ -248,16 +248,25 @@ describe('buildPlatformSystemPrompt', () => {
     expect(description).toContain('question');
   });
 
-  it('tells agents that unfixed project drift is raised as a conflict, not mentioned in prose', () => {
+  it('routes a user-visible stale Mockup for one feature to Feature Sync', () => {
     const { description } = raiseUncertaintyTool;
 
-    expect(description).toContain('raise it as a conflict unless you are correcting the source');
-    expect(description).toContain('usually low or medium');
-    expect(description).toContain('closing offer');
-    expect(description).toContain('is not raising it');
-    expect(description).toContain('what it says now, and what it should say');
-    expect(description).toContain('still raise this conflict');
-    expect(description).toContain('Do not raise routine design-consistent');
+    expect(description).toContain('Use feature_sync only when all three hold');
+    expect(description).toContain('a recorded requirement, Mockup, Diagram, or task');
+    expect(description).toContain('the difference changes what a user gets');
+    expect(description).toContain('updating one feature or its linked Mockups, Diagrams, or tasks');
+    expect(description).toContain('as soon as you notice it, during the turn');
+  });
+
+  it('routes Contract disagreements to conflict and ignores unrecorded details', () => {
+    const { description } = raiseUncertaintyTool;
+
+    expect(description).toContain('Use conflict for disagreements with a Contract or Decision');
+    expect(description).toContain('Raise a Contract breach at high severity');
+    expect(description).toContain('a font size that no source specifies, raises no uncertainty');
+    expect(description).toContain(
+      'Never use a Verify Feature suggestion for a concern already raised',
+    );
   });
 
   it('tells agents which read answers which question without dropping graph research', () => {

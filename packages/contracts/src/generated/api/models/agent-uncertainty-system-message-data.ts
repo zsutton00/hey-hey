@@ -89,17 +89,20 @@ export const AgentUncertaintySystemMessageDataCategoryEnum = {
     Ambiguity: 'ambiguity',
     NotImplemented: 'not_implemented',
     Question: 'question',
+    FeatureSync: 'feature_sync',
     "lack_of_evidence": "lack_of_evidence",
     "conflict": "conflict",
     "ambiguity": "ambiguity",
     "not_implemented": "not_implemented",
     "question": "question",
+    "feature_sync": "feature_sync",
 } as const;
 Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "lack_of_evidence", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["LackOfEvidence"] });
 Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "conflict", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["Conflict"] });
 Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "ambiguity", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["Ambiguity"] });
 Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "not_implemented", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["NotImplemented"] });
 Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "question", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["Question"] });
+Object.defineProperty(AgentUncertaintySystemMessageDataCategoryEnum, "feature_sync", { enumerable: false, value: AgentUncertaintySystemMessageDataCategoryEnum["FeatureSync"] });
 
 export type AgentUncertaintySystemMessageDataCategoryEnum = typeof AgentUncertaintySystemMessageDataCategoryEnum[keyof typeof AgentUncertaintySystemMessageDataCategoryEnum];
 

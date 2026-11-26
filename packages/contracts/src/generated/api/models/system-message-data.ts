@@ -282,17 +282,20 @@ export const SystemMessageDataCategoryEnum = {
     Ambiguity: 'ambiguity',
     NotImplemented: 'not_implemented',
     Question: 'question',
+    FeatureSync: 'feature_sync',
     "lack_of_evidence": "lack_of_evidence",
     "conflict": "conflict",
     "ambiguity": "ambiguity",
     "not_implemented": "not_implemented",
     "question": "question",
+    "feature_sync": "feature_sync",
 } as const;
 Object.defineProperty(SystemMessageDataCategoryEnum, "lack_of_evidence", { enumerable: false, value: SystemMessageDataCategoryEnum["LackOfEvidence"] });
 Object.defineProperty(SystemMessageDataCategoryEnum, "conflict", { enumerable: false, value: SystemMessageDataCategoryEnum["Conflict"] });
 Object.defineProperty(SystemMessageDataCategoryEnum, "ambiguity", { enumerable: false, value: SystemMessageDataCategoryEnum["Ambiguity"] });
 Object.defineProperty(SystemMessageDataCategoryEnum, "not_implemented", { enumerable: false, value: SystemMessageDataCategoryEnum["NotImplemented"] });
 Object.defineProperty(SystemMessageDataCategoryEnum, "question", { enumerable: false, value: SystemMessageDataCategoryEnum["Question"] });
+Object.defineProperty(SystemMessageDataCategoryEnum, "feature_sync", { enumerable: false, value: SystemMessageDataCategoryEnum["FeatureSync"] });
 
 export type SystemMessageDataCategoryEnum = typeof SystemMessageDataCategoryEnum[keyof typeof SystemMessageDataCategoryEnum];
 export const SystemMessageDataPresentationEnum = {

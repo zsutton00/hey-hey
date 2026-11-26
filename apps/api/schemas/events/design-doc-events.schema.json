@@ -13618,6 +13618,10 @@
           "type": "string",
           "const": "question"
         },
+        {
+          "type": "string",
+          "const": "feature_sync"
+        },
         {}
       ]
     },
