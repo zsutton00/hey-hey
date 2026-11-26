@@ -800,7 +800,7 @@ describe('worktree attach decision', () => {
     expect(platform.attachCalls[1]).toEqual(platform.attachCalls[0]);
     expect(platform.card()).toMatchObject({ decision: 'approve' });
     expect(platform.card().failureReason).toBeFalsy();
-    expect(platform.recordedPlace?.worktreePath).toBe(target);
+    expect(platform.recordedPlace?.['worktreePath']).toBe(target);
     expect(outcome.run.session.worktreeState?.[SERVICE_ID]?.worktreePath).toBe(target);
     await vi.waitFor(() => expect(outcome.turns).toHaveLength(2));
     await outcome.run.awaitIdle();
@@ -905,7 +905,7 @@ describe('worktree attach decision', () => {
 
     expect(outcome.result.outcome).toBe('failed');
     expect(platform.card().decision).toBe('approve');
-    expect(platform.recordedPlace?.worktreePath).toBe(target);
+    expect(platform.recordedPlace?.['worktreePath']).toBe(target);
     expect(outcome.run.session.worktreeState?.[SERVICE_ID]).toBeUndefined();
     expect(outcome.currentState()).toBe('AWAITING_APPROVAL');
     expect(outcome.turns).toHaveLength(1);

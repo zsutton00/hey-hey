@@ -298,15 +298,22 @@ const readCapturedServicePlaces = (
   return places;
 };
 
-const worktreeAttachRequestPresentationSchema = z.object({
+// The transforms leave an absent optional key out rather than setting it to `undefined`,
+// which `exactOptionalPropertyTypes` requires.
+const worktreeAttachSettledCardSchema = z
+  .object({
+    decision: z.enum(['approve', 'deny']),
+    decidedAt: z.string().min(1),
+    failureReason: z.string().optional(),
+  })
+  .transform(({ failureReason, ...card }) => ({
+    ...card,
+    ...(failureReason === undefined ? {} : { failureReason }),
+  }));
+
+const worktreeAttachRequestShapeSchema = z.object({
   messageId: z.string().min(1),
-  settledCard: z
-    .object({
-      decision: z.enum(['approve', 'deny']),
-      decidedAt: z.string().min(1),
-      failureReason: z.string().optional(),
-    })
-    .optional(),
+  settledCard: worktreeAttachSettledCardSchema.optional(),
   request: z.object({
     id: z.string().min(1),
     runId: z.string().nullable(),
@@ -332,7 +339,14 @@ const worktreeAttachRequestPresentationSchema = z.object({
     reason: z.string().min(1),
     planBranch: z.string().nullable(),
   }),
-}) satisfies z.ZodType<WorktreeAttachRequestPresentation>;
+});
+
+const worktreeAttachRequestPresentationSchema = worktreeAttachRequestShapeSchema.transform(
+  ({ settledCard, ...presentation }) => ({
+    ...presentation,
+    ...(settledCard === undefined ? {} : { settledCard }),
+  }),
+) satisfies z.ZodType<WorktreeAttachRequestPresentation>;
 
 /**
  * Reads each pending worktree-attach request on its own: a malformed entry is

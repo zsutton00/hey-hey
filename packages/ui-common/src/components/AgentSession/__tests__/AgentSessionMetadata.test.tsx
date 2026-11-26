@@ -185,7 +185,7 @@ describe("AgentSessionMetadata", () => {
       const [attached, unknownStart] = screen.getAllByTestId(
         "agent-session-metadata-place-worktree",
       );
-      expect(attached).toHaveTextContent("worktree feature-x");
+      expect(attached).toHaveTextContent("feature-x");
       expect(attached).toHaveTextContent("Changed during session");
       expect(unknownStart).toHaveTextContent("Changed during session");
       // Only the Service with a known start says where it started.
