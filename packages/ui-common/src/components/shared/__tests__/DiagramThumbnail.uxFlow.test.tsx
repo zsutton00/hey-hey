@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DiagramThumbnail } from "../DiagramThumbnail";
 
 const { graphState, mockupState } = vi.hoisted(() => ({
-  graphState: { kind: "UX_FLOW", description: "", isFetched: true },
+  graphState: {
+    kind: "UX_FLOW",
+    description: "",
+    isFetched: true,
+    saved: false,
+  },
   mockupState: {} as Record<
     string,
     { type: string; status: string; name: string } | undefined
@@ -87,7 +92,14 @@ vi.mock("../../../data/hooks/useWorkItemGraph", () => ({
         edge("e5", "s5", "s6", "Beyond", null),
       ],
       participation: null,
-      layout: null,
+      layout: graphState.saved
+        ? {
+            nodes: Array.from({ length: 7 }, (_, i) => ({
+              node: { kind: "persistedWorkItem", workItemId: `s${i + 1}` },
+              position: { x: (i % 4) * 220, y: Math.floor(i / 4) * 220 },
+            })),
+          }
+        : null,
     },
   }),
 }));
@@ -126,6 +138,7 @@ describe("DiagramThumbnail for a UX flow", () => {
     graphState.kind = "UX_FLOW";
     graphState.isFetched = true;
     graphState.description = "";
+    graphState.saved = false;
     mockupState["m-cart"] = { type: "mockup", status: "ACTIVE", name: "Cart" };
     mockupState["m-pay"] = { type: "mockup", status: "ACTIVE", name: "Pay" };
     mockupState["m-gone"] = {
@@ -208,7 +221,7 @@ describe("DiagramThumbnail for a UX flow", () => {
   });
 
   it.each(["", "How checkout hands off to payment and issues a receipt."])(
-    "fills the reserved frame after a Diagram loads with description %j",
+    "fills the reserved frame and hides the Diagram description %j",
     async (description) => {
       graphState.kind = "GENERAL";
       graphState.description = description;
@@ -229,11 +242,32 @@ describe("DiagramThumbnail for a UX flow", () => {
       expect(screen.getByTestId("workflow-graph-thumbnail")).toHaveStyle({
         height: "100%",
       });
-      const caption = screen.queryByTestId("diagram-thumbnail-description");
-      if (description) {
-        expect(caption).toHaveTextContent(description);
-      } else {
-        expect(caption).toBeNull();
+      expect(screen.queryByTestId("diagram-thumbnail-description")).toBeNull();
+    },
+  );
+
+  it.each([130, 440])(
+    "fits icons and names to a %ipx Diagram preview",
+    async (width) => {
+      graphState.kind = "GENERAL";
+      graphState.saved = true;
+      const clientWidth = vi
+        .spyOn(HTMLElement.prototype, "clientWidth", "get")
+        .mockReturnValue(width);
+
+      try {
+        renderThumbnail();
+        await screen.findByTestId("workflow-graph-thumbnail");
+        expect(
+          screen.getAllByTestId("diagram-thumbnail-role-icon"),
+        ).toHaveLength(7);
+        if (width === 130) {
+          expect(screen.queryByTestId("diagram-thumbnail-name")).toBeNull();
+        } else {
+          expect(screen.getByText("Cart")).toBeVisible();
+        }
+      } finally {
+        clientWidth.mockRestore();
       }
     },
   );

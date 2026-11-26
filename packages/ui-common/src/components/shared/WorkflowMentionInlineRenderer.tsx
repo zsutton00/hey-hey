@@ -1,7 +1,27 @@
 import {
+  getDiagramRoleDefinitions,
+  getDiagramRoleIcon,
+} from "./diagramElementRoles";
+import {
+  estimateJourneyScreenBoxes,
+  JOURNEY_CANVAS_COLOR,
   JourneyCanvas,
   type JourneyChangeState,
 } from "../ProposalGroupReview/JourneyCanvas";
+import type { ScreenBox } from "../ProposalGroupReview/routeJourneyConnectors";
+import { useTranslation } from "react-i18next";
+import {
+  countHiddenConnections,
+  DIAGRAM_CLOSEUP_MIN_HEIGHT,
+  DIAGRAM_CLOSEUP_MIN_ZOOM,
+  frameDiagramCloseup,
+  getDiagramCloseupRegions,
+} from "./diagramCloseupFraming";
+import { useElementWidth } from "./useElementWidth";
+import {
+  DIAGRAM_DRAWING_ATTRIBUTES,
+  diagramDrawingFontSx,
+} from "./diagramDrawing";
 import {
   toOpenApiOrganizationId,
   toOpenApiProjectId,
@@ -27,6 +47,11 @@ import { MentionArtifactCard } from "./MentionArtifactCard";
 import { useMentionExpansion } from "./MentionExpansionContext";
 import { useAutomaticDiagramLayout } from "./useAutomaticDiagramLayout";
 import {
+  computeAutomaticDiagramLayout,
+  type DiagramLayoutInput,
+} from "./automaticDiagramLayout";
+import {
+  VISUAL_ARTIFACT_PREVIEW_HEIGHT,
   VisualArtifactPreviewContent,
   VisualArtifactPreviewLoading,
 } from "./VisualArtifactPreview";
@@ -164,7 +189,6 @@ import {
   type FlowEdgeType,
   WorkflowGraphDirectEntityLinkStrip,
   formatDiagramSemanticLabel,
-  getDiagramRoleIcon,
   type WorkflowGraphDirectEntityLink,
   type WorkflowGraphRenderedEntityLink,
 } from "./diagramElementDirectLinks";
@@ -192,6 +216,8 @@ import {
   computeDiagramDrawingBounds,
   DIAGRAM_BOUNDARY_LABEL_INSET,
   DIAGRAM_EDGE_LABEL_HEIGHT,
+  getDiagramElementRect,
+  unionDiagramRects,
   type DiagramRect,
 } from "./diagramDrawingBounds";
 import { useDiagramCanvasOffset } from "./useDiagramCanvasOffset";
@@ -497,9 +523,17 @@ export interface WorkflowGraphPreferredLayoutSummary {
   departures: readonly PreferredLayoutDeparture[];
 }
 
+/** The element id, or ids, a Diagram draws highlighted. */
+export type DiagramHighlight = string | readonly string[];
+
+const toHighlightedIds = (
+  highlight: DiagramHighlight | undefined,
+): ReadonlySet<string> =>
+  new Set(typeof highlight === "string" ? [highlight] : highlight);
+
 interface WorkflowGraphModelOptions {
   disableLinks: boolean;
-  highlightedStepId?: string;
+  highlightedStepId?: DiagramHighlight;
   highlightedEdgeId?: string;
   hoveredNodeId?: string;
   sizeMode?: WorkflowGraphSizeMode;
@@ -710,7 +744,7 @@ interface WorkflowGraphSurfaceProps {
   projection?: WorkItemGraphProjectionData;
   allowFullscreen?: boolean;
   disableLinks?: boolean;
-  highlightedStepId?: string;
+  highlightedStepId?: DiagramHighlight;
   createdElements?: WorkflowGraphCreatedElements;
   diffElements?: WorkflowGraphDiffElements;
   presentationState?: WorkflowGraphPresentationState;
@@ -747,7 +781,7 @@ interface WorkflowGraphViewportSurfaceProps {
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
   disableLinks: boolean;
-  highlightedStepId?: string;
+  highlightedStepId?: DiagramHighlight;
   highlightedEdgeId?: string;
   hoveredNodeId?: string;
   onNodeHover?: (nodeId: string | undefined) => void;
@@ -876,6 +910,56 @@ const diagramLayoutGroupsFor = (
   const hints = buildDiagramLayoutGroupHints(groups, new Set(stepNodeIds));
   return hints ? { groups: hints } : {};
 };
+
+/** Saved element positions, as stored: in medium-size pixels. */
+const getSavedNodePositions = (
+  layout: WorkflowGraphSurfaceData["layout"],
+): (readonly [string, WorkItemChangeSetPosition])[] =>
+  (layout?.nodes ?? []).flatMap(({ node, position }) =>
+    node.kind === "persistedWorkItem"
+      ? [[node.workItemId, position] as const]
+      : [],
+  );
+
+const getSavedDisplayPositions = (
+  layout: WorkflowGraphSurfaceData["layout"],
+  sizeMode: WorkflowGraphSizeMode,
+): Map<string, WorkItemChangeSetPosition> | undefined =>
+  layout
+    ? new Map(
+        getSavedNodePositions(layout).map(([id, position]) => [
+          id,
+          savedToDisplayPosition(position, sizeMode),
+        ]),
+      )
+    : undefined;
+
+/** What the automatic layout arranges for a Diagram without saved positions. */
+const getDiagramLayoutInput = (
+  model: Pick<WorkflowGraphModel, "nodes" | "edges">,
+  groups: readonly DiagramGroup[],
+): DiagramLayoutInput => ({
+  ...diagramLayoutGroupsFor(
+    groups,
+    model.nodes.map((node) => node.id),
+  ),
+  nodes: model.nodes.map((node) => ({
+    id: node.id,
+    title: node.data.title,
+    width: node.data.sizeConfig.nodeSize,
+    height: node.data.sizeConfig.nodeSize,
+  })),
+  edges: model.edges.map((edge) => ({
+    source: edge.source,
+    target: edge.target,
+    label: edge.data?.label ?? "",
+  })),
+});
+
+const getDiagramCanvasColor = (theme: Theme): string =>
+  theme.palette.mode === "dark"
+    ? theme.palette.grey[900]
+    : theme.palette.grey[100];
 
 const DIAGRAM_BOUNDARY_INTRUSION_SIZE = 20;
 
@@ -1023,13 +1107,6 @@ const DiagramBoundaryLayer: React.FC<{
     </ViewportPortal>
   );
 };
-
-const getDiagramRoleDefinitions = (
-  definition?: WorkItemTypeDefinitionDto,
-): DiagramElementRoleDefinition[] =>
-  definition?.sections.find(
-    (section) => section.key === "diagramElementMetadata",
-  )?.diagramElementPolicy?.roles ?? [];
 
 const isReportMention = (mention: EntityMention): boolean =>
   mention.entityType === REPORT_MENTION_ENTITY_TYPE;
@@ -3910,6 +3987,7 @@ export const buildWorkflowGraphModel = (
         workflow.projectId,
       )
     : new Map<string, WorkflowGraphRenderedEntityLink[]>();
+  const highlightedStepIds = toHighlightedIds(options.highlightedStepId);
   const highlightedEndpointIds = new Set<string>();
   const highlightedFlowEdge = flowEdges.find(
     (edge) => edge.id === options.highlightedEdgeId,
@@ -4107,7 +4185,7 @@ export const buildWorkflowGraphModel = (
             requiredHandlesByStepId.get(step.id) ?? createEmptyHandleState(),
           isDropTarget: false,
           isHighlighted:
-            options.highlightedStepId === step.id ||
+            highlightedStepIds.has(step.id) ||
             options.hoveredNodeId === step.id ||
             highlightedEndpointIds.has(step.id),
           isCreated:
@@ -4138,7 +4216,7 @@ export const buildWorkflowGraphModel = (
           sizeMode,
         },
         zIndex:
-          options.highlightedStepId === step.id ||
+          highlightedStepIds.has(step.id) ||
           options.hoveredNodeId === step.id ||
           highlightedEndpointIds.has(step.id)
             ? 2
@@ -5726,21 +5804,7 @@ const WorkflowGraphViewportSurface: React.FC<
         ]),
       );
     }
-    if (!graphData.layout) {
-      return undefined;
-    }
-    return new Map(
-      graphData.layout.nodes.flatMap(({ node, position }) =>
-        node.kind === "persistedWorkItem"
-          ? [
-              [
-                node.workItemId,
-                savedToDisplayPosition(position, graphSizeMode),
-              ] as const,
-            ]
-          : [],
-      ),
-    );
+    return getSavedDisplayPositions(graphData.layout, graphSizeMode);
   }, [graphData.layout, graphSizeMode, projection]);
   const reconnectableEdgeIds = useMemo(
     () =>
@@ -5816,32 +5880,7 @@ const WorkflowGraphViewportSurface: React.FC<
   const hasSavedPositions = Boolean(authoredPositions?.size);
   const diagramGroups = useMemo(() => getDiagramGroups(graphData), [graphData]);
   const comparison = useAutomaticDiagramLayout(
-    {
-      ...diagramLayoutGroupsFor(
-        diagramGroups,
-        baseGraphModel.nodes.flatMap((node) =>
-          node.type === WORKFLOW_STEP_NODE_TYPE ? [node.id] : [],
-        ),
-      ),
-      nodes: baseGraphModel.nodes.flatMap((node) =>
-        node.type === WORKFLOW_STEP_NODE_TYPE
-          ? [
-              {
-                id: node.id,
-                title: node.data.title,
-                width: node.data.sizeConfig.nodeSize,
-                height: node.data.sizeConfig.nodeSize,
-              },
-            ]
-          : [],
-      ),
-      edges: baseGraphModel.edges.map((edge) => ({
-        source: edge.source,
-        target: edge.target,
-        label:
-          edge.type === WORKFLOW_FLOW_EDGE_TYPE ? (edge.data?.label ?? "") : "",
-      })),
-    },
+    getDiagramLayoutInput(baseGraphModel, diagramGroups),
     !hasSavedPositions,
   );
   const isEditing = canEdit;
@@ -6306,6 +6345,7 @@ const WorkflowGraphViewportSurface: React.FC<
 
   return (
     <Box
+      {...DIAGRAM_DRAWING_ATTRIBUTES}
       data-testid={testIdPrefix}
       data-workflow-id={graphData.workflow.id}
       data-workflow-graph-size={graphSizeMode}
@@ -6320,6 +6360,7 @@ const WorkflowGraphViewportSurface: React.FC<
             : "empty"
       }
       sx={{
+        ...diagramDrawingFontSx,
         display: "flex",
         flexDirection: "column",
         border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -6465,10 +6506,7 @@ const WorkflowGraphViewportSurface: React.FC<
           flex: isFullscreen ? 1 : "none",
           height: isFullscreen ? "100%" : inlineWindowHeight,
           minHeight: isFullscreen ? 0 : WORKFLOW_GRAPH_MIN_VIEWPORT_HEIGHT,
-          bgcolor: (theme) =>
-            theme.palette.mode === "dark"
-              ? theme.palette.grey[900]
-              : theme.palette.grey[100],
+          bgcolor: getDiagramCanvasColor,
           overflowX: isFullscreen ? "hidden" : "auto",
           overflowY: isFullscreen
             ? "hidden"
@@ -6765,7 +6803,7 @@ interface WorkflowGraphFullscreenDialogProps {
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
   disableLinks: boolean;
-  highlightedStepId?: string;
+  highlightedStepId?: DiagramHighlight;
   highlightedEdgeId?: string;
   hoveredNodeId?: string;
   onNodeHover?: (nodeId: string | undefined) => void;
@@ -6982,12 +7020,63 @@ const DiagramExplorationDialog: React.FC<{
   );
 };
 
+/** Outlines a screen the reader is pointed at. */
+const UX_FLOW_SCREEN_OUTLINE_SX = {
+  outline: "3px solid",
+  outlineColor: "primary.main",
+  outlineOffset: 4,
+  borderRadius: 1,
+} as const;
+
+const getUxFlowScreenScope = (workflow: GraphWorkItem) => ({
+  organizationId: toOpenApiOrganizationId(workflow.organizationId),
+  projectId: toOpenApiProjectId(workflow.projectId),
+});
+
+/** The screen a UX-flow step shows: its linked work item, read live. */
+const renderLinkedScreen = ({
+  step,
+  scope,
+  fullSize = false,
+  onOpenFullSize,
+}: {
+  step: GraphWorkItem;
+  scope: ReturnType<typeof getUxFlowScreenScope>;
+  fullSize?: boolean;
+  onOpenFullSize?: () => void;
+}): React.ReactElement => {
+  const reference = getDiagramElementMetadata(step)?.canonicalReference;
+
+  if (reference?.entityType !== "TASK") {
+    return <Alert severity="info">Screen unavailable</Alert>;
+  }
+
+  return (
+    <SavedJourneyScreen
+      id={reference.entityId}
+      name={step.name}
+      group={scope}
+      fullSize={fullSize}
+      onOpenFullSize={onOpenFullSize}
+    />
+  );
+};
+
+const renderHighlightedScreen = (
+  screen: React.ReactElement,
+): React.ReactElement => (
+  <Box data-testid="ux-flow-highlighted-screen" sx={UX_FLOW_SCREEN_OUTLINE_SX}>
+    {screen}
+  </Box>
+);
+
 /** A saved UX flow as a grid of screens; any screen opens in the one-at-a-time walkthrough. */
 const UxFlowSavedView: React.FC<{
   graphData: WorkflowGraphSurfaceData;
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   walkthroughPositions: ReadonlyMap<string, { x: number; y: number }>;
   currentStepId: string | null;
+  highlightedStepId?: DiagramHighlight;
   /** Set only when reviewing a proposal; a saved flow has no change state. */
   createdElements?: WorkflowGraphCreatedElements;
   diffElements?: WorkflowGraphDiffElements;
@@ -6997,10 +7086,12 @@ const UxFlowSavedView: React.FC<{
   savedPositions,
   walkthroughPositions,
   currentStepId,
+  highlightedStepId,
   createdElements,
   diffElements,
   presentationState,
 }) => {
+  const highlightedStepIds = toHighlightedIds(highlightedStepId);
   const changes = useMemo(
     () =>
       createdElements || diffElements
@@ -7056,26 +7147,14 @@ const UxFlowSavedView: React.FC<{
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(
     null,
   );
-  const scope = {
-    organizationId: toOpenApiOrganizationId(graphData.workflow.organizationId),
-    projectId: toOpenApiProjectId(graphData.workflow.projectId),
-  };
+  const scope = getUxFlowScreenScope(graphData.workflow);
   const renderScreen = (step: GraphWorkItem, fullSize = false) => {
-    const reference = getDiagramElementMetadata(step)?.canonicalReference;
-
-    if (reference?.entityType !== "TASK") {
-      return <Alert severity="info">Screen unavailable</Alert>;
-    }
-
-    const savedScreen = (
-      <SavedJourneyScreen
-        id={reference.entityId}
-        name={step.name}
-        group={scope}
-        fullSize={fullSize}
-        onOpenFullSize={() => setWalkthroughStepId(step.id)}
-      />
-    );
+    const savedScreen = renderLinkedScreen({
+      step,
+      scope,
+      fullSize,
+      onOpenFullSize: () => setWalkthroughStepId(step.id),
+    });
     const changeState = journeyChangeStates?.steps.get(step.id);
     // The grid marks changed screens on its own wrapper; the walkthrough does it here.
     const screen =
@@ -7097,16 +7176,12 @@ const UxFlowSavedView: React.FC<{
         savedScreen
       );
 
+    if (!fullSize && highlightedStepIds.has(step.id)) {
+      return renderHighlightedScreen(screen);
+    }
+
     return !fullSize && step.id === currentStepId ? (
-      <Box
-        data-testid="ux-flow-current-screen"
-        sx={{
-          outline: "3px solid",
-          outlineColor: "primary.main",
-          outlineOffset: 4,
-          borderRadius: 1,
-        }}
-      >
+      <Box data-testid="ux-flow-current-screen" sx={UX_FLOW_SCREEN_OUTLINE_SX}>
         <Typography
           variant="caption"
           fontWeight={700}
@@ -7169,6 +7244,70 @@ const UxFlowSavedView: React.FC<{
       </Dialog>
     </>
   );
+};
+
+/**
+ * Graph data as the surface draws it: Diagram type definitions filled in where
+ * the caller did not supply them, and connection endpoints named.
+ */
+const useHydratedDiagramData = (
+  resolvedGraphData: WorkflowGraphSurfaceData | undefined,
+  participation?: WorkItemGraphParticipationResponseDto | null,
+): WorkflowGraphSurfaceData | undefined => {
+  const needsDiagramDefinitions =
+    resolvedGraphData?.workflow.type.toUpperCase() === "DIAGRAM";
+  const rootDefinition = useWorkItemTypeByKey(
+    needsDiagramDefinitions
+      ? resolvedGraphData?.workflow.organizationId
+      : undefined,
+    needsDiagramDefinitions ? resolvedGraphData?.workflow.projectId : undefined,
+    needsDiagramDefinitions && !resolvedGraphData?.workflowTypeDefinition
+      ? resolvedGraphData?.workflow.type
+      : undefined,
+  );
+  const elementDefinition = useWorkItemTypeByKey(
+    needsDiagramDefinitions
+      ? resolvedGraphData?.workflow.organizationId
+      : undefined,
+    needsDiagramDefinitions ? resolvedGraphData?.workflow.projectId : undefined,
+    needsDiagramDefinitions && !resolvedGraphData?.nodeTypeDefinition
+      ? ((
+          resolvedGraphData?.workflowTypeDefinition ??
+          rootDefinition.workItemTypeDefinition
+        )?.capabilities?.graph?.nodeChildType ??
+          resolvedGraphData?.steps[0]?.type)
+      : undefined,
+  );
+  const graphDataWithParticipation = useMemo(
+    () =>
+      resolvedGraphData
+        ? {
+            ...resolvedGraphData,
+            workflowTypeDefinition:
+              resolvedGraphData.workflowTypeDefinition ??
+              rootDefinition.workItemTypeDefinition,
+            nodeTypeDefinition:
+              resolvedGraphData.nodeTypeDefinition ??
+              elementDefinition.workItemTypeDefinition,
+            ...(participation !== undefined ? { participation } : {}),
+          }
+        : undefined,
+    [
+      participation,
+      resolvedGraphData,
+      rootDefinition.workItemTypeDefinition,
+      elementDefinition.workItemTypeDefinition,
+    ],
+  );
+
+  const hydratedGraphData = useMemo(
+    () =>
+      graphDataWithParticipation
+        ? hydrateWorkflowGraphEdges(graphDataWithParticipation)
+        : undefined,
+    [graphDataWithParticipation],
+  );
+  return hydratedGraphData;
 };
 
 export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
@@ -7240,58 +7379,9 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
     [diffElements, graphData, organizationId, projectId, projection],
   );
 
-  const needsDiagramDefinitions =
-    resolvedGraphData?.workflow.type.toUpperCase() === "DIAGRAM";
-  const rootDefinition = useWorkItemTypeByKey(
-    needsDiagramDefinitions
-      ? resolvedGraphData?.workflow.organizationId
-      : undefined,
-    needsDiagramDefinitions ? resolvedGraphData?.workflow.projectId : undefined,
-    needsDiagramDefinitions && !resolvedGraphData?.workflowTypeDefinition
-      ? resolvedGraphData?.workflow.type
-      : undefined,
-  );
-  const elementDefinition = useWorkItemTypeByKey(
-    needsDiagramDefinitions
-      ? resolvedGraphData?.workflow.organizationId
-      : undefined,
-    needsDiagramDefinitions ? resolvedGraphData?.workflow.projectId : undefined,
-    needsDiagramDefinitions && !resolvedGraphData?.nodeTypeDefinition
-      ? ((
-          resolvedGraphData?.workflowTypeDefinition ??
-          rootDefinition.workItemTypeDefinition
-        )?.capabilities?.graph?.nodeChildType ??
-          resolvedGraphData?.steps[0]?.type)
-      : undefined,
-  );
-  const graphDataWithParticipation = useMemo(
-    () =>
-      resolvedGraphData
-        ? {
-            ...resolvedGraphData,
-            workflowTypeDefinition:
-              resolvedGraphData.workflowTypeDefinition ??
-              rootDefinition.workItemTypeDefinition,
-            nodeTypeDefinition:
-              resolvedGraphData.nodeTypeDefinition ??
-              elementDefinition.workItemTypeDefinition,
-            ...(participation !== undefined ? { participation } : {}),
-          }
-        : undefined,
-    [
-      participation,
-      resolvedGraphData,
-      rootDefinition.workItemTypeDefinition,
-      elementDefinition.workItemTypeDefinition,
-    ],
-  );
-
-  const hydratedGraphData = useMemo(
-    () =>
-      graphDataWithParticipation
-        ? hydrateWorkflowGraphEdges(graphDataWithParticipation)
-        : undefined,
-    [graphDataWithParticipation],
+  const hydratedGraphData = useHydratedDiagramData(
+    resolvedGraphData,
+    participation,
   );
   if (
     !hydratedGraphData ||
@@ -7328,6 +7418,7 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         savedPositions={savedPositions}
         walkthroughPositions={walkthroughPositions}
         currentStepId={currentUxFlowStepId ?? null}
+        highlightedStepId={highlightedStepId}
         createdElements={createdElements}
         diffElements={diffElements}
         presentationState={presentationState}
@@ -7412,6 +7503,460 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   );
 
   return hasRouter ? content : <MemoryRouter>{content}</MemoryRouter>;
+};
+
+interface DiagramCloseupProps {
+  graphData: WorkflowGraphSurfaceData;
+  highlightedStepIds: readonly string[];
+}
+
+const DiagramCloseupPlaceholder: React.FC<{ children?: React.ReactNode }> = ({
+  children,
+}) => (
+  <Stack
+    alignItems="center"
+    justifyContent="center"
+    data-testid="diagram-closeup-placeholder"
+    sx={{
+      height: DIAGRAM_CLOSEUP_MIN_HEIGHT,
+      border: (theme) => `1px solid ${theme.palette.divider}`,
+      borderRadius: 1,
+      bgcolor: getDiagramCanvasColor,
+      color: "text.secondary",
+      typography: "body2",
+    }}
+  >
+    {children}
+  </Stack>
+);
+
+/** The clipped window of a close-up, with its count of out-of-view connections. */
+const DiagramCloseupWindow: React.FC<{
+  diagramId: string;
+  height: number;
+  hiddenConnectionCount: number;
+  background: (theme: Theme) => string;
+  children: React.ReactNode;
+}> = ({ diagramId, height, hiddenConnectionCount, background, children }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Box
+      data-testid="diagram-closeup"
+      data-workflow-id={diagramId}
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        height,
+        border: (theme) => `1px solid ${theme.palette.divider}`,
+        borderRadius: 1,
+        bgcolor: background,
+        "& .react-flow__pane, & [data-testid='workflow-inline-step']": {
+          cursor: "pointer",
+        },
+      }}
+    >
+      {children}
+      {hiddenConnectionCount > 0 ? (
+        <Box
+          data-testid="diagram-closeup-more-connections"
+          sx={{
+            position: "absolute",
+            right: 10,
+            bottom: 10,
+            zIndex: 5,
+            px: 1.5,
+            py: 0.25,
+            border: (theme) => `1px solid ${theme.palette.divider}`,
+            borderRadius: 999,
+            bgcolor: "background.paper",
+            typography: "caption",
+          }}
+        >
+          {t("diagramCloseup.moreConnections", {
+            count: hiddenConnectionCount,
+          })}
+        </Box>
+      ) : null}
+    </Box>
+  );
+};
+
+/** Flow and structure Diagrams: the canvas's own elements and connections. */
+const DiagramGraphCloseup: React.FC<
+  DiagramCloseupProps & { width: number }
+> = ({ graphData, highlightedStepIds, width }) => {
+  const reactFlowId = `diagram-closeup-${useId().replace(/:/g, "")}`;
+  const authoredPositions = useMemo(
+    () =>
+      getSavedDisplayPositions(
+        graphData.layout,
+        DEFAULT_WORKFLOW_GRAPH_SIZE_MODE,
+      ),
+    [graphData.layout],
+  );
+  const buildModel = useCallback(
+    (positions: WorkflowGraphModelOptions["authoredPositions"]) => {
+      const model = buildWorkflowGraphModel(graphData, {
+        authoredPositions: positions,
+        // Selecting anywhere opens the Diagram, so elements never navigate.
+        disableLinks: true,
+        highlightedStepId: highlightedStepIds,
+      });
+      return {
+        ...model,
+        nodes: model.nodes.map((node) => ({
+          ...node,
+          // Without it, a reference element shows its plain role icon.
+          data: { ...node.data, referenceIcon: undefined },
+        })),
+      };
+    },
+    [graphData, highlightedStepIds],
+  );
+  const baseModel = useMemo(
+    () => buildModel(authoredPositions),
+    [authoredPositions, buildModel],
+  );
+  const groups = useMemo(() => getDiagramGroups(graphData), [graphData]);
+  const arrangement = useAutomaticDiagramLayout(
+    getDiagramLayoutInput(baseModel, groups),
+    !authoredPositions?.size,
+  );
+  const model = useMemo(
+    () =>
+      arrangement.positions ? buildModel(arrangement.positions) : baseModel,
+    [arrangement.positions, baseModel, buildModel],
+  );
+  const [groupLabelWidths, setGroupLabelWidths] = useState<
+    ReadonlyMap<string, number>
+  >(() => new Map());
+  const handleGroupLabelWidthChange = useCallback(
+    (groupId: string, labelWidth: number) => {
+      setGroupLabelWidths((current) =>
+        current.get(groupId) === labelWidth
+          ? current
+          : new Map(current).set(groupId, labelWidth),
+      );
+    },
+    [],
+  );
+
+  if (arrangement.error) {
+    return (
+      <Alert severity="error" data-testid="diagram-layout-error">
+        {arrangement.error}
+      </Alert>
+    );
+  }
+  if (arrangement.pending) {
+    return <DiagramCloseupPlaceholder>Arranging…</DiagramCloseupPlaceholder>;
+  }
+
+  const highlightedIds = new Set(highlightedStepIds);
+  const regions = getDiagramCloseupRegions({
+    model,
+    groups,
+    groupLabelWidths,
+    highlightedIds,
+    getLabelPosition: getWorkflowEdgeLabelPosition,
+  });
+  if (!regions) {
+    return null;
+  }
+
+  const frame = frameDiagramCloseup({ width, ...regions });
+  const boundaryBoxes = computeBoundaryBoxes(
+    groups,
+    [...regions.elementRects].map(([id, rect]) => ({ id, ...rect })),
+  );
+
+  return (
+    <DiagramCloseupWindow
+      diagramId={graphData.workflow.id}
+      height={frame.height}
+      hiddenConnectionCount={countHiddenConnections({
+        connections: model.edges,
+        highlightedIds,
+        elementRects: regions.elementRects,
+        frame,
+        width,
+      })}
+      background={getDiagramCanvasColor}
+    >
+      <Box sx={{ position: "absolute", inset: 0 }}>
+        <ReactFlowProvider>
+          <ReactFlow
+            id={reactFlowId}
+            nodes={model.nodes}
+            edges={model.edges}
+            nodeTypes={workflowNodeTypes}
+            edgeTypes={workflowEdgeTypes}
+            viewport={frame.viewport}
+            minZoom={DIAGRAM_CLOSEUP_MIN_ZOOM}
+            maxZoom={1}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
+            elementsSelectable={false}
+            disableKeyboardA11y
+            deleteKeyCode={null}
+            // Wheel and touch gestures belong to the page around the close-up.
+            panOnDrag={false}
+            panOnScroll={false}
+            zoomOnScroll={false}
+            zoomOnPinch={false}
+            zoomOnDoubleClick={false}
+            preventScrolling={false}
+            proOptions={{ hideAttribution: true }}
+          >
+            {boundaryBoxes.length > 0 && (
+              <DiagramBoundaryLayer
+                boxes={boundaryBoxes}
+                nodeRects={regions.elementRects}
+                testIdPrefix="diagram-closeup"
+                onLabelWidthChange={handleGroupLabelWidthChange}
+              />
+            )}
+          </ReactFlow>
+        </ReactFlowProvider>
+      </Box>
+    </DiagramCloseupWindow>
+  );
+};
+
+/** The screen canvas as a close-up draws it: static, at natural size. */
+const ScreenFlowStill: React.FC<{
+  graphData: WorkflowGraphSurfaceData;
+  highlightedIds: ReadonlySet<string>;
+  onLayout: React.ComponentProps<typeof JourneyCanvas>["onLayout"];
+}> = ({ graphData, highlightedIds, onLayout }) => {
+  const savedPositions = useMemo(
+    () => new Map(getSavedNodePositions(graphData.layout)),
+    [graphData.layout],
+  );
+  const scope = getUxFlowScreenScope(graphData.workflow);
+
+  return (
+    <Box
+      sx={{
+        width: "max-content",
+        "& [data-testid='html-css-open-in-browser']": { display: "none" },
+      }}
+    >
+      <JourneyCanvas
+        readOnly
+        steps={graphData.steps}
+        edges={graphData.edges}
+        savedPositions={savedPositions}
+        onLayout={onLayout}
+        renderScreen={(step) => {
+          const screen = renderLinkedScreen({ step, scope });
+          return highlightedIds.has(step.id)
+            ? renderHighlightedScreen(screen)
+            : screen;
+        }}
+      />
+    </Box>
+  );
+};
+
+const NO_HIGHLIGHT: ReadonlySet<string> = new Set();
+
+/**
+ * Draws a screen flow out of sight and reports where its screens land, again
+ * whenever their measured sizes change. Screen sizes are only known once drawn.
+ */
+export const DiagramScreenFlowMeasure: React.FC<{
+  graphData: WorkflowGraphSurfaceData;
+  onMeasure: (
+    diagramId: string,
+    screens: ReadonlyMap<string, DiagramRect>,
+  ) => void;
+}> = ({ graphData, onMeasure }) => {
+  const diagramId = graphData.workflow.id;
+  const handleLayout = useCallback(
+    (screens: ReadonlyMap<string, ScreenBox>, isMeasured: boolean) => {
+      if (isMeasured) {
+        onMeasure(diagramId, screens);
+      }
+    },
+    [diagramId, onMeasure],
+  );
+
+  return (
+    <Box
+      inert
+      aria-hidden
+      data-testid="diagram-screen-flow-measure"
+      sx={{
+        position: "absolute",
+        width: 0,
+        height: 0,
+        overflow: "hidden",
+        visibility: "hidden",
+      }}
+    >
+      <ScreenFlowStill
+        graphData={graphData}
+        highlightedIds={NO_HIGHLIGHT}
+        onLayout={handleLayout}
+      />
+    </Box>
+  );
+};
+
+/** Screen flows: the same screen canvas, cropped around the highlighted screens. */
+const DiagramScreenFlowCloseup: React.FC<
+  DiagramCloseupProps & { width: number }
+> = ({ graphData, highlightedStepIds, width }) => {
+  // Known once the canvas has placed its screens; it reports again as they load.
+  const [screens, setScreens] = useState<ReadonlyMap<string, ScreenBox>>();
+  const highlightedIds = new Set(highlightedStepIds);
+  const connections = graphData.edges.map((edge) => ({
+    source: edge.sourceNodeId,
+    target: edge.targetNodeId,
+  }));
+  const focusIds = new Set([
+    ...highlightedIds,
+    ...connections
+      .filter(
+        ({ source, target }) =>
+          highlightedIds.has(source) || highlightedIds.has(target),
+      )
+      .flatMap(({ source, target }) => [source, target]),
+  ]);
+  const unionScreens = (ids: ReadonlySet<string>) =>
+    unionDiagramRects(
+      [...(screens ?? [])].flatMap(([id, box]) => (ids.has(id) ? [box] : [])),
+    );
+  const focus = unionScreens(focusIds);
+  const highlight = unionScreens(highlightedIds);
+  const frame =
+    focus && highlight
+      ? frameDiagramCloseup({ width, focus, highlight })
+      : undefined;
+
+  return (
+    <DiagramCloseupWindow
+      diagramId={graphData.workflow.id}
+      height={frame?.height ?? DIAGRAM_CLOSEUP_MIN_HEIGHT}
+      hiddenConnectionCount={
+        frame && screens
+          ? countHiddenConnections({
+              connections,
+              highlightedIds,
+              elementRects: screens,
+              frame,
+              width,
+            })
+          : 0
+      }
+      background={(theme) => JOURNEY_CANVAS_COLOR[theme.palette.mode]}
+    >
+      <Box
+        inert
+        sx={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "max-content",
+          pointerEvents: "none",
+          visibility: frame ? "visible" : "hidden",
+          transformOrigin: "0 0",
+          transform: frame
+            ? `translate(${frame.viewport.x}px, ${frame.viewport.y}px) scale(${frame.viewport.zoom})`
+            : undefined,
+        }}
+      >
+        <ScreenFlowStill
+          graphData={graphData}
+          highlightedIds={highlightedIds}
+          onLayout={setScreens}
+        />
+      </Box>
+    </DiagramCloseupWindow>
+  );
+};
+
+export const isScreenFlow = (graphData: WorkflowGraphSurfaceData): boolean =>
+  getDiagramMetadata(graphData.workflow)?.kind === "UX_FLOW";
+
+/**
+ * Where a close-up would place each element, in the pixels it draws them in.
+ * A screen flow's rows are estimated until `DiagramScreenFlowMeasure` reports
+ * them.
+ */
+export const resolveDiagramCloseupRects = async (
+  graphData: WorkflowGraphSurfaceData,
+): Promise<ReadonlyMap<string, DiagramRect>> => {
+  const hydrated = hydrateWorkflowGraphEdges(graphData);
+  if (isScreenFlow(hydrated)) {
+    return estimateJourneyScreenBoxes(
+      hydrated.steps,
+      hydrated.edges,
+      new Map(getSavedNodePositions(hydrated.layout)),
+    );
+  }
+
+  const authoredPositions = getSavedDisplayPositions(
+    hydrated.layout,
+    DEFAULT_WORKFLOW_GRAPH_SIZE_MODE,
+  );
+  const buildModel = (
+    positions: WorkflowGraphModelOptions["authoredPositions"],
+  ) =>
+    buildWorkflowGraphModel(hydrated, {
+      authoredPositions: positions,
+      disableLinks: true,
+    });
+  let model = buildModel(authoredPositions);
+  if (!authoredPositions?.size) {
+    const arranged = await computeAutomaticDiagramLayout(
+      getDiagramLayoutInput(model, getDiagramGroups(hydrated)),
+    );
+    model = buildModel(arranged);
+  }
+
+  return new Map(
+    model.nodes.map((node) => [node.id, getDiagramElementRect(node)]),
+  );
+};
+
+/**
+ * A static close-up of a Diagram, zoomed to the highlighted elements and what
+ * connects directly to them. It draws what the full Diagram draws, and neither
+ * pans nor zooms.
+ */
+export const DiagramCloseup: React.FC<DiagramCloseupProps> = ({
+  graphData,
+  highlightedStepIds,
+}) => {
+  const [measureRef, width] = useElementWidth();
+  const hydrated = useHydratedDiagramData(graphData);
+  const Closeup =
+    hydrated && isScreenFlow(hydrated)
+      ? DiagramScreenFlowCloseup
+      : DiagramGraphCloseup;
+
+  return (
+    <Box
+      {...DIAGRAM_DRAWING_ATTRIBUTES}
+      ref={measureRef}
+      sx={{ ...diagramDrawingFontSx, width: "100%", minWidth: 0 }}
+    >
+      {hydrated && width > 0 ? (
+        <Closeup
+          graphData={hydrated}
+          highlightedStepIds={highlightedStepIds}
+          width={width}
+        />
+      ) : (
+        <DiagramCloseupPlaceholder />
+      )}
+    </Box>
+  );
 };
 
 export const WorkflowMentionInlineRenderer: React.FC<
@@ -7627,20 +8172,56 @@ const getThumbnailNodeSize = (
   };
 };
 
+function DiagramThumbnailName({
+  name,
+  width,
+}: {
+  name: string;
+  width: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [fits, setFits] = useState(false);
+
+  useLayoutEffect(() => {
+    const label = ref.current;
+    if (label) {
+      setFits(
+        label.scrollHeight <= 28 && label.scrollWidth <= label.clientWidth,
+      );
+    }
+  }, [name, width]);
+
+  return (
+    <Box
+      component="span"
+      ref={ref}
+      data-testid="diagram-thumbnail-name"
+      sx={{
+        position: fits ? "static" : "absolute",
+        visibility: fits ? "visible" : "hidden",
+        width,
+        flexShrink: 0,
+        fontSize: 12,
+        lineHeight: "14px",
+        overflowWrap: "anywhere",
+      }}
+    >
+      {name}
+    </Box>
+  );
+}
+
 export interface WorkflowGraphThumbnailProps {
   graphData: WorkflowGraphSurfaceData;
-  description: string;
 }
 
 /**
  * Read-only miniature of a whole Diagram or workflow graph. Saved authored
  * positions win; otherwise the remembered layout engine arranges the graph.
- * Every node and connection is drawn as a plain, text-free shape scaled so
- * the whole graph fits the box at any aspect ratio, with no interaction.
+ * The entire graph fits proportionally, with role icons and readable names.
  */
 export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
   graphData,
-  description,
 }) => {
   const hydratedGraphData = useMemo(
     () => hydrateWorkflowGraphEdges(graphData),
@@ -7712,8 +8293,7 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     [baseModel, comparison.positions, hydratedGraphData],
   );
   const theme = useTheme();
-  // Plain shapes with no text: the miniature conveys structure only, and the
-  // viewBox always contains every node whatever the graph's aspect ratio.
+  const [measureRef, width] = useElementWidth();
   const shapes = useMemo(() => {
     const boxes = new Map(
       graphModel.nodes.map((node) => {
@@ -7752,9 +8332,10 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
         : [];
     });
     return {
-      viewBox: `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${
-        maxY - minY + pad * 2
-      }`,
+      x: minX - pad,
+      y: minY - pad,
+      width: maxX - minX + pad * 2,
+      height: maxY - minY + pad * 2,
       boxes: Array.from(boxes.entries()),
       lines,
       strokeScale: Math.max(maxX - minX, maxY - minY) / 300,
@@ -7765,12 +8346,18 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     return <VisualArtifactPreviewLoading testId="diagram-thumbnail-loading" />;
   }
 
+  const scale = shapes
+    ? Math.min(
+        width / shapes.width,
+        VISUAL_ARTIFACT_PREVIEW_HEIGHT / shapes.height,
+      )
+    : 0;
+
   return (
-    <VisualArtifactPreviewContent
-      caption={description}
-      captionTestId="diagram-thumbnail-description"
-    >
+    <VisualArtifactPreviewContent>
       <Box
+        ref={measureRef}
+        data-diagram-preview
         data-testid="workflow-graph-thumbnail"
         aria-hidden
         sx={{
@@ -7790,7 +8377,7 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
           <svg
             width="100%"
             height="100%"
-            viewBox={shapes.viewBox}
+            viewBox={`${shapes.x} ${shapes.y} ${shapes.width} ${shapes.height}`}
             preserveAspectRatio="xMidYMid meet"
           >
             {shapes.lines.map((line) => (
@@ -7817,6 +8404,69 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
             ))}
           </svg>
         )}
+        {shapes &&
+          scale > 0 &&
+          graphModel.nodes.map((node) => {
+            if (node.type !== WORKFLOW_STEP_NODE_TYPE) {
+              return null;
+            }
+
+            const size = getThumbnailNodeSize(node);
+            const left =
+              (width - shapes.width * scale) / 2 +
+              (node.position.x - shapes.x) * scale;
+            const top =
+              (VISUAL_ARTIFACT_PREVIEW_HEIGHT - shapes.height * scale) / 2 +
+              (node.position.y - shapes.y) * scale;
+            const boxWidth = size.width * scale;
+            const boxHeight = size.height * scale;
+            const iconSize = Math.min(18, boxWidth * 0.65, boxHeight * 0.65);
+            const labelWidth = boxWidth - iconSize - 12;
+            const labelLeft = node.position.x + (iconSize + 6) / scale;
+            const canShowName =
+              labelWidth >= 40 &&
+              boxHeight >= 32 &&
+              !shapes.boxes.some(
+                ([id, box]) =>
+                  id !== node.id &&
+                  box.round &&
+                  box.x < node.position.x + size.width &&
+                  box.x + box.width > labelLeft &&
+                  box.y < node.position.y + size.height &&
+                  box.y + box.height > node.position.y,
+              );
+            const Icon =
+              node.data.diagramRoleIcon ?? getDiagramRoleIcon("GENERIC");
+
+            return (
+              <Box
+                key={node.id}
+                sx={{
+                  position: "absolute",
+                  left,
+                  top,
+                  width: boxWidth,
+                  height: boxHeight,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "4px",
+                  color: "text.primary",
+                }}
+              >
+                <Icon
+                  data-testid="diagram-thumbnail-role-icon"
+                  sx={{ fontSize: iconSize, flexShrink: 0 }}
+                />
+                {canShowName && (
+                  <DiagramThumbnailName
+                    name={node.data.title}
+                    width={labelWidth}
+                  />
+                )}
+              </Box>
+            );
+          })}
       </Box>
     </VisualArtifactPreviewContent>
   );

@@ -1,7 +1,5 @@
 import { Box, Typography } from "@mui/material";
-import React, { useMemo } from "react";
-import { WorkItemTypeSectionDefinitionKindEnum } from "../../api";
-import { getTaskSectionContent } from "../../utils/workItemSections";
+import React from "react";
 import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { UxFlowThumbnail } from "./UxFlowThumbnail";
@@ -15,17 +13,6 @@ import {
   hydrateWorkflowGraphEdges,
   WorkflowGraphThumbnail,
 } from "./WorkflowMentionInlineRenderer";
-
-/** Flattens markdown into one readable line for a clamped caption. */
-const toPlainText = (markdown: string): string =>
-  markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/@\[[^|\]]*\|([^\]]*)\]/g, "$1")
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/^\s*(?:[-+]|\d+\.)\s+/gm, "")
-    .replace(/[#>*_`~|]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 
 export interface DiagramThumbnailProps {
   organizationId: string;
@@ -54,20 +41,6 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
     "DIAGRAM_ELEMENT",
   );
   const graph = graphQuery.data;
-  const description = useMemo(() => {
-    const sections = graph?.root?.sections;
-    // The first populated markdown section, found by kind rather than key.
-    for (const definition of diagramType.workItemTypeDefinition?.sections ??
-      []) {
-      const kind =
-        definition.kind ?? WorkItemTypeSectionDefinitionKindEnum.Markdown;
-      if (kind !== WorkItemTypeSectionDefinitionKindEnum.Markdown) continue;
-      const text = toPlainText(getTaskSectionContent(sections, definition.key));
-      if (text) return text;
-    }
-    return "";
-  }, [diagramType.workItemTypeDefinition, graph]);
-
   if (
     !graphQuery.isFetched ||
     !diagramType.isFetched ||
@@ -120,7 +93,5 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
     );
   }
 
-  return (
-    <WorkflowGraphThumbnail graphData={graphData} description={description} />
-  );
+  return <WorkflowGraphThumbnail graphData={graphData} />;
 };

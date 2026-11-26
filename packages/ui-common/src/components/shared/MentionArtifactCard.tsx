@@ -31,6 +31,7 @@ export const MentionArtifactCard: React.FC<{
       display: "block",
       width: "100%",
       maxWidth: MENTION_CARD_MAX_WIDTH,
+      "&:has([data-diagram-preview])": { maxWidth: 440 },
       my: 1,
     }}
   >
