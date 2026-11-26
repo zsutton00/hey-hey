@@ -57,6 +57,10 @@ describe("standalone landing", () => {
       page.getByRole("heading", { name: "A living workspace" }),
     ).toBeInTheDocument();
     expect(page.getAllByRole("link", { name: "Sign up" })).toHaveLength(2);
+    expect(page.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/zsutton00/hey-hey",
+    );
     expect(
       await page.findByRole("link", { name: "View demo" }),
     ).toHaveAttribute("href", "/demo");

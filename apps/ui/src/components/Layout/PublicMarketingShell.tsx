@@ -1,6 +1,9 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Link, SvgIcon, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { landingPageCopy } from "../Homepage/landingPageCopy";
 import { LegalDocumentLinks } from "../LegalDocumentLinks";
+
+const { sourceLink } = landingPageCopy;
 
 interface PublicMarketingShellProps {
   children: ReactNode;
@@ -16,9 +19,39 @@ export const PublicMarketingShell = ({
       flexDirection: "column",
       minHeight: "100vh",
       minWidth: 0,
+      position: "relative",
       bgcolor: "background.default",
     }}
   >
+    <Link
+      href={sourceLink.href}
+      underline="hover"
+      data-testid="public-source-link"
+      sx={{
+        position: "absolute",
+        top: { xs: 4, sm: 16 },
+        right: { xs: 4, sm: 16 },
+        zIndex: 1,
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        px: 1,
+        py: 0.5,
+        borderRadius: "4px",
+        // Every public page opens on this dark surface; carrying it keeps the
+        // link readable while a page is still loading.
+        bgcolor: "#333",
+        color: "common.white",
+        fontSize: "0.875rem",
+        lineHeight: "20px",
+        "&:focus-visible": { outline: "3px solid #087e8b", outlineOffset: 2 },
+      }}
+    >
+      <SvgIcon sx={{ fontSize: 20 }}>
+        <path d={sourceLink.iconPath} />
+      </SvgIcon>
+      {sourceLink.label}
+    </Link>
     <Box
       data-testid="public-marketing-content"
       sx={{

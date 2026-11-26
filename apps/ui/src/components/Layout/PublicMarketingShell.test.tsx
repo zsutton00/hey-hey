@@ -45,6 +45,19 @@ describe("PublicMarketingShell", () => {
     expect(window.getComputedStyle(footer).position).toBe("static");
   });
 
+  it("links to the source repository outside the footer", () => {
+    renderShell(<main>Public page</main>);
+
+    const link = screen.getByRole("link", { name: "GitHub" });
+
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/zsutton00/hey-hey",
+    );
+    expect(screen.getByTestId("site-legal-footer")).not.toContainElement(link);
+    expect(window.getComputedStyle(link).position).toBe("absolute");
+  });
+
   it.each([375, 768, 1280])(
     "allows the legal footer to wrap at a %ipx viewport",
     (viewportWidth) => {

@@ -25,11 +25,15 @@ const escapeHtml = (value: string) =>
   );
 
 export function mountLanding(root: HTMLElement) {
-  const { hero, capabilities, beta } = landingPageCopy;
+  const { sourceLink, hero, capabilities, beta } = landingPageCopy;
   const cta = landingCtaByState["signed-out"];
   root.innerHTML = `
     <main class="landing" data-testid="landing-page">
       <section class="landing-hero" data-testid="landing-hero">
+        <a class="landing-source-link" href="${sourceLink.href}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${sourceLink.iconPath}"/></svg>
+          ${escapeHtml(sourceLink.label)}
+        </a>
         <div class="landing-container">
           <h1 class="landing-brand"><span>H</span>ey <span>H</span>ey</h1>
           <h2>${escapeHtml(hero.title)}</h2>
