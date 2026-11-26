@@ -1,6 +1,5 @@
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { forwardRef, Inject } from '@nestjs/common';
-import { workItemTypeStatusesSchema } from '../tasks/work-item-type-status.schema';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
 import { isEqual } from 'lodash';
@@ -14,7 +13,6 @@ import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
 } from '../tasks/project-mode-settings.validator';
-import { workItemTypeSessionRoleGuidanceSchema } from '../tasks/work-item-type-agent-guidance.schema';
 import {
   parseFutureRevisionMutation,
   lockFutureForMutation,
@@ -66,19 +64,10 @@ import type {
 import { evaluateSupersedeInvariant } from './supersede-invariant';
 
 import { WorkStatus } from '@hey-hey/contracts/api/models';
-import { AgentEdgeType } from '@hey-hey/contracts/api/models';
-import { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
-import { WorkItemColorKey } from '@hey-hey/contracts/api/models';
-import { WorkItemIconKey } from '@hey-hey/contracts/api/models';
-import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
-import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeCascadeDeleteUpdatesPayload } from '@hey-hey/contracts/api/models';
-import { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
-import type { WorkItemTypeEdgeTarget } from '@hey-hey/contracts/api/models';
 import { EntityType } from '@hey-hey/contracts/api/models';
-import { ReportType } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
@@ -105,7 +94,7 @@ import {
   resolveWorkItemSectionContentKind,
   TaskSectionSchemaValidatorRegistry,
 } from '../tasks/task-section-schema-validator.registry';
-import { workItemTypeCapabilitiesSchema } from '../tasks/work-item-type-capabilities.schema';
+import { workItemTypeDefinitionSchema } from '../tasks/work-item-type-definition.schema';
 import { classifyWorkItemTypeEdit } from './work-item-type-edit-classifier';
 import { extractMentions } from '../../utils/mentionFormatting';
 import {
@@ -469,177 +458,14 @@ function validateWorkflowProposalPayload(
 }
 
 // ─── Work-item-type schemas ────────────────────────────────────────
-// A WORK_ITEM_TYPE proposal is always a CREATE whose `updates` is the
-// serialized WorkItemTypeDefinitionDto authored by the create_work_item_type
-// submit tool. These schemas mirror that DTO so an ill-formed or
+// A WORK_ITEM_TYPE proposal carries a complete definition, checked by the
+// shared definition schema the agent type tools use, so an ill-formed or
 // self-contradictory definition is rejected structurally at submit time,
-// before it can reach review or apply. The enum-typed axes read off the
-// generated const enums (z.nativeEnum), so an added or removed enum member
-// shifts the inferred type automatically; the _Extends drift checks below
-// keep the inferred shape pinned to the DTO.
-
-const workItemTypeSectionSchema = z
-  .object({
-    key: z.string().min(1),
-    label: z.string().min(1),
-    required: z.boolean().optional(),
-    writingStandard: z.string().nullable().optional(),
-    kind: z.nativeEnum(WorkItemTypeSectionDefinition.KindEnum).optional(),
-    schemaRef: z.string().nullable().optional(),
-    sizeProfiles: z
-      .array(
-        z
-          .object({
-            key: z.string().min(1),
-            label: z.string().min(1),
-            breakpoints: z
-              .array(
-                z
-                  .object({
-                    minContainerWidth: z.number().int().min(0),
-                    inline: z
-                      .object({
-                        width: z.number().int().positive(),
-                        height: z.number().int().positive(),
-                      })
-                      .strict(),
-                    page: z
-                      .object({
-                        width: z.number().int().positive(),
-                        height: z.number().int().positive(),
-                      })
-                      .strict(),
-                  })
-                  .strict(),
-              )
-              .min(1),
-          })
-          .strict(),
-      )
-      .min(1)
-      .optional(),
-    defaultSizeKey: z.string().min(1).optional(),
-  })
-  .strict()
-  .superRefine((section, ctx) => {
-    const isSourceSection =
-      section.kind === 'html/css' || section.kind === 'structured-mockup';
-    if (isSourceSection && section.schemaRef != null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['schemaRef'],
-        message:
-          'schemaRef must be omitted for html/css and structured-mockup sections',
-      });
-    }
-    const hasSizing =
-      section.sizeProfiles !== undefined ||
-      section.defaultSizeKey !== undefined;
-    if (!isSourceSection && hasSizing) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'size profiles are supported only for html/css and structured-mockup sections',
-      });
-    }
-    if (isSourceSection && hasSizing) {
-      const keys = section.sizeProfiles?.map(({ key }) => key) ?? [];
-      if (
-        !section.sizeProfiles ||
-        !section.defaultSizeKey ||
-        !keys.includes(section.defaultSizeKey)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'sizeProfiles and a matching defaultSizeKey are required together',
-        });
-      }
-      if (new Set(keys).size !== keys.length)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'size profile keys must be unique',
-        });
-      section.sizeProfiles?.forEach((profile, profileIndex) => {
-        if (
-          profile.breakpoints[0]?.minContainerWidth !== 0 ||
-          profile.breakpoints.some(
-            (point, index, points) =>
-              index > 0 &&
-              point.minContainerWidth <=
-                (points[index - 1]?.minContainerWidth ?? -1),
-          )
-        ) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['sizeProfiles', profileIndex, 'breakpoints'],
-            message: 'breakpoints must begin at 0 and be strictly ascending',
-          });
-        }
-      });
-    }
-  });
-
-// requiredScalars/forbiddenScalars are arrays over this closed field set —
-// membership names whether the field is mandatory or rejected on the type,
-// not a freeform per-scalar builder.
-const workItemTypeScalarFieldSchema = z.nativeEnum(WorkItemTypeScalarField);
-
-const workItemTypeEdgeTargetSchema = z
-  .object({
-    edgeType: z.nativeEnum(AgentEdgeType),
-    targetTypeKeys: z.array(z.string()),
-  })
-  .strict();
-
-const workItemTypeTrackingSchema = z
-  .object({
-    allowedSourceEntityTypes: z.array(z.nativeEnum(EntityType)),
-    allowedSourceTaskTypes: z.array(z.string()),
-  })
-  .strict();
-
-const workItemTypeWritingStandardsSchema = z
-  .object({
-    create: z.string(),
-    edit: z.string(),
-  })
-  .strict();
-
-const createWorkItemTypeUpdatesSchema = z
-  .object({
-    key: z.string().min(1),
-    name: z.string().min(1),
-    role: z.nativeEnum(WorkItemTypeRole),
-    acceptedConfigKinds: z.array(z.nativeEnum(WorkItemConfigKind)).optional(),
-    colorKey: z.nativeEnum(WorkItemColorKey).optional(),
-    iconKey: z.nativeEnum(WorkItemIconKey).optional(),
-    description: z.string().nullable().optional(),
-    sections: z.array(workItemTypeSectionSchema),
-    requiredScalars: z.array(workItemTypeScalarFieldSchema).optional(),
-    forbiddenScalars: z.array(workItemTypeScalarFieldSchema).optional(),
-    // The DTO carries no explicit initial-status field: a type's initial
-    // status is later derived from the statuses it may occupy. A definition
-    // with zero allowed statuses therefore has no coherent initial-status
-    // policy — there is nothing an item of the type could ever start in — so
-    // a non-empty statuses list is the structural coherence check here.
-    statuses: workItemTypeStatusesSchema,
-    allowedParentTypes: z.array(z.string()).optional(),
-    edgeTargets: z.array(workItemTypeEdgeTargetSchema).optional(),
-    allowedParentEntityTypes: z.array(z.nativeEnum(EntityType)).optional(),
-    tracking: workItemTypeTrackingSchema.optional(),
-    agentSettableStatuses: z.array(z.string()).optional(),
-    anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
-    maintenanceGuidance: z.string().optional(),
-    sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
-    writingStandards: workItemTypeWritingStandardsSchema.nullable().optional(),
-    capabilities: workItemTypeCapabilitiesSchema.optional(),
-  })
-  .strict();
+// before it can reach review or apply.
 
 const editWorkItemTypeUpdatesSchema = z
   .object({
-    definition: createWorkItemTypeUpdatesSchema,
+    definition: workItemTypeDefinitionSchema,
     acknowledgeCanonicalCustomization: z.boolean().optional(),
   })
   .strict();
@@ -746,24 +572,6 @@ type _CheckUpdateDoc = _Extends<
   _UpdateDocFields,
   Pick<UpdateDesignDocDto, keyof _UpdateDocFields & keyof UpdateDesignDocDto>
 >;
-// Work-item-type schemas: full structural match against the generated DTO
-// and its leaf shapes. A spec/codegen change that drifts any axis fails here.
-type _CheckWorkItemTypeSection = _Extends<
-  z.infer<typeof workItemTypeSectionSchema>,
-  WorkItemTypeSectionDefinition
->;
-type _CheckWorkItemTypeScalar = _Extends<
-  z.infer<typeof workItemTypeScalarFieldSchema>,
-  WorkItemTypeScalarField
->;
-type _CheckWorkItemTypeEdgeTarget = _Extends<
-  z.infer<typeof workItemTypeEdgeTargetSchema>,
-  WorkItemTypeEdgeTarget
->;
-type _CheckCreateWorkItemType = _Extends<
-  z.infer<typeof createWorkItemTypeUpdatesSchema>,
-  WorkItemTypeDefinitionDto
->;
 type _CheckCascadeDeleteWorkItemType = _Extends<
   z.infer<typeof cascadeDeleteWorkItemTypeUpdatesSchema>,
   WorkItemTypeCascadeDeleteUpdatesPayload
@@ -857,7 +665,7 @@ function getUpdatesSchema(
   if (action === 'CREATE' && targetEntityType === 'CONVERSATION')
     return planFromDesignDocConversationUpdatesSchema;
   if (action === 'CREATE' && targetEntityType === 'WORK_ITEM_TYPE')
-    return createWorkItemTypeUpdatesSchema;
+    return workItemTypeDefinitionSchema;
   if (action === 'UPDATE' && targetEntityType === 'WORK_ITEM_TYPE') {
     if (
       updates !== null &&

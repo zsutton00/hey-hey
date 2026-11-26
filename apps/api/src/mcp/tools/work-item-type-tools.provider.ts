@@ -16,7 +16,6 @@ import {
   mcpError,
   resolveProjectId,
 } from './mcp-tool.utils';
-import { createWorkItemTypeParameters } from './work-item-type-proposal-tools.provider';
 import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGuidanceBatchRequestDto } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
@@ -62,7 +61,9 @@ export const getWorkItemTypeParameters = z
 export const getWorkItemTypeOutput = z
   .object({
     id: z.string(),
-    definition: createWorkItemTypeParameters,
+    // The registry already validated the stored definition when it loaded it.
+    // Re-narrowing it here would hide settings or make a type unreadable.
+    definition: z.record(z.unknown()),
     status: z.nativeEnum(WorkItemTypeLifecycleStatus),
     projectId: z.string(),
     effectiveSource: z.nativeEnum(WorkItemTypeEffectiveSource),

@@ -23,9 +23,18 @@ import { WorkItemTypeGraphReadExpansionHop } from '@hey-hey/contracts/api/models
 
 const workItemTypeGraphEndpointRuleSchema = z
   .object({
-    role: z.nativeEnum(WorkItemTypeGraphEndpointRole),
-    entityTypes: z.array(z.nativeEnum(AgentEdgeEndpointEntityType)),
-    workItemTypeKeys: z.array(z.string()).optional(),
+    role: z
+      .nativeEnum(WorkItemTypeGraphEndpointRole)
+      .describe('Endpoint role relative to the graph surface.'),
+    entityTypes: z
+      .array(z.nativeEnum(AgentEdgeEndpointEntityType))
+      .describe('Entity types allowed for this endpoint.'),
+    workItemTypeKeys: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Work-item type keys allowed when the endpoint entity type is TASK.',
+      ),
   })
   .passthrough();
 
@@ -39,8 +48,14 @@ const workItemTypeGraphDirectionRuleSchema = z
 
 const workItemTypeGraphRelationshipDeclarationSchema = z
   .object({
-    edgeType: z.nativeEnum(AgentEdgeType),
-    category: z.nativeEnum(AgentEdgeCategory),
+    edgeType: z
+      .nativeEnum(AgentEdgeType)
+      .describe('Relationship label visible to the graph reader or editor.'),
+    category: z
+      .nativeEnum(AgentEdgeCategory)
+      .describe(
+        'Whether this relationship is flow structure or meta topology.',
+      ),
     sourceEndpoint: workItemTypeGraphEndpointRuleSchema,
     targetEndpoint: workItemTypeGraphEndpointRuleSchema,
     direction: workItemTypeGraphDirectionRuleSchema.optional(),
@@ -89,45 +104,61 @@ const workItemTypeGraphReadExpansionSchema: z.ZodType<WorkItemTypeGraphReadExpan
     })
     .strict();
 
-export const workItemTypeGraphCapabilitySchema: z.ZodType<WorkItemTypeGraphCapability> =
-  z
+const workItemTypeGraphCapabilityShape = {
+  nodeChildType: z
+    .string()
+    .describe('Child work-item type key eligible to act as a graph node.'),
+  layout: z
     .object({
-      nodeChildType: z.string(),
-      layout: z
-        .object({
-          sectionKey: z.string(),
-          schemaRef: z.string(),
-        })
-        .passthrough(),
-      layoutPreference: z
-        .object({
-          sectionKey: z.string(),
-          schemaRef: z.string(),
-        })
-        .strict()
-        .optional(),
-      groups: z
-        .object({
-          sectionKey: z.string(),
-          schemaRef: z.string(),
-        })
-        .strict()
-        .optional(),
-      readableRelationships: z.array(
-        workItemTypeGraphRelationshipDeclarationSchema,
-      ),
-      editableRelationships: z.array(
-        workItemTypeGraphRelationshipDeclarationSchema,
-      ),
-      searchableMetaLinkTargets: z
-        .array(workItemTypeGraphSearchableMetaLinkTargetSchema)
-        .optional(),
-      rendererKey: z.string(),
-      editorKey: z.string(),
-      supportedActions: z.array(z.nativeEnum(WorkItemTypeGraphAction)),
-      readExpansions: z.array(workItemTypeGraphReadExpansionSchema).optional(),
+      sectionKey: z.string(),
+      schemaRef: z.string(),
     })
-    .passthrough();
+    .passthrough()
+    .describe('Type-owned JSON section that stores authored logical layout.'),
+  layoutPreference: z
+    .object({
+      sectionKey: z.string(),
+      schemaRef: z.string(),
+    })
+    .strict()
+    .optional()
+    .describe('Type-owned JSON section that stores the preferred graph shape.'),
+  groups: z
+    .object({
+      sectionKey: z.string(),
+      schemaRef: z.string(),
+    })
+    .strict()
+    .optional()
+    .describe(
+      'Optional type-owned JSON section that stores named groups and nested boundaries.',
+    ),
+  readableRelationships: z.array(
+    workItemTypeGraphRelationshipDeclarationSchema,
+  ),
+  editableRelationships: z.array(
+    workItemTypeGraphRelationshipDeclarationSchema,
+  ),
+  searchableMetaLinkTargets: z
+    .array(workItemTypeGraphSearchableMetaLinkTargetSchema)
+    .optional(),
+  rendererKey: z.string(),
+  editorKey: z.string(),
+  supportedActions: z.array(z.nativeEnum(WorkItemTypeGraphAction)),
+  readExpansions: z
+    .array(workItemTypeGraphReadExpansionSchema)
+    .optional()
+    .describe(
+      'Bounded relationship lookups that add derived references to graph reads.',
+    ),
+} satisfies {
+  [K in keyof WorkItemTypeGraphCapability]-?: z.ZodType<
+    WorkItemTypeGraphCapability[K]
+  >;
+};
+
+export const workItemTypeGraphCapabilitySchema: z.ZodType<WorkItemTypeGraphCapability> =
+  z.object(workItemTypeGraphCapabilityShape).passthrough();
 
 type BooleanCapabilityKey = Exclude<
   keyof WorkItemTypeCapabilities,
@@ -252,6 +283,10 @@ const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCa
       monitorKinds: workItemTypeMonitorKindsSchema.optional(),
     })
     .strict();
+
+export const WORK_ITEM_TYPE_CAPABILITY_AXES = Object.freeze(
+  Object.keys(workItemTypeCapabilityShape),
+);
 
 /**
  * Strict runtime representation of the generated capability contract. The
