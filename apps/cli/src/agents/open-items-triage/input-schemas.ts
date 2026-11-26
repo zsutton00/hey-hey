@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import type { CanonicalJsonValue } from '../../shared/canonical-json';
-import { EntityType, RelationshipValue } from '@hey-hey/contracts/api/models';
+import {
+  EntityType,
+  RelationshipValue,
+  type AttentionItemSummary,
+  type AttentionSwitchSummary,
+  type AttentionTimelineSpan,
+} from '@hey-hey/contracts/api/models';
 
 // JSON is narrowed at the HTTP boundary; each list member is then validated independently.
 const jsonSchema: z.ZodType<CanonicalJsonValue> = z.lazy(() =>
@@ -72,13 +78,40 @@ export const goalDetailSchema = z.object({
   trackedEntities: recordsSchema,
   archivedAt: z.string().nullable().optional(),
 });
-export const attentionPageSchema = z.object({
-  events: recordsSchema,
-  pagination: z.object({
-    limit: z.number().int().positive(),
-    offset: z.number().int().nonnegative(),
-    total: z.number().int().nonnegative(),
-  }),
+const attentionEntitySchema = z.object({
+  entityType: z.nativeEnum(EntityType),
+  entityId: z.string().uuid(),
+  entityName: z.string().min(1),
+});
+const instantSchema = z.string().datetime({ offset: true });
+const countSchema = z.number().int().nonnegative();
+export const attentionItemSchema = z.object({
+  entity: attentionEntitySchema,
+  lastViewed: instantSchema,
+  viewsToday: countSchema,
+  viewsSevenDays: countSchema,
+  focusMsSevenDays: countSchema,
+}) satisfies z.ZodType<AttentionItemSummary>;
+export const attentionSwitchSchema = z.object({
+  entities: z.array(attentionEntitySchema).length(2),
+  occurrences: countSchema,
+}) satisfies z.ZodType<AttentionSwitchSummary>;
+export const attentionSpanSchema = z.object({
+  entity: attentionEntitySchema,
+  start: instantSchema,
+  end: instantSchema,
+  focusMs: countSchema,
+  views: countSchema,
+}) satisfies z.ZodType<AttentionTimelineSpan>;
+export const attentionSummarySchema = z.object({
+  since: instantSchema,
+  todayStartsAt: instantSchema,
+  asOf: instantSchema,
+  items: recordsSchema,
+  switches: recordsSchema,
+  timeline: recordsSchema,
+  truncated: z.object({ switches: z.boolean(), timeline: z.boolean() }),
+  unreadableRecords: countSchema,
 });
 export const relatedSchema = z.object({
   entityId: z.string().uuid(),

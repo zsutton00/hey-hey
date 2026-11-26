@@ -10,17 +10,18 @@ import type { CanonicalJsonValue } from '../../shared/canonical-json';
 import type { LocalOpenItemsTriageItem } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import {
-  attentionSessionSchema,
-  DAY_MS,
-  isOpenItemCandidate,
+  attentionEvidence,
+  emptyAttentionSummary,
   itemKey,
-  reduceAttention,
+  OPEN_ITEM_ENTITY_TYPES,
   TRIAGE_CAPS,
   type AttentionCounters,
-  type AttentionSession,
 } from './attention';
 import {
-  attentionPageSchema,
+  attentionItemSchema,
+  attentionSpanSchema,
+  attentionSummarySchema,
+  attentionSwitchSchema,
   collectionSchema,
   contextSchema,
   envelopeSchema,
@@ -53,6 +54,11 @@ interface GoalInput {
 const NOTE_MAX_CHARS = 200;
 export const TRIAGE_INPUT_BUDGET_BYTES = 150 * 1024;
 const inputBytes = (input: unknown) => Buffer.byteLength(JSON.stringify(input), 'utf8');
+// Names where a response broke the contract without repeating any of its content.
+const failureCause = (error: unknown): string =>
+  error instanceof z.ZodError
+    ? error.issues.map((issue) => `${issue.path.join('.') || '(record)'}: ${issue.code}`).join(', ')
+    : String(error);
 interface OpenItemRecord extends AttentionCounters {
   key: string;
   title: string;
@@ -138,74 +144,51 @@ export class TriageInputOwner {
     return members;
   }
 
-  private failed(limit: EvidenceLimit): void {
+  private failed(limit: EvidenceLimit, error?: unknown): void {
     limit.unavailable = true;
-    this.deps.logger.warn('open_items_triage.read.unavailable', { scope: limit.scope });
+    this.deps.logger.warn('open_items_triage.read.unavailable', {
+      scope: limit.scope,
+      ...(error !== undefined ? { cause: failureCause(error) } : {}),
+    });
   }
 
-  private async attention(): Promise<{ sessions: AttentionSession[]; complete: boolean }> {
+  private async attention() {
     const limit = this.limit('attention');
-    const sessions: AttentionSession[] = [];
-    const ids = new Set<string>();
     try {
-      for (let page = 0; page < TRIAGE_CAPS.attentionPages; page++) {
-        const offset = page * TRIAGE_CAPS.pageSize;
-        const query = new URLSearchParams({
-          limit: String(TRIAGE_CAPS.pageSize),
-          offset: String(offset),
-          sort: 'mostRecent',
-          includeEntity: 'false',
-          since: new Date(this.now - 7 * DAY_MS).toISOString(),
-          projectId: this.projectId,
-        });
-        const result = attentionPageSchema.parse(
-          await this.read(`${this.deps.apiBaseUrl}/analytics/attention?${query}`),
-        );
-        if (result.pagination.offset !== offset || result.pagination.limit !== TRIAGE_CAPS.pageSize)
-          throw new Error('Attention pagination mismatch.');
-        const parsed = this.members(
-          result.events,
-          attentionSessionSchema,
-          TRIAGE_CAPS.pageSize,
+      const query = new URLSearchParams({ projectId: this.projectId });
+      for (const type of OPEN_ITEM_ENTITY_TYPES) query.append('entityTypes', type);
+      const summary = attentionSummarySchema.parse(
+        await this.read(`${this.deps.apiBaseUrl}/analytics/attention/summary?${query}`),
+      );
+      const evidence = {
+        ...summary,
+        items: this.members(summary.items, attentionItemSchema, summary.items.length, limit),
+        switches: this.members(
+          summary.switches,
+          attentionSwitchSchema,
+          summary.switches.length,
           limit,
-        );
-        let skipped = 0;
-        for (const event of parsed) {
-          if (!isOpenItemCandidate(event)) {
-            skipped++;
-            continue;
-          }
-          if (ids.has(event.id)) {
-            limit.truncated = true;
-            continue;
-          }
-          ids.add(event.id);
-          sessions.push(event);
-        }
-        const readCount = offset + result.events.length;
-        this.deps.logger.debug('open_items_triage.attention.page', {
-          offset,
-          records: result.events.length,
-          total: result.pagination.total,
-          invalidRecords: limit.invalidRecords,
-          skippedNonCandidates: skipped,
-        });
-        if (readCount >= result.pagination.total) break;
-        if (
-          result.events.length < TRIAGE_CAPS.pageSize ||
-          page === TRIAGE_CAPS.attentionPages - 1
-        ) {
-          limit.truncated = true;
-          break;
-        }
-      }
-    } catch {
-      this.failed(limit);
+        ),
+        timeline: this.members(
+          summary.timeline,
+          attentionSpanSchema,
+          summary.timeline.length,
+          limit,
+        ),
+      };
+      limit.invalidRecords += summary.unreadableRecords;
+      this.deps.logger.debug('open_items_triage.attention.summary', {
+        items: evidence.items.length,
+        switches: evidence.switches.length,
+        spans: evidence.timeline.length,
+        unreadableRecords: summary.unreadableRecords,
+        invalidRecords: limit.invalidRecords,
+      });
+      return { summary: evidence, complete: limit.invalidRecords === 0 };
+    } catch (error) {
+      this.failed(limit, error);
+      return { summary: emptyAttentionSummary(this.now), complete: false };
     }
-    return {
-      sessions,
-      complete: !limit.unavailable && !limit.truncated && limit.invalidRecords === 0,
-    };
   }
 
   private async goals(): Promise<GoalInput[]> {
@@ -461,10 +444,9 @@ export class TriageInputOwner {
             }),
           )
         : new Set<string>();
-    const { openCounters, ...reduced } = reduceAttention(
-      attention.sessions,
+    const { openCounters, ...reduced } = attentionEvidence(
+      attention.summary,
       openItems.filter((item) => !this.archivedKeys.has(itemKey(item))),
-      this.now,
       attention.complete,
       this.archivedKeys,
       fullKeys,
@@ -501,7 +483,7 @@ export class TriageInputOwner {
     this.deps.logger.info('open_items_triage.input.ready', {
       items: items.length,
       goals: goals.length,
-      sessions: attention.sessions.length,
+      viewedItems: attention.summary.items.length,
       bytes,
       incompleteScopes: this.limits.filter((l) => l.unavailable || l.truncated || l.invalidRecords)
         .length,

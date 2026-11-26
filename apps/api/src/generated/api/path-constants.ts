@@ -430,6 +430,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALI
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_REJECT_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/reject';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROPOSALS_PROPOSALID_REVIEW_NOTES_PATH = '/organizations/{organizationId}/projects/{projectId}/proposals/{proposalId}/review-notes';
 export const ANALYTICS_EVENTS_PATH = '/analytics/events';
+export const ANALYTICS_ATTENTION_SUMMARY_PATH = '/analytics/attention/summary';
 export const ANALYTICS_ATTENTION_PATH = '/analytics/attention';
 export const MCP_HEALTH_PATH = '/mcp/health';
 export const MCP_TOOLS_PATH = '/mcp/tools';

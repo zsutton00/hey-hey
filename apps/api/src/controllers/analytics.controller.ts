@@ -29,6 +29,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import {
   AttentionEvent,
+  AttentionSummaryResponse,
+  EntityType,
   EventBatch,
   TrackAttentionEvents201Response,
   TrackEventBatch201Response,
@@ -39,6 +41,7 @@ import {
   AttentionEventSortMode,
   GetAttentionEventsResponseData,
 } from '../services/analytics/attention-event.service';
+import { AttentionSummaryService } from '../services/analytics/attention-summary.service';
 
 @ApiTags('Analytics')
 @ApiBearerAuth()
@@ -50,6 +53,7 @@ export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly attentionEventService: AttentionEventService,
+    private readonly attentionSummaryService: AttentionSummaryService,
   ) {}
 
   @Post('events')
@@ -248,6 +252,55 @@ export class AnalyticsController {
       includeEntity,
       since,
       projectId,
+    });
+  }
+
+  @Get('attention/summary')
+  @ApiOperation({
+    summary: "Summarize the user's recent attention in a project",
+    description:
+      'Counts per item, switching pairs and a recent timeline over the last seven days.',
+  })
+  @ApiQuery({ name: 'projectId', type: String, required: true })
+  @ApiQuery({
+    name: 'entityTypes',
+    type: String,
+    isArray: true,
+    required: false,
+    description: 'Summarize only records for these entity types',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Attention summary computed successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid query parameters' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - JWT token missing or invalid',
+  })
+  async getAttentionSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('projectId') projectId?: string,
+    @Query('entityTypes') entityTypes?: string | string[],
+  ): Promise<AttentionSummaryResponse> {
+    if (!projectId) {
+      throw new BadRequestException('projectId is required');
+    }
+
+    const requestedTypes = [entityTypes ?? []].flat();
+    const knownTypes: readonly string[] = Object.values(EntityType);
+    const unknownTypes = requestedTypes.filter(
+      (type) => !knownTypes.includes(type),
+    );
+    if (unknownTypes.length > 0) {
+      throw new BadRequestException(
+        `Unsupported entityTypes: ${unknownTypes.join(', ')}`,
+      );
+    }
+
+    return this.attentionSummaryService.summarize(user, {
+      projectId,
+      entityTypes: requestedTypes,
     });
   }
 }

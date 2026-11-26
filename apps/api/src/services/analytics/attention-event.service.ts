@@ -18,6 +18,11 @@ import { ProjectService } from 'src/services/project.service';
 import { TaskService } from 'src/services/tasks/task.service';
 import { ConversationId, OrganizationId, TaskId } from 'src/types';
 
+/** Stored entity types that predate a rename, and what they are called now. */
+export const LEGACY_ENTITY_TYPE_MAP: Readonly<Record<string, EntityType>> = {
+  CODING_SESSION: EntityType.AGENT_SESSION,
+};
+
 export interface TrackAttentionEventsResponse {
   eventCount: number;
   timestamp: string;
@@ -389,10 +394,6 @@ export class AttentionEventService {
     }
   }
 
-  private static readonly LEGACY_ENTITY_TYPE_MAP: Record<string, EntityType> = {
-    CODING_SESSION: EntityType.AGENT_SESSION,
-  };
-
   private normalizeEntityTypeOrThrow(entityType: string): EntityType {
     if (!entityType) {
       throw new BadRequestException('entityType is required');
@@ -400,7 +401,7 @@ export class AttentionEventService {
 
     const normalized = entityType.trim().toUpperCase().replace(/-/g, '_');
 
-    const mapped = AttentionEventService.LEGACY_ENTITY_TYPE_MAP[normalized];
+    const mapped = LEGACY_ENTITY_TYPE_MAP[normalized];
     if (mapped) {
       return mapped;
     }

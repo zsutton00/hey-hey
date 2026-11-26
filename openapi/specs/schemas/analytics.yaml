@@ -871,6 +871,155 @@ AttentionEventEntity:
   description: "Full entity payload for the attention event. Shape varies by entityType."
   additionalProperties: true
 
+AttentionSummaryResponse:
+  type: object
+  required:
+    - since
+    - todayStartsAt
+    - asOf
+    - items
+    - switches
+    - timeline
+    - truncated
+    - unreadableRecords
+  description: |
+    One user's attention in one project, counted from stored focus records. A view is
+    the start of a focus record, not a verified page visit.
+  properties:
+    since:
+      type: string
+      format: date-time
+      description: Start of the seven-day window
+    todayStartsAt:
+      type: string
+      format: date-time
+      description: UTC midnight used to count today's views
+    asOf:
+      type: string
+      format: date-time
+      description: End of the window; focus after this instant is not counted
+    items:
+      type: array
+      description: Every item with a record in the window, most recently viewed first
+      items:
+        $ref: "#/AttentionItemSummary"
+    switches:
+      type: array
+      maxItems: 50
+      description: |
+        Pairs of items the user moved between at least twice, where the next view
+        started within ten minutes of the previous one ending. Most frequent first.
+      items:
+        $ref: "#/AttentionSwitchSummary"
+    timeline:
+      type: array
+      maxItems: 100
+      description: |
+        The latest spans of the last 48 hours, oldest first. Consecutive views of one
+        item no more than ten minutes apart form one span.
+      items:
+        $ref: "#/AttentionTimelineSpan"
+    truncated:
+      type: object
+      required:
+        - switches
+        - timeline
+      description: Whether a capped list left entries out
+      properties:
+        switches:
+          type: boolean
+        timeline:
+          type: boolean
+    unreadableRecords:
+      type: integer
+      minimum: 0
+      description: |
+        Records in the window left out because their entity type is unsupported or their
+        focus interval is invalid. When above zero, counts are a lower bound.
+
+AttentionSummaryEntity:
+  type: object
+  required:
+    - entityType
+    - entityId
+    - entityName
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+    entityName:
+      type: string
+      description: Name from EntityRegistry, or Unknown
+
+AttentionItemSummary:
+  type: object
+  required:
+    - entity
+    - lastViewed
+    - viewsToday
+    - viewsSevenDays
+    - focusMsSevenDays
+  properties:
+    entity:
+      $ref: "#/AttentionSummaryEntity"
+    lastViewed:
+      type: string
+      format: date-time
+      description: Start of the latest view
+    viewsToday:
+      type: integer
+      minimum: 0
+    viewsSevenDays:
+      type: integer
+      minimum: 0
+    focusMsSevenDays:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Focus time clipped to the window
+
+AttentionSwitchSummary:
+  type: object
+  required:
+    - entities
+    - occurrences
+  properties:
+    entities:
+      type: array
+      minItems: 2
+      maxItems: 2
+      items:
+        $ref: "#/AttentionSummaryEntity"
+    occurrences:
+      type: integer
+      minimum: 2
+
+AttentionTimelineSpan:
+  type: object
+  required:
+    - entity
+    - start
+    - end
+    - focusMs
+    - views
+  properties:
+    entity:
+      $ref: "#/AttentionSummaryEntity"
+    start:
+      type: string
+      format: date-time
+    end:
+      type: string
+      format: date-time
+    focusMs:
+      type: integer
+      format: int64
+      minimum: 0
+    views:
+      type: integer
+      minimum: 1
+
 # =============================================
 # Event Batch
 # =============================================

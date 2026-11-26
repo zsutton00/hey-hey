@@ -25,9 +25,13 @@ import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError
 // @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
+import type { EntityType } from '../models.js';
+// @ts-ignore
 import type { EventBatch } from '../models.js';
 // @ts-ignore
 import type { GetAttentionEvents200Response } from '../models.js';
+// @ts-ignore
+import type { GetAttentionSummary200Response } from '../models.js';
 // @ts-ignore
 import type { TrackAttentionEvents201Response } from '../models.js';
 // @ts-ignore
@@ -91,6 +95,52 @@ export const AnalyticsApiAxiosParamCreator = function (configuration?: Configura
 
             if (projectId !== undefined) {
                 localVarQueryParameter['projectId'] = projectId;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Count the authenticated user\'s attention records for one project over the last seven days. Every readable record is counted exactly once. All counting is done over the whole window, so the result needs no paging.  Returns per-item totals for every item viewed in the window, pairs of items the user switched between, and a compact timeline of the last 48 hours. The two lists are capped and say when they were cut short. Records that cannot be read are left out and counted.
+         * @summary Summarize the user\'s recent attention in a project
+         * @param {string} projectId Project whose attention records are summarized
+         * @param {Array<EntityType>} [entityTypes] Summarize only records for these entity types. Records of other types are ignored entirely, including when deciding which views are adjacent. Omit to include every type.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAttentionSummary: async (projectId: string, entityTypes?: Array<EntityType>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAttentionSummary', 'projectId', projectId)
+            const localVarPath = `/analytics/attention/summary`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (projectId !== undefined) {
+                localVarQueryParameter['projectId'] = projectId;
+            }
+
+            if (entityTypes) {
+                localVarQueryParameter['entityTypes'] = entityTypes;
             }
 
 
@@ -213,6 +263,20 @@ export const AnalyticsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Count the authenticated user\'s attention records for one project over the last seven days. Every readable record is counted exactly once. All counting is done over the whole window, so the result needs no paging.  Returns per-item totals for every item viewed in the window, pairs of items the user switched between, and a compact timeline of the last 48 hours. The two lists are capped and say when they were cut short. Records that cannot be read are left out and counted.
+         * @summary Summarize the user\'s recent attention in a project
+         * @param {string} projectId Project whose attention records are summarized
+         * @param {Array<EntityType>} [entityTypes] Summarize only records for these entity types. Records of other types are ignored entirely, including when deciding which views are adjacent. Omit to include every type.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAttentionSummary(projectId: string, entityTypes?: Array<EntityType>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAttentionSummary200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAttentionSummary(projectId, entityTypes, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AnalyticsApi.getAttentionSummary']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Record a batch of user attention events for engagement and focus tracking.  Attention events are a separate event stream used to understand what users focus on and how long they spend on different entities without granular interaction tracking.  Authentication: Requires valid JWT token. The userId is extracted from the JWT token for security (client-provided userId is ignored).  Event Types: - Navigation Attention: Emitted 5 seconds after user navigates to an entity - Continuous Attention: Emitted every 30 seconds while tab remains visible  Limits: Maximum 100 events per batch.
          * @summary Track user attention events
          * @param {TrackAttentionEventsRequest} trackAttentionEventsRequest
@@ -259,6 +323,16 @@ export const AnalyticsApiFactory = function (configuration?: Configuration, base
             return localVarFp.getAttentionEvents(requestParameters.limit, requestParameters.offset, requestParameters.sort, requestParameters.includeEntity, requestParameters.since, requestParameters.projectId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Count the authenticated user\'s attention records for one project over the last seven days. Every readable record is counted exactly once. All counting is done over the whole window, so the result needs no paging.  Returns per-item totals for every item viewed in the window, pairs of items the user switched between, and a compact timeline of the last 48 hours. The two lists are capped and say when they were cut short. Records that cannot be read are left out and counted.
+         * @summary Summarize the user\'s recent attention in a project
+         * @param {AnalyticsApiGetAttentionSummaryRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAttentionSummary(requestParameters: AnalyticsApiGetAttentionSummaryRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAttentionSummary200Response> {
+            return localVarFp.getAttentionSummary(requestParameters.projectId, requestParameters.entityTypes, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Record a batch of user attention events for engagement and focus tracking.  Attention events are a separate event stream used to understand what users focus on and how long they spend on different entities without granular interaction tracking.  Authentication: Requires valid JWT token. The userId is extracted from the JWT token for security (client-provided userId is ignored).  Event Types: - Navigation Attention: Emitted 5 seconds after user navigates to an entity - Continuous Attention: Emitted every 30 seconds while tab remains visible  Limits: Maximum 100 events per batch.
          * @summary Track user attention events
          * @param {AnalyticsApiTrackAttentionEventsRequest} requestParameters Request parameters.
@@ -296,6 +370,16 @@ export interface AnalyticsApiInterface {
      * @memberof AnalyticsApiInterface
      */
     getAttentionEvents(requestParameters?: AnalyticsApiGetAttentionEventsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAttentionEvents200Response>;
+
+    /**
+     * Count the authenticated user\'s attention records for one project over the last seven days. Every readable record is counted exactly once. All counting is done over the whole window, so the result needs no paging.  Returns per-item totals for every item viewed in the window, pairs of items the user switched between, and a compact timeline of the last 48 hours. The two lists are capped and say when they were cut short. Records that cannot be read are left out and counted.
+     * @summary Summarize the user\'s recent attention in a project
+     * @param {AnalyticsApiGetAttentionSummaryRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AnalyticsApiInterface
+     */
+    getAttentionSummary(requestParameters: AnalyticsApiGetAttentionSummaryRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAttentionSummary200Response>;
 
     /**
      * Record a batch of user attention events for engagement and focus tracking.  Attention events are a separate event stream used to understand what users focus on and how long they spend on different entities without granular interaction tracking.  Authentication: Requires valid JWT token. The userId is extracted from the JWT token for security (client-provided userId is ignored).  Event Types: - Navigation Attention: Emitted 5 seconds after user navigates to an entity - Continuous Attention: Emitted every 30 seconds while tab remains visible  Limits: Maximum 100 events per batch.
@@ -369,6 +453,27 @@ export interface AnalyticsApiGetAttentionEventsRequest {
 }
 
 /**
+ * Request parameters for getAttentionSummary operation in AnalyticsApi.
+ * @export
+ * @interface AnalyticsApiGetAttentionSummaryRequest
+ */
+export interface AnalyticsApiGetAttentionSummaryRequest {
+    /**
+     * Project whose attention records are summarized
+     * @type {string}
+     * @memberof AnalyticsApiGetAttentionSummary
+     */
+    readonly projectId: string
+
+    /**
+     * Summarize only records for these entity types. Records of other types are ignored entirely, including when deciding which views are adjacent. Omit to include every type.
+     * @type {Array<EntityType>}
+     * @memberof AnalyticsApiGetAttentionSummary
+     */
+    readonly entityTypes?: Array<EntityType>
+}
+
+/**
  * Request parameters for trackAttentionEvents operation in AnalyticsApi.
  * @export
  * @interface AnalyticsApiTrackAttentionEventsRequest
@@ -413,6 +518,18 @@ export class AnalyticsApi extends BaseAPI implements AnalyticsApiInterface {
      */
     public getAttentionEvents(requestParameters: AnalyticsApiGetAttentionEventsRequest = {}, options?: RawAxiosRequestConfig) {
         return AnalyticsApiFp(this.configuration).getAttentionEvents(requestParameters.limit, requestParameters.offset, requestParameters.sort, requestParameters.includeEntity, requestParameters.since, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Count the authenticated user\'s attention records for one project over the last seven days. Every readable record is counted exactly once. All counting is done over the whole window, so the result needs no paging.  Returns per-item totals for every item viewed in the window, pairs of items the user switched between, and a compact timeline of the last 48 hours. The two lists are capped and say when they were cut short. Records that cannot be read are left out and counted.
+     * @summary Summarize the user\'s recent attention in a project
+     * @param {AnalyticsApiGetAttentionSummaryRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AnalyticsApi
+     */
+    public getAttentionSummary(requestParameters: AnalyticsApiGetAttentionSummaryRequest, options?: RawAxiosRequestConfig) {
+        return AnalyticsApiFp(this.configuration).getAttentionSummary(requestParameters.projectId, requestParameters.entityTypes, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

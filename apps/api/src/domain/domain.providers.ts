@@ -73,6 +73,7 @@ import { EntityLifecycleProcessor } from 'src/core/processing/entity-lifecycle-p
 import { SummarizationService } from 'src/services/summarization/summarization.service';
 import { AnalyticsService } from 'src/services/analytics/analytics.service';
 import { AttentionEventService } from 'src/services/analytics/attention-event.service';
+import { AttentionSummaryService } from 'src/services/analytics/attention-summary.service';
 import { TopologyAuditService } from 'src/services/audit/topology-audit.service';
 import { TopologyCategorySummaryService } from 'src/services/topology/topology-category-summary.service';
 import { Configuration as EmbeddingsConfiguration } from 'src/generated/embeddings/configuration';
@@ -277,6 +278,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   InitiativeRefinementPromptBuilderStrategy,
   AnalyticsService,
   AttentionEventService,
+  AttentionSummaryService,
   TopologyAuditService,
   TopologyCategorySummaryService,
   MentionProcessingService,
@@ -424,6 +426,7 @@ export const DOMAIN_EXPORTS = [
   InitiativeRefinementPromptBuilderStrategy,
   AnalyticsService,
   AttentionEventService,
+  AttentionSummaryService,
   TopologyAuditService,
   TopologyCategorySummaryService,
   MentionProcessingService,
