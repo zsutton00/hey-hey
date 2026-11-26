@@ -1163,6 +1163,7 @@ AgentSessionServicePlace:
     - kind
     - branch
     - recordedAt
+    - changedDuringSession
   properties:
     serviceId:
       type: string
@@ -1179,6 +1180,58 @@ AgentSessionServicePlace:
     recordedAt:
       type: string
       format: date-time
+    changedDuringSession:
+      type: boolean
+      description: True once the place was changed after launch by an approved worktree attach.
+    launchPlace:
+      $ref: "#/AgentSessionServiceLocation"
+
+AgentSessionServiceLocation:
+  type: object
+  additionalProperties: false
+  required:
+    - kind
+    - branch
+  description: >-
+    A recorded location a Service works in: the main folder (branch as checked
+    out, or null) or a worktree with its branch and folder. Used for the launch
+    place and for the place a worktree-attach request would change.
+  properties:
+    kind:
+      $ref: "#/AgentSessionServicePlaceKind"
+    branch:
+      type: string
+      nullable: true
+    worktreePath:
+      type: string
+
+AttachAgentSessionServicePlaceDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - serviceId
+    - branch
+    - worktreePath
+    - requestId
+  properties:
+    machineId:
+      type: string
+      format: uuid
+      description: Authenticated CLI machine bound to the Agent Session.
+    serviceId:
+      type: string
+      format: uuid
+    branch:
+      type: string
+      minLength: 1
+    worktreePath:
+      type: string
+      minLength: 1
+    requestId:
+      type: string
+      minLength: 1
+      description: Worktree-attach request this change was approved under.
 
 ReportedAgentSessionServicePlace:
   type: object

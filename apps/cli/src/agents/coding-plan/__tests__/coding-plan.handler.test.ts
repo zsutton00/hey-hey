@@ -240,8 +240,8 @@ describe('codingPlanHandler', () => {
       });
       const prompt = codingPlanHandler.buildPrompt(result.payload);
       expect(prompt).toContain('Revise the root-level file step.');
-      expect(prompt).toContain('Launch service `service-cli` at `/worktrees/cli`');
-      expect(prompt).toContain('`service-api` at `/worktrees/api`');
+      expect(prompt).toContain('Launch service `service-cli`: worktree `/worktrees/cli`');
+      expect(prompt).toContain('`service-api`: worktree `/worktrees/api`');
     });
 
     it('retains matching startupInput enrichment without caching identity', async () => {
@@ -597,8 +597,8 @@ describe('codingPlanHandler', () => {
       const prepared = await codingPlanHandler.prepare!(session, makePayload(), noopDeps);
       const prompt = codingPlanHandler.buildPrompt(prepared.payload);
 
-      expect(prompt).toContain('Launch service `service-b` at `/worktrees/service-b`');
-      expect(prompt).toContain('`service-a` at `/worktrees/service-a`');
+      expect(prompt).toContain('Launch service `service-b`: worktree `/worktrees/service-b`');
+      expect(prompt).toContain('`service-a`: worktree `/worktrees/service-a`');
       expect(prompt).not.toContain('/host/service-a');
       expect(prompt).not.toContain('/host/service-b');
     });

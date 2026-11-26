@@ -21,6 +21,8 @@ export type AgentSessionServicePlaceView =
 export interface AgentSessionServicePlaceEntry {
   serviceName: string;
   place: AgentSessionServicePlaceView;
+  /** Set when an approved attach moved the Service after launch. */
+  change?: { startedIn: string | null };
 }
 
 const SERVICE_PLACES_GROUP = "Where each Service works";
@@ -115,7 +117,7 @@ export const AgentSessionMetadata = ({
     });
   }
 
-  servicePlaces.forEach(({ serviceName, place }, index) => {
+  servicePlaces.forEach(({ serviceName, place, change }, index) => {
     const value = describePlace(place);
     const row: MetadataDisclosureRow = {
       label: serviceName,
@@ -124,6 +126,8 @@ export const AgentSessionMetadata = ({
       group: SERVICE_PLACES_GROUP,
       testId: placeTestId(place),
       ...(place.kind === "not-recorded" ? { dashed: true } : {}),
+      ...(change ? { badge: "Changed during session" } : {}),
+      ...(change?.startedIn ? { note: `Started in ${change.startedIn}` } : {}),
       ...(place.kind === "worktree"
         ? {
             copyTestId: `agent-session-metadata-place-copy-${index}`,

@@ -1,3 +1,4 @@
+import type { AgenticSession } from '../../session/types';
 import {
   SessionRole,
   LocalPromptType,
@@ -34,6 +35,7 @@ export interface EnrichedCodingPlanPromptPayload extends LocalStartupSessionProm
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
   _planDesignDocReference?: LocalPromptDesignDocInput;
   /**
    * Whether a `project_assistant` memo is present on the run. The memo content
@@ -185,6 +187,7 @@ export const codingPlanHandler: CodingPlanHandler = {
       ...(run.services && run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
       ...(planDesignDocReference ? { _planDesignDocReference: planDesignDocReference } : {}),
       ...(hasResearch ? { _hasResearch: true } : {}),
     });
@@ -214,6 +217,7 @@ export const codingPlanHandler: CodingPlanHandler = {
       ...(enriched._services ? { services: enriched._services } : {}),
       ...(enriched._launchServiceId ? { launchServiceId: enriched._launchServiceId } : {}),
       ...(enriched._worktreeState ? { worktreeState: enriched._worktreeState } : {}),
+      ...(enriched._mainFolderBranches ? { mainFolderBranches: enriched._mainFolderBranches } : {}),
       ...(ctx?.entity?.entityId ? { focalEntityId: ctx.entity.entityId } : {}),
       ...(enriched._hasResearch ? { hasResearch: true } : {}),
       ...(enriched._planDesignDocReference

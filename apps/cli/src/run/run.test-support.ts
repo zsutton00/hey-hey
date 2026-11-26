@@ -361,7 +361,7 @@ export const createTestRunEventPublisher = (
   return broadcaster;
 };
 
-const createTestSession = (): AgenticSession =>
+export const createTestSession = (): AgenticSession =>
   ({
     entity: null,
     agentic_session_id: 'test-run-id',

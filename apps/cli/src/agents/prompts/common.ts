@@ -9,6 +9,8 @@ import type {
 } from '../../shared/agent-bridge-contract/contract';
 import type { HintPromptAccess } from '../mcp-server-config';
 import { ProjectMaturity } from '../../shared/api/index';
+import { AgentSessionServicePlaceKind } from '@hey-hey/contracts/api/models';
+import { activeServicePlace, type ActiveServicePlace } from '../../run/service-active-place';
 import {
   type WorkItemTypeDefinitionDto,
   isPlatformFeatureType,
@@ -58,11 +60,17 @@ export const codingRepositoryAuthorityGuidance = `## Repository edit authority
 
 You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.`;
+Change each Service in the active session scope only in the place listed for it. Never use another checkout, including a host or main checkout that is not its listed place, as a fallback location for edits or other mutations, and never infer a worktree path and edit there. For a Service that isn't in the session, use the Service access request before changing it. For a Service in the session whose work is in a different worktree, ask to attach that worktree.`;
 
 export const codingServiceScopeGuidance = `## Additional Service scope
 
 When a repository change requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before changing that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review before making changes; you may continue read-only inspection while approval is pending. Do not edit, commit, or run mutating commands in an out-of-scope repository. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue changes only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute for changes. Denial means keep working within the existing scope or explain the blocker.`;
+
+export const codingWorktreeAttachGuidance = `## Work in another worktree
+
+If the work isn't where you expect it, list the repository's worktrees read-only (for example \`git worktree list\` in the Service's folder) before deciding it is elsewhere. Listing and reading other worktrees never need approval.
+
+To change files in another worktree of a Service already in this session, call \`request_agent_session_worktree_attach\` with the Service ID, the branch and a concise reason, instead of stopping or editing there. Then pause repository changes until the user decides; you may continue read-only inspection. Approval makes that worktree the Service's listed place. Attaching never creates a worktree and never adds a repository: use \`request_agent_session_service_scope\` for a repository that isn't in scope.`;
 
 /**
  * Platform context: tells the agent what the application is and how
@@ -139,15 +147,37 @@ export interface ServicesContextInput {
   services?: ReadonlyArray<ResolvedServiceBinding> | undefined;
   launchServiceId?: string | null | undefined;
   worktreeState?: Readonly<LocalWorktreeStateByService> | null | undefined;
+  /** The Run's read of each main-folder Service's branch; null means detached. */
+  mainFolderBranches?: Readonly<Record<string, string | null>> | undefined;
   /** Persisted Run entity identity used for an authoritative context lookup. */
   focalEntityId?: string | undefined;
 }
 
+/** Words the place a Service works in, as the Run holds it. */
+const describeServicePlace = (
+  service: ResolvedServiceBinding,
+  place: ActiveServicePlace,
+): string => {
+  if (place.kind === AgentSessionServicePlaceKind.Worktree) {
+    if (!place.worktreePath.trim()) {
+      throw new Error(`Worktree-backed Service ${service.id} has no worktree path.`);
+    }
+    return `worktree \`${place.worktreePath.trim()}\` on branch \`${place.branch}\``;
+  }
+
+  const folder = service.path ? `main folder \`${service.path}\`` : 'main folder';
+  if (place.branch === undefined) {
+    return folder;
+  }
+  return place.branch === null ? `${folder}, detached` : `${folder} on branch \`${place.branch}\``;
+};
+
 /**
  * Build the per-session services block included in every coding-mode prompt.
- * Names the launch service (the one whose path is `cwd`), enumerates the
- * other in-scope services with their on-disk paths, and lifts integration
- * surfaces to first-class concerns. The cross-service caveat fires even on
+ * Names the launch service, the place every in-scope service works in (its
+ * worktree or its main folder), and lifts integration surfaces to first-class
+ * concerns. It is built from the Run's own state only and never lists a
+ * repository's worktrees. The cross-service caveat fires even on
  * single-service sessions: real projects contain other services, so a change
  * to a public API, schema, or shared contract still crosses a boundary.
  *
@@ -155,30 +185,9 @@ export interface ServicesContextInput {
  * concatenate unconditionally.
  */
 export const buildServicesContextBlock = (input: ServicesContextInput): string => {
-  const checkoutServices = input.services ?? [];
-  const firstService = checkoutServices[0];
+  const services = input.services ?? [];
+  const firstService = services[0];
   if (!firstService) return '';
-
-  const projectedWorktreeCount = checkoutServices.filter(({ id }) =>
-    Boolean(input.worktreeState?.[id]?.worktreePath.trim()),
-  ).length;
-  const hasCompleteWorktreeProjection = projectedWorktreeCount === checkoutServices.length;
-  if (projectedWorktreeCount > 0 && !hasCompleteWorktreeProjection) {
-    throw new Error(
-      'Worktree-backed Services context is incomplete; every in-scope Service requires an explicit worktree path.',
-    );
-  }
-  const services = hasCompleteWorktreeProjection
-    ? checkoutServices.map((service) => {
-        const worktreePath = input.worktreeState?.[service.id]?.worktreePath.trim();
-        if (!worktreePath) {
-          throw new Error(
-            'Worktree-backed Services context is incomplete; every in-scope Service requires an explicit worktree path.',
-          );
-        }
-        return { ...service, path: worktreePath };
-      })
-    : checkoutServices;
 
   const launchServiceId =
     input.launchServiceId && services.some((entry) => entry.id === input.launchServiceId)
@@ -187,22 +196,27 @@ export const buildServicesContextBlock = (input: ServicesContextInput): string =
 
   const launch = services.find((entry) => entry.id === launchServiceId) ?? firstService;
   const others = services.filter((entry) => entry.id !== launch.id);
+  const launchPlace = activeServicePlace(input, launch.id);
+  const hasWorktree = services.some(
+    ({ id }) => activeServicePlace(input, id).kind === AgentSessionServicePlaceKind.Worktree,
+  );
 
   const lines: string[] = [];
   lines.push('## Services in scope');
   lines.push('');
   lines.push(
-    `- Launch service \`${launch.id}\`${launch.path ? ` at \`${launch.path}\`` : ''} — this is the ${hasCompleteWorktreeProjection ? 'launch Service workspace and ' : ''}working directory for the session.`,
+    `- Launch service \`${launch.id}\`: ${describeServicePlace(launch, launchPlace)} — this is the ${launchPlace.kind === AgentSessionServicePlaceKind.Worktree ? 'launch Service workspace and ' : ''}working directory for the session.`,
   );
   for (const entry of others) {
-    lines.push(`- \`${entry.id}\`${entry.path ? ` at \`${entry.path}\`` : ''}`);
+    const place = activeServicePlace(input, entry.id);
+    lines.push(`- \`${entry.id}\`: ${describeServicePlace(entry, place)}`);
   }
   lines.push('');
   lines.push(codingRepositoryAuthorityGuidance);
   lines.push('');
-  if (hasCompleteWorktreeProjection) {
+  if (hasWorktree) {
     lines.push(
-      'This is a worktree-backed session. For each selected Service, use its corresponding listed worktree for inspection and changes. Do not use a host checkout as a fallback location for edits or other mutations. Read-only inspection of a project Service outside the selected scope is allowed and does not expand writable roots. Any newly authorized Service must have its explicit corresponding worktree listed before changes begin.',
+      'This is a worktree-backed session. For each Service listed with a worktree, do its work in that listed worktree; a worktree attached after approval counts as a listed worktree. Do not use a host checkout as a fallback location for edits or other mutations. Reading other worktrees, and read-only inspection of a project Service outside the selected scope, is allowed and does not expand writable roots. Any newly authorized Service must have its place listed before changes begin.',
     );
     lines.push('');
   }

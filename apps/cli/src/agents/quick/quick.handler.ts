@@ -21,6 +21,7 @@ type EnrichedQuickPromptPayload = LocalQuickPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
 };
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 
@@ -50,6 +51,7 @@ export const quickHandler: UserLaunchablePromptTypeHandler<LocalQuickPromptPaylo
       ...(run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
     };
     return { payload: enriched };
   },
@@ -60,6 +62,7 @@ export const quickHandler: UserLaunchablePromptTypeHandler<LocalQuickPromptPaylo
       services: enriched._services,
       launchServiceId: enriched._launchServiceId,
       worktreeState: enriched._worktreeState,
+      mainFolderBranches: enriched._mainFolderBranches,
     });
     const repositoryContext = servicesContext || codingRepositoryAuthorityGuidance;
     const lines: string[] = ['You are in a Task Only coding session.'];

@@ -8,7 +8,8 @@ export type PermissionCallbackType =
   | 'codex_exec_approval_response'
   | 'opencode_permission_response'
   | 'antigravity_permission_response'
-  | 'service_scope_decision';
+  | 'service_scope_decision'
+  | 'worktree_attach_decision';
 
 export interface PermissionDecisionRoutingInput {
   runId: string;

@@ -145,8 +145,8 @@ describe('researchHandler.prepare', () => {
     );
 
     const prompt = researchHandler.buildPrompt(result.payload);
-    expect(prompt).toContain('Launch service `service-a` at `/worktrees/service-a`');
-    expect(prompt).toContain('`service-b` at `/worktrees/service-b`');
+    expect(prompt).toContain('Launch service `service-a`: worktree `/worktrees/service-a`');
+    expect(prompt).toContain('`service-b`: worktree `/worktrees/service-b`');
     expect(prompt).not.toContain('/host/service-a');
     expect(prompt).not.toContain('/host/service-b');
   });

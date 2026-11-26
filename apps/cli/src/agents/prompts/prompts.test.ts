@@ -152,8 +152,12 @@ describe('buildServicesContextBlock', () => {
     });
 
     expect(result).toMatchSnapshot();
-    expect(result).toContain('Launch service `service-b` at `/worktrees/service-b`');
-    expect(result).toContain('`service-a` at `/worktrees/service-a`');
+    expect(result).toContain(
+      'Launch service `service-b`: worktree `/worktrees/service-b` on branch `feature/worktrees`',
+    );
+    expect(result).toContain(
+      '`service-a`: worktree `/worktrees/service-a` on branch `feature/worktrees`',
+    );
     expect(result).not.toContain('/host/service-a');
     expect(result).not.toContain('/host/service-b');
     expect(result).toContain(
@@ -164,19 +168,22 @@ describe('buildServicesContextBlock', () => {
       "Read-only inspection does not add a Service to the Run's writable roots",
     );
     expect(result).toContain('does not authorize edits, commits, or mutating commands');
-    expect(result).toContain('explicit corresponding worktree path');
     expect(result).toContain('never infer a worktree path');
+    expect(result).toContain('ask to attach that worktree');
   });
 
-  it('retains checkout paths and omits worktree guidance without complete resolved state', () => {
+  it('names the branch of each main folder and omits worktree guidance without a worktree', () => {
     const result = buildServicesContextBlock({
       services,
       launchServiceId: 'service-a',
+      mainFolderBranches: { 'service-a': 'dev', 'service-b': null },
     });
 
     expect(result).toMatchSnapshot();
-    expect(result).toContain('Launch service `service-a` at `/host/service-a`');
-    expect(result).toContain('`service-b` at `/host/service-b`');
+    expect(result).toContain(
+      'Launch service `service-a`: main folder `/host/service-a` on branch `dev`',
+    );
+    expect(result).toContain('`service-b`: main folder `/host/service-b`, detached');
     expect(result).not.toContain('worktree-backed session');
     expect(result).not.toContain('Host checkouts are outside');
     expect(result).toContain('You may inspect code in any project Service');
@@ -203,22 +210,36 @@ describe('buildServicesContextBlock', () => {
     );
   });
 
-  it('fails closed instead of exposing host checkouts for a partial worktree projection', () => {
+  it('names each Service its own place after one of them attaches a worktree', () => {
+    const result = buildServicesContextBlock({
+      services,
+      launchServiceId: 'service-a',
+      mainFolderBranches: { 'service-a': 'dev' },
+      worktreeState: {
+        'service-b': {
+          repoPath: '/host/service-b',
+          worktreePath: '/worktrees/service-b',
+          branch: 'feature/attached',
+        },
+      },
+    });
+
+    expect(result).toMatchSnapshot();
+    expect(result).toContain('main folder `/host/service-a` on branch `dev`');
+    expect(result).toContain('worktree `/worktrees/service-b` on branch `feature/attached`');
+    expect(result).not.toContain('/host/service-b');
+    expect(result).toContain('a worktree attached after approval counts as a listed worktree');
+  });
+
+  it('fails closed instead of exposing a host checkout for a worktree with no path', () => {
     expect(() =>
       buildServicesContextBlock({
         services,
-        launchServiceId: 'service-a',
         worktreeState: {
-          'service-a': {
-            repoPath: '/host/service-a',
-            worktreePath: '/worktrees/service-a',
-            branch: 'feature/worktrees',
-          },
+          'service-a': { repoPath: '/host/service-a', worktreePath: ' ', branch: 'feature/x' },
         },
       }),
-    ).toThrow(
-      'Worktree-backed Services context is incomplete; every in-scope Service requires an explicit worktree path.',
-    );
+    ).toThrow('has no worktree path');
   });
 });
 

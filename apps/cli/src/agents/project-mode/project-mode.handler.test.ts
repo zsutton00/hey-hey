@@ -217,6 +217,7 @@ describe('project-mode handler', () => {
     expect(projectModeHandler.submissionTools?.map((tool) => tool.name)).toEqual([
       'report_changed_files',
       'request_agent_session_service_scope',
+      'request_agent_session_worktree_attach',
     ]);
     expect(Object.isFrozen(projectModeHandler)).toBe(true);
   });

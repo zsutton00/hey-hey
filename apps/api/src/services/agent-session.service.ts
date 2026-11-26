@@ -54,6 +54,7 @@ import {
   AgentSessionServiceSummary,
   GrantAgentSessionServicesDto,
   AgentSessionServicePlace,
+  AttachAgentSessionServicePlaceDto,
   AgentSessionServicePlaceKind,
   AgentSessionServicePlaceOutcome,
   AgentSessionServicePlaceResult,
@@ -96,6 +97,10 @@ import { ConversationService } from './conversation.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from './agent-session-title';
 import { EntityRegistryService } from './entity-registry/entity-registry.service';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
+import {
+  decideWorktreeAttach,
+  WorktreeAttachVerdict,
+} from './agent-session-worktree-attach';
 import {
   ConversationId,
   MessageId,
@@ -151,7 +156,14 @@ type AgentSessionServiceRelationSelection = {
   placeBranch?: string | null;
   placeWorktreePath?: string | null;
   placeRecordedAt?: Date | null;
+  launchPlaceKind?: string | null;
+  launchPlaceBranch?: string | null;
+  launchPlaceWorktreePath?: string | null;
+  placeChangedAt?: Date | null;
 };
+
+/** Refusal for a place change with no matching approved attach request. */
+const NOT_APPROVED = 'NOT_APPROVED' as const;
 
 const SERVICE_PLACE_KINDS: readonly string[] = Object.values(
   AgentSessionServicePlaceKind,
@@ -180,6 +192,10 @@ type RawServicePlace = {
   branch: string | null;
   worktreePath: string | null;
   recordedAt: string;
+  launchKind: string | null;
+  launchBranch: string | null;
+  launchWorktreePath: string | null;
+  changedAt: string | null;
 };
 type MutableInputJsonObject = Record<string, Prisma.InputJsonValue | null>;
 
@@ -448,7 +464,11 @@ const SERVICE_PLACES_AGGREGATE_SQL = Prisma.sql`COALESCE(
                 'kind', sas.place_kind,
                 'branch', sas.place_branch,
                 'worktreePath', sas.place_worktree_path,
-                'recordedAt', to_char(sas.place_recorded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                'recordedAt', to_char(sas.place_recorded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+                'launchKind', sas.launch_place_kind,
+                'launchBranch', sas.launch_place_branch,
+                'launchWorktreePath', sas.launch_place_worktree_path,
+                'changedAt', to_char(sas.place_changed_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
               )
               ORDER BY sas.created_at, sas.service_id
             ) FILTER (WHERE sas.place_kind IS NOT NULL),
@@ -1971,6 +1991,196 @@ export class AgentSessionService {
       this.toCurrentStateIdentity(updated),
     );
     return { session: dto, results };
+  }
+
+  /**
+   * Applies an approved worktree attach: the Service's active place becomes the
+   * worktree. The request must be an approved worktree-attach card in this
+   * session's conversation for the same Service, branch and worktree path.
+   * The first change keeps the launch place when one was reported. An identical
+   * repeat, or a request a later applied attach for the same Service has
+   * superseded, is a no-op so a re-delivered or replayed approval cannot move
+   * the Service back. The plan's branch is not touched.
+   */
+  async changeServicePlace(input: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    agentSessionId: string;
+    userId: UserId;
+    change: AttachAgentSessionServicePlaceDto;
+  }): Promise<AgentSessionDto> {
+    const { change } = input;
+    const session = await this.prisma.db.agentSession.findFirst({
+      where: {
+        id: input.agentSessionId,
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        machineId: true,
+        conversationId: true,
+      },
+    });
+    if (!session) {
+      throw new NotFoundException('Agent session not found');
+    }
+    if (session.userId !== input.userId) {
+      throw new ForbiddenException(
+        'Agent session is owned by a different user',
+      );
+    }
+    if (!session.machineId || session.machineId !== change.machineId) {
+      throw new BadRequestException(
+        'The authenticated machine does not match the Agent Session binding',
+      );
+    }
+
+    const outcome = await this.prisma.db.$transaction(
+      async (tx) => {
+        const membership = await tx.serviceAgentSession.findUnique({
+          where: {
+            serviceId_agentSessionId: {
+              serviceId: change.serviceId,
+              agentSessionId: session.id,
+            },
+          },
+        });
+        if (!membership) {
+          return AgentSessionServicePlaceOutcome.NotMember;
+        }
+
+        const verdict = await this.judgeWorktreeAttach(tx, {
+          conversationId: session.conversationId,
+          change,
+          membership,
+        });
+        if (verdict === 'NOT_APPROVED') {
+          return NOT_APPROVED;
+        }
+
+        const worktree = AgentSessionServicePlaceKind.Worktree;
+        const identical =
+          membership.placeKind === worktree &&
+          membership.placeBranch === change.branch &&
+          membership.placeWorktreePath === change.worktreePath;
+        if (identical || verdict === 'STALE') {
+          return AgentSessionServicePlaceOutcome.AlreadyRecorded;
+        }
+
+        // The launch place is copied only when one was reported and nothing has
+        // changed yet; a first attach to an empty row leaves it unknown.
+        const now = new Date();
+        const keepLaunchPlace =
+          membership.placeKind !== null && membership.placeChangedAt === null;
+        await tx.serviceAgentSession.update({
+          where: { id: membership.id },
+          data: {
+            placeKind: worktree,
+            placeBranch: change.branch,
+            placeWorktreePath: change.worktreePath,
+            placeRecordedAt: now,
+            placeChangedAt: now,
+            ...(keepLaunchPlace
+              ? {
+                  launchPlaceKind: membership.placeKind,
+                  launchPlaceBranch: membership.placeBranch,
+                  launchPlaceWorktreePath: membership.placeWorktreePath,
+                }
+              : {}),
+          },
+        });
+        return AgentSessionServicePlaceOutcome.Recorded;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (outcome === NOT_APPROVED) {
+      this.logger.warn(
+        'Worktree attach refused: no matching approved request',
+        {
+          agentSessionId: session.id,
+          serviceId: change.serviceId,
+          requestId: change.requestId,
+          code: 'NOT_APPROVED',
+        },
+      );
+      throw new BadRequestException(
+        'NOT_APPROVED: no approved worktree-attach request matches this change',
+      );
+    }
+    if (outcome === AgentSessionServicePlaceOutcome.NotMember) {
+      this.logger.warn('Worktree attach refused: Service not in session', {
+        agentSessionId: session.id,
+        serviceId: change.serviceId,
+        requestId: change.requestId,
+        code: 'NOT_MEMBER',
+      });
+      throw new BadRequestException(
+        'NOT_MEMBER: the Service is not part of this Agent Session',
+      );
+    }
+    this.logger.debug('Agent Session Service place changed', {
+      agentSessionId: session.id,
+      serviceId: change.serviceId,
+      requestId: change.requestId,
+      outcome,
+    });
+
+    const updated = await this.prisma.db.agentSession.findUnique({
+      where: { id: session.id },
+      include: this.buildSelectedServiceRelationsInclude(),
+    });
+    if (!updated) {
+      throw new NotFoundException('Agent session not found after place change');
+    }
+    return this.enrichAgentSessionDto(
+      this.toDto(updated as AgentSessionWithSelectedServices),
+      this.toCurrentStateIdentity(updated),
+    );
+  }
+
+  /**
+   * Judges one attach delivery against the attach cards stored on the session's
+   * conversation. The CLI records each decision on its card, so the request ID
+   * alone is never trusted: Service, branch and path must match an approved
+   * card, and a request a later applied attach has superseded is stale.
+   */
+  private async judgeWorktreeAttach(
+    tx: AnyTransactionClient,
+    input: {
+      conversationId: string | null;
+      change: AttachAgentSessionServicePlaceDto;
+      membership: {
+        placeKind: string | null;
+        placeBranch: string | null;
+        placeWorktreePath: string | null;
+      };
+    },
+  ): Promise<WorktreeAttachVerdict> {
+    if (!input.conversationId) {
+      return 'NOT_APPROVED';
+    }
+
+    const rows: { data: unknown }[] = await tx.$queryRaw`
+      SELECT message.data AS "data"
+      FROM "messages" message
+      WHERE message.conversation_id::text = ${input.conversationId}
+        AND jsonb_typeof(message.data::jsonb->'uiElements') = 'array'
+        AND message.data::jsonb->'uiElements' @>
+          '[{"payload":{"responseType":"agent_request_worktree_attach_v1"}}]'::jsonb
+    `;
+
+    return decideWorktreeAttach({
+      messageData: rows.map((row) => row.data),
+      change: input.change,
+      activePlace: {
+        kind: input.membership.placeKind,
+        branch: input.membership.placeBranch,
+        worktreePath: input.membership.placeWorktreePath,
+      },
+    });
   }
 
   /**
@@ -3626,6 +3836,10 @@ export class AgentSessionService {
           placeBranch: place?.branch ?? null,
           placeWorktreePath: place?.worktreePath ?? null,
           placeRecordedAt: place ? new Date(place.recordedAt) : null,
+          launchPlaceKind: place?.launchKind ?? null,
+          launchPlaceBranch: place?.launchBranch ?? null,
+          launchPlaceWorktreePath: place?.launchWorktreePath ?? null,
+          placeChangedAt: place?.changedAt ? new Date(place.changedAt) : null,
         };
       }),
     };
@@ -5302,6 +5516,8 @@ export class AgentSessionService {
       ) {
         continue;
       }
+      const launchKind = relation.launchPlaceKind;
+      const changed = Boolean(relation.placeChangedAt);
       places.push({
         serviceId: relation.serviceId,
         kind: relation.placeKind,
@@ -5310,6 +5526,18 @@ export class AgentSessionService {
           ? { worktreePath: relation.placeWorktreePath }
           : {}),
         recordedAt: relation.placeRecordedAt.toISOString(),
+        changedDuringSession: changed,
+        ...(changed && launchKind && isServicePlaceKind(launchKind)
+          ? {
+              launchPlace: {
+                kind: launchKind,
+                branch: relation.launchPlaceBranch ?? null,
+                ...(relation.launchPlaceWorktreePath
+                  ? { worktreePath: relation.launchPlaceWorktreePath }
+                  : {}),
+              },
+            }
+          : {}),
       });
     }
     return places;
@@ -5324,6 +5552,10 @@ export class AgentSessionService {
           placeBranch: true,
           placeWorktreePath: true,
           placeRecordedAt: true,
+          launchPlaceKind: true,
+          launchPlaceBranch: true,
+          launchPlaceWorktreePath: true,
+          placeChangedAt: true,
         },
         orderBy: { createdAt: 'asc' as const },
       },

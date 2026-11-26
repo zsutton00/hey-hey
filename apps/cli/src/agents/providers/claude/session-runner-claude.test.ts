@@ -38,6 +38,7 @@ import { ToolRuleStore } from '../../../session/tool-rules';
 import { SubmissionToolRegistry } from '../../submission-tools/registry';
 import {
   createProviderTestAgentOutputOwner,
+  createWorktreeAttachWaitingTestOwner,
   createProviderTestRepoMappingStore,
   createProviderTestRunStore,
 } from '../provider-owner.test-support';
@@ -530,6 +531,35 @@ describe('session-runner-claude', () => {
     } finally {
       await runner.dispose();
     }
+  });
+
+  it('treats the abort that enters a worktree-attach wait as expected control flow', async () => {
+    const runStore = makeRunStore();
+    const agentOutputOwner = createWorktreeAttachWaitingTestOwner();
+    const controller = agentOutputOwner.createAbortController();
+    getSessionIdMock.mockReturnValue('provider-session-1');
+    continueSessionMock.mockImplementation(async () => {
+      controller.abort();
+      throw new Error('Aborted');
+    });
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore,
+      repoStore: makeRepoStore(),
+      agentOutputOwner,
+    });
+
+    await expect(
+      runner.runPrompt({
+        session: makeSession(),
+        prompt: 'Attach another worktree.',
+        signal: controller.signal,
+      }),
+    ).resolves.toMatchObject({ providerSessionId: 'provider-session-1', errorCount: 0 });
+
+    expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'idle');
   });
 
   it('treats an automatically settled Service-scope abort as expected control flow', async () => {

@@ -1,7 +1,6 @@
 import { Alert, Button, Stack, Typography } from "@mui/material";
 import React from "react";
 import { useServices } from "../../../data/hooks/useServices";
-import { useSubmitControllerAuthorizedPermissionDecision } from "../../../data/hooks/useSubmitControllerAuthorizedPermissionDecision";
 import { useAgentSession } from "../../../data/hooks/useAgentSession";
 import { useWorkItem } from "../../../data/hooks/useWorkItem";
 import { ServicesWorkIn } from "../../AgentSession/ServicesWorkIn";
@@ -13,6 +12,7 @@ import {
   type ServicePlaceChoice,
 } from "../../../api";
 import type { FieldComponentProps, FieldConfig } from "./types";
+import { useAccessRequestDecision } from "./useAccessRequestDecision";
 type ServiceScopeFieldConfig = Omit<FieldConfig, "payload"> & {
   payload: AgentRequestServiceScopePayload;
 };
@@ -22,7 +22,6 @@ export interface AgentServiceScopeRequestFieldProps extends Omit<
 > {
   config: ServiceScopeFieldConfig;
 }
-type DeliveryState = "idle" | "submitting" | "delivered" | "failed";
 const namesFor = (
   ids: readonly string[],
   services: readonly { id: string; name: string }[],
@@ -32,12 +31,6 @@ export const AgentServiceScopeRequestField: React.FC<
   AgentServiceScopeRequestFieldProps
 > = ({ config, context, disabled = false, isSubmitted = false }) => {
   const { organizationId, projectId, agentSessionId } = context;
-  const { submit: submitControllerDecision } =
-    useSubmitControllerAuthorizedPermissionDecision(
-      organizationId,
-      projectId,
-      agentSessionId,
-    );
   const { services, isLoading, error } = useServices(organizationId, {
     projectId,
     status: "ACTIVE",
@@ -61,10 +54,7 @@ export const AgentServiceScopeRequestField: React.FC<
   const [changedChoices, setChangedChoices] = React.useState<
     Record<string, ServicePlaceChoice>
   >({});
-  const [deliveryState, setDeliveryState] =
-    React.useState<DeliveryState>("idle");
   const [placesUnavailable, setPlacesUnavailable] = React.useState(false);
-  const [deliveryError, setDeliveryError] = React.useState<string | null>(null);
   const payload = config.payload;
   const request = payload.serviceScopeRequest;
   const currentNames = React.useMemo(
@@ -117,66 +107,17 @@ export const AgentServiceScopeRequestField: React.FC<
   const unchosenServiceIds = addedServiceIds.filter((id) => !choices[id]);
   const machineId = agentSession?.machineId ?? null;
   const settled = payload.decision !== undefined && payload.decision !== null;
-  const disabledButtons =
-    disabled ||
-    isSubmitted ||
-    settled ||
-    deliveryState === "submitting" ||
-    deliveryState === "delivered";
+  const { submit, disabledButtons, deliveryError } = useAccessRequestDecision({
+    context,
+    request,
+    locked: disabled || isSubmitted || settled,
+    subject: "Service-scope",
+  });
   const approveBlocked =
     serviceResolutionUnavailable ||
     placesUnavailable ||
     nameOpen ||
     unchosenServiceIds.length > 0;
-  const submit = React.useCallback(
-    async (decision: "approve" | "deny") => {
-      if (disabledButtons) return;
-      if (decision === "approve" && approveBlocked) return;
-      if (!agentSessionId) {
-        setDeliveryError(
-          "Missing agent session id — cannot route Service-scope decision.",
-        );
-        setDeliveryState("failed");
-        return;
-      }
-      const decisionRequest = {
-        decision,
-        requestId: request.id,
-        sessionId: request.sessionId,
-        agentType: request.agentType,
-        reason: request.reason,
-        idempotencyToken: request.idempotencyToken,
-        ...(decision === "approve"
-          ? { servicePlaceChoices: Object.values(choices) }
-          : {}),
-      };
-      setDeliveryError(null);
-      setDeliveryState("submitting");
-      try {
-        await submitControllerDecision(decisionRequest);
-        setDeliveryState("delivered");
-      } catch (submissionError) {
-        setDeliveryError(
-          submissionError instanceof Error
-            ? submissionError.message
-            : "Failed to route Service-scope decision.",
-        );
-        setDeliveryState("failed");
-      }
-    },
-    [
-      agentSessionId,
-      approveBlocked,
-      choices,
-      disabledButtons,
-      request.agentType,
-      request.id,
-      request.idempotencyToken,
-      request.reason,
-      request.sessionId,
-      submitControllerDecision,
-    ],
-  );
   if (isLoading)
     return (
       <Typography
@@ -273,7 +214,11 @@ export const AgentServiceScopeRequestField: React.FC<
         <Button
           variant="contained"
           disabled={disabledButtons || approveBlocked}
-          onClick={() => void submit("approve")}
+          onClick={() =>
+            void submit("approve", {
+              servicePlaceChoices: Object.values(choices),
+            })
+          }
           data-testid="agent-service-scope-approve"
         >
           Approve

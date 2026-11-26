@@ -29,6 +29,10 @@ export interface MetadataDisclosureValueRow {
   copyTestId?: string;
   /** Mobile disclosure shows a subheading when this changes between rows. */
   group?: string;
+  /** Short status pill shown after the value. */
+  badge?: string;
+  /** Secondary line about the value. */
+  note?: string;
   onCopy?: never;
 }
 
@@ -46,6 +50,10 @@ export interface MetadataDisclosureCopyRow {
   copyTestId?: string;
   /** Mobile disclosure shows a subheading when this changes between rows. */
   group?: string;
+  /** Short status pill shown after the value. */
+  badge?: string;
+  /** Secondary line about the value. */
+  note?: string;
   onCopy: () => void;
 }
 
@@ -84,6 +92,12 @@ const chipSx = {
   },
 } as const;
 
+const truncatedSx = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+} as const;
+
 const compactChipSx = {
   maxWidth: "100%",
   minWidth: 0,
@@ -95,7 +109,51 @@ const compactChipSx = {
   },
 } as const;
 
+// Takes only the width the chips leave free; the chip's tooltip keeps the text.
+const noteSx = {
+  ...truncatedSx,
+  flex: "1 1 0",
+  maxWidth: "max-content",
+} as const;
+
+const badgeSx = {
+  display: "inline-block",
+  flexShrink: 0,
+  px: 0.75,
+  border: 1,
+  borderColor: "primary.main",
+  borderRadius: 4,
+  color: "text.primary",
+  typography: "caption",
+  lineHeight: 1.4,
+} as const;
+
 const hasDisplayValue = (value: string): boolean => value.trim().length > 0;
+
+const describeRow = (parts: readonly (string | undefined)[]): string =>
+  parts.filter(Boolean).join(" · ");
+
+const desktopChipLabel = (row: MetadataDisclosureRow) => {
+  const text = row.desktopText ?? row.value;
+  if (row.badge === undefined) {
+    return text;
+  }
+
+  // The badge never shrinks, so it stays readable when the row is crowded.
+  return (
+    <Box
+      component="span"
+      sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
+    >
+      <Box component="span" sx={truncatedSx}>
+        {text}
+      </Box>
+      <Box component="span" sx={badgeSx}>
+        {row.badge}
+      </Box>
+    </Box>
+  );
+};
 
 export const MetadataDisclosure = ({
   rows,
@@ -265,6 +323,23 @@ export const MetadataDisclosure = ({
                         sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere" }}
                       >
                         {row.value}
+                        {row.badge !== undefined ? (
+                          <Box component="span" sx={{ display: "block" }}>
+                            <Box component="span" sx={badgeSx}>
+                              {row.badge}
+                            </Box>
+                          </Box>
+                        ) : null}
+                        {row.note !== undefined ? (
+                          <Typography
+                            component="span"
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block" }}
+                          >
+                            {row.note}
+                          </Typography>
+                        ) : null}
                       </Typography>
                     </Box>
                   </Fragment>
@@ -289,46 +364,65 @@ export const MetadataDisclosure = ({
           }}
         >
           {displayRows.map((row, index) => (
-            <Tooltip key={`${row.label}-${index}`} title={row.label} arrow>
-              <Chip
-                aria-label={`${row.label}: ${row.value}`}
-                data-testid={row.desktopTestId ?? row.testId}
-                variant={row.dashed ? "outlined" : "filled"}
-                deleteIcon={
-                  row.onCopy ? (
-                    <IconButton
-                      aria-label={`Copy ${row.label.toLowerCase()}`}
-                      data-testid={
-                        row.copyTestId ??
-                        `${testIdPrefix}-${row.label
-                          .toLowerCase()
-                          .replace(/\s+/g, "-")}-copy`
-                      }
-                      onClick={(event) => event.stopPropagation()}
-                      size="small"
-                      sx={{ p: 0.25 }}
-                      type="button"
-                    >
-                      <ContentCopyIcon fontSize="inherit" />
-                    </IconButton>
-                  ) : undefined
-                }
-                label={row.desktopText ?? row.value}
-                onDelete={
-                  row.onCopy
-                    ? () => {
-                        row.onCopy();
-                      }
-                    : undefined
-                }
-                size="small"
-                sx={{
-                  ...chipSx,
-                  ...desktopChipVariantSx,
-                  ...(row.dashed ? { borderStyle: "dashed" } : {}),
-                }}
-              />
-            </Tooltip>
+            <Fragment key={`${row.label}-${index}`}>
+              <Tooltip
+                title={describeRow([row.label, row.badge, row.note])}
+                arrow
+              >
+                <Chip
+                  aria-label={describeRow([
+                    `${row.label}: ${row.value}`,
+                    row.badge,
+                    row.note,
+                  ])}
+                  data-testid={row.desktopTestId ?? row.testId}
+                  variant={row.dashed ? "outlined" : "filled"}
+                  deleteIcon={
+                    row.onCopy ? (
+                      <IconButton
+                        aria-label={`Copy ${row.label.toLowerCase()}`}
+                        data-testid={
+                          row.copyTestId ??
+                          `${testIdPrefix}-${row.label
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}-copy`
+                        }
+                        onClick={(event) => event.stopPropagation()}
+                        size="small"
+                        sx={{ p: 0.25 }}
+                        type="button"
+                      >
+                        <ContentCopyIcon fontSize="inherit" />
+                      </IconButton>
+                    ) : undefined
+                  }
+                  label={desktopChipLabel(row)}
+                  onDelete={
+                    row.onCopy
+                      ? () => {
+                          row.onCopy();
+                        }
+                      : undefined
+                  }
+                  size="small"
+                  sx={{
+                    ...chipSx,
+                    ...desktopChipVariantSx,
+                    ...(row.dashed ? { borderStyle: "dashed" } : {}),
+                  }}
+                />
+              </Tooltip>
+              {row.note !== undefined ? (
+                <Typography
+                  component="span"
+                  variant="caption"
+                  color="text.secondary"
+                  sx={noteSx}
+                >
+                  {row.note}
+                </Typography>
+              ) : null}
+            </Fragment>
           ))}
         </Stack>
       )}

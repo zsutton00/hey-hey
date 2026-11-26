@@ -85,13 +85,13 @@ describe('quickHandler', () => {
 
     expect(systemPrompt).toMatchSnapshot();
     expect(systemPrompt).toContain('## Services in scope');
-    expect(systemPrompt).toContain('Launch service `service-b` at `/worktrees/service-b`');
-    expect(systemPrompt).toContain('`service-a` at `/worktrees/service-a`');
+    expect(systemPrompt).toContain('Launch service `service-b`: worktree `/worktrees/service-b`');
+    expect(systemPrompt).toContain('`service-a`: worktree `/worktrees/service-a`');
     expect(systemPrompt).not.toContain('/host/service-a');
     expect(systemPrompt).not.toContain('/host/service-b');
   });
 
-  it('fails closed when the Run has an incomplete worktree projection', async () => {
+  it('names each Service its own place when only some work in a worktree', async () => {
     const payload = makePayload();
     const prepare = quickHandler.prepare;
     if (!prepare) throw new Error('expected quick handler prepare hook');
@@ -116,9 +116,11 @@ describe('quickHandler', () => {
       {} as Parameters<typeof prepare>[2],
     );
 
-    expect(() => quickHandler.buildPrompt(prepared.payload)).toThrow(
-      'Worktree-backed Services context is incomplete; every in-scope Service requires an explicit worktree path.',
-    );
+    const systemPrompt = quickHandler.buildPrompt(prepared.payload);
+
+    expect(systemPrompt).toContain('`service-a`: worktree `/worktrees/service-a`');
+    expect(systemPrompt).toContain('`service-b`: main folder `/host/service-b`');
+    expect(systemPrompt).not.toContain('/host/service-a');
   });
 
   it('leaves Task Only task context to the canonical provider projection', () => {
@@ -134,9 +136,9 @@ describe('quickHandler', () => {
     expect(systemPrompt).toContain('You may inspect code in any project Service');
     expect(systemPrompt).toContain('it does not authorize edits, commits, or mutating commands');
     expect(systemPrompt).toContain(
-      "changes to another selected Service require that Service's explicit corresponding worktree path",
+      'Change each Service in the active session scope only in the place listed for it',
     );
-    expect(systemPrompt).toContain('Never use its host or main checkout as a fallback location');
+    expect(systemPrompt).toContain('never infer a worktree path and edit there');
     expect(systemPrompt).toContain(
       "The user's kickoff prompt takes precedence. Treat the canonical focal entity projection as context for that prompt.",
     );

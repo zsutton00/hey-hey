@@ -15,6 +15,7 @@ import type {
 import {
   buildServicesContextBlock,
   codingServiceScopeGuidance,
+  codingWorktreeAttachGuidance,
   focalContextOrientation,
   planVsTasksFork,
 } from './common';
@@ -267,6 +268,7 @@ export const buildCodingConversationPrompt = (
     services: payload.services,
     launchServiceId: payload.launchServiceId ?? null,
     worktreeState: payload.worktreeState,
+    mainFolderBranches: payload.mainFolderBranches,
   });
   if (servicesBlock) sections.push(servicesBlock);
 
@@ -279,6 +281,7 @@ export const buildCodingConversationPrompt = (
 
   sections.push(planVsTasksFork);
   sections.push(codingServiceScopeGuidance);
+  sections.push(codingWorktreeAttachGuidance);
 
   if (mode.kind === 'launch') {
     if (mode.readinessClarification) {

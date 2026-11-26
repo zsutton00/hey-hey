@@ -13823,6 +13823,10 @@
         },
         {
           "type": "string",
+          "const": "agent-request-worktree-attach"
+        },
+        {
+          "type": "string",
           "const": "agent-request-review-file-scope"
         },
         {
@@ -14856,6 +14860,9 @@
           "$ref": "#/definitions/AgentRequestServiceScopePayload"
         },
         {
+          "$ref": "#/definitions/AgentRequestWorktreeAttachPayload"
+        },
+        {
           "$ref": "#/definitions/CodingPlanContext"
         },
         {
@@ -15556,6 +15563,183 @@
       "description": "Reviewable request for expanding a repository-bound coding session\\'s Service scope"
     },
     "AgentRequestServiceScopePayloadDecisionEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "approve"
+        },
+        {
+          "type": "string",
+          "const": "deny"
+        },
+        {}
+      ]
+    },
+    "AgentRequestWorktreeAttachPayload": {
+      "type": "object",
+      "properties": {
+        "responseType": {
+          "$ref": "#/definitions/AgentRequestWorktreeAttachPayloadResponseTypeEnum",
+          "description": "Discriminator identifying a worktree-attach review payload"
+        },
+        "worktreeAttachRequest": {
+          "$ref": "#/definitions/AgentSessionWorktreeAttachRequest"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AgentRequestWorktreeAttachPayloadDecisionEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "User decision recorded on the review message"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO timestamp of the recorded decision"
+        },
+        "failureReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why an approved request could not be applied. Set when the decision was recorded but the place did not change."
+        }
+      },
+      "required": [
+        "responseType",
+        "worktreeAttachRequest"
+      ],
+      "description": "Structured payload for worktree-attach review UI elements"
+    },
+    "AgentRequestWorktreeAttachPayloadResponseTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "agent_request_worktree_attach_v1"
+        },
+        {}
+      ]
+    },
+    "AgentSessionWorktreeAttachRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique worktree-attach request identifier"
+        },
+        "runId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Active local Run identifier when available"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "AgentSession identifier owning the request"
+        },
+        "agentId": {
+          "type": "string",
+          "description": "Stable coding-agent handler identifier"
+        },
+        "agentType": {
+          "$ref": "#/definitions/AgentProviderId"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Request creation timestamp"
+        },
+        "idempotencyToken": {
+          "type": "string",
+          "description": "Stable token used when responding to this request"
+        },
+        "serviceId": {
+          "type": "string",
+          "description": "Service in the session whose place would change"
+        },
+        "currentPlace": {
+          "$ref": "#/definitions/AgentSessionServiceLocation",
+          "description": "Where the Service works now (kind, branch and worktree path where applicable), shown so the reviewer sees the actual source location that changes"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch checked out in the existing worktree to attach"
+        },
+        "worktreePath": {
+          "type": "string",
+          "description": "Existing worktree folder to attach. Filled by the CLI when it builds the request; the agent supplies only the Service, branch and reason."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Agent explanation for attaching this worktree"
+        },
+        "planBranch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Branch the session\\'s plan targets, shown for context. Attaching never changes it."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "sessionId",
+        "agentId",
+        "agentType",
+        "timestamp",
+        "idempotencyToken",
+        "serviceId",
+        "currentPlace",
+        "branch",
+        "worktreePath",
+        "reason"
+      ],
+      "description": "Reviewable request to attach an existing worktree as one Service\\'s place mid-session"
+    },
+    "AgentSessionServiceLocation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/AgentSessionServicePlaceKind"
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktreePath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "branch"
+      ],
+      "description": "A recorded location a Service works in: the main folder (branch as checked out, or null) or a worktree with its branch and folder. Used for the launch place and for the place a worktree-attach request would change."
+    },
+    "AgentSessionServicePlaceKind": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "MAIN_FOLDER"
+        },
+        {
+          "type": "string",
+          "const": "WORKTREE"
+        },
+        {}
+      ],
+      "description": "Whether a Service works in its main folder or in a worktree."
+    },
+    "AgentRequestWorktreeAttachPayloadDecisionEnum": {
       "anyOf": [
         {
           "type": "string",
@@ -27043,20 +27227,6 @@
         "branch"
       ],
       "description": "Where the edit was made: the branch checked out, and the worktree if any, in the folder the edit ran in, read when the edit was recorded. When an edit has no `place`, its place was not recorded (older records, or git could not be read) and readers must show it as not recorded, never guess it from the session."
-    },
-    "AgentSessionServicePlaceKind": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "MAIN_FOLDER"
-        },
-        {
-          "type": "string",
-          "const": "WORKTREE"
-        },
-        {}
-      ],
-      "description": "Whether a Service works in its main folder or in a worktree."
     },
     "ImplementReportPayloadAllOfDecisions": {
       "type": "object",

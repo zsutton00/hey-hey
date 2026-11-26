@@ -4,7 +4,12 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../../shared/agent-bridge-contract/contract';
-import { buildServicesContextBlock, codingRepositoryAuthorityGuidance } from '../prompts/common';
+import {
+  buildServicesContextBlock,
+  codingRepositoryAuthorityGuidance,
+  codingServiceScopeGuidance,
+  codingWorktreeAttachGuidance,
+} from '../prompts/common';
 import type { ValidatedProjectModeSnapshot } from './project-mode-snapshot';
 
 export interface ProjectModePromptInput {
@@ -13,6 +18,7 @@ export interface ProjectModePromptInput {
   services?: readonly ResolvedServiceBinding[];
   launchServiceId?: string;
   worktreeState?: Readonly<LocalWorktreeStateByService>;
+  mainFolderBranches?: Readonly<Record<string, string | null>>;
 }
 
 /** Render the captured MODE entry document without granting it runtime authority. */
@@ -21,6 +27,7 @@ export const buildProjectModePrompt = (input: ProjectModePromptInput): string =>
     services: input.services,
     launchServiceId: input.launchServiceId,
     worktreeState: input.worktreeState,
+    mainFolderBranches: input.mainFolderBranches,
   });
   const repositoryContext = servicesContext || codingRepositoryAuthorityGuidance;
   const modeEntry = input.snapshot.files.files['MODE.md'];
@@ -43,5 +50,9 @@ export const buildProjectModePrompt = (input: ProjectModePromptInput): string =>
     modeEntry,
     '',
     repositoryContext,
+    '',
+    codingServiceScopeGuidance,
+    '',
+    codingWorktreeAttachGuidance,
   ].join('\n');
 };

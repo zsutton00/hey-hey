@@ -19,6 +19,7 @@ import {
 } from '../prompt-type-handler';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
+import { requestAgentSessionWorktreeAttachTool } from '../worktree-attach-request/worktree-attach-tool';
 import { buildProjectModePrompt } from './project-mode-prompt';
 import {
   validateProjectModeConfig,
@@ -31,6 +32,7 @@ type PreparedProjectModePayload = RunCreatePayloadProjectMode & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
 };
 
 // Authority stays fixed in code; the MODE author only chooses participation.
@@ -57,7 +59,11 @@ const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProject
   reports: [],
   mcpToolUseCase: 'coding',
   ...changedFileReportingDuty,
-  submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
+  submissionTools: [
+    reportChangedFilesTool,
+    requestAgentSessionServiceScopeTool,
+    requestAgentSessionWorktreeAttachTool,
+  ],
   projectAssistant: PROJECT_MODE_PROJECT_ASSISTANT_POLICY,
 
   resolveProjectAssistant(session, logger): ProjectAssistantPolicy | undefined {
@@ -107,6 +113,7 @@ const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProject
       ...(run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
     };
     return { payload: prepared };
   },
@@ -119,6 +126,7 @@ const handlerDefinition: UserLaunchablePromptTypeHandler<RunCreatePayloadProject
       ...(prepared._services ? { services: prepared._services } : {}),
       ...(prepared._launchServiceId ? { launchServiceId: prepared._launchServiceId } : {}),
       ...(prepared._worktreeState ? { worktreeState: prepared._worktreeState } : {}),
+      ...(prepared._mainFolderBranches ? { mainFolderBranches: prepared._mainFolderBranches } : {}),
     });
   },
 

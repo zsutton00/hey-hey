@@ -25,6 +25,7 @@ import { hasFocalTask } from '../completion-reconciliation/prompts/common';
 import { taskIdFromHandlerContext } from '../run-entity';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
+import { requestAgentSessionWorktreeAttachTool } from '../worktree-attach-request/worktree-attach-tool';
 import { fetchPriorAssistantMessage } from './prior-assistant-message';
 import { submitCodingConversationReadinessTool } from './submit-readiness-tool';
 
@@ -67,6 +68,7 @@ const withRunServices = <TPayload extends CodingConversationPreparedPayload>(
   ...(run.services.length > 0 ? { services: run.services } : {}),
   ...(run.launchServiceId ? { launchServiceId: run.launchServiceId } : {}),
   ...(run.worktreeState ? { worktreeState: run.worktreeState } : {}),
+  ...(run.mainFolderBranches ? { mainFolderBranches: run.mainFolderBranches } : {}),
 });
 
 /**
@@ -227,6 +229,7 @@ export const freeFormHandler = createCodingConversationHandler<
   submissionTools: [
     reportChangedFilesTool,
     requestAgentSessionServiceScopeTool,
+    requestAgentSessionWorktreeAttachTool,
     submitCodingConversationReadinessTool,
   ],
   buildStartingMessage(payload, ctx) {
@@ -250,5 +253,9 @@ export const codingFreeformHandler =
     graphResearchGuidance: true,
     epistemicCalibration: true,
     mcpToolUseCase: 'general',
-    submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
+    submissionTools: [
+      reportChangedFilesTool,
+      requestAgentSessionServiceScopeTool,
+      requestAgentSessionWorktreeAttachTool,
+    ],
   });

@@ -740,8 +740,8 @@ describe('projectAssistantHandler — recent report startup context', () => {
     );
 
     const prompt = handler.buildPrompt(prepared.payload);
-    expect(prompt).toContain('Launch service `service-b` at `/worktrees/service-b`');
-    expect(prompt).toContain('`service-a` at `/worktrees/service-a`');
+    expect(prompt).toContain('Launch service `service-b`: worktree `/worktrees/service-b`');
+    expect(prompt).toContain('`service-a`: worktree `/worktrees/service-a`');
     expect(prompt).not.toContain('/host/service-a');
     expect(prompt).not.toContain('/host/service-b');
   });

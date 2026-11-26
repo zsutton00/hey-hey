@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   AgentSessionServicePlaceKind,
   AgentSessionServicePlaceOutcome,
+  type AttachAgentSessionServicePlaceDto,
   type ReportAgentSessionServicePlacesDto,
   type ReportedAgentSessionServicePlace,
 } from '@hey-hey/contracts/api/models';
@@ -35,8 +36,28 @@ const recordedPlaceSchema = z.object({
   worktreePath: z.string().optional(),
 });
 const serviceIdOnlySchema = z.object({ serviceId: z.string().min(1) });
+const changedSessionSchema = z.object({
+  data: z.object({ servicePlaces: z.array(z.unknown()).optional() }),
+});
 
 type RecordedPlace = z.infer<typeof recordedPlaceSchema>;
+
+/** The worktree an approved attach request moves one Service into. */
+export interface ApprovedPlaceChange {
+  requestId: string;
+  serviceId: string;
+  branch: string;
+  worktreePath: string;
+}
+
+/**
+ * - moved: the platform now records the Service in the approved worktree.
+ * - not_moved: the platform answered success but the Service works elsewhere, such as after a
+ *   repeated delivery or a later attach; `recordedPlace` is where it works, if the answer said.
+ */
+export type PlaceChangeResult =
+  | { status: 'moved' }
+  | { status: 'not_moved'; recordedPlace: RecordedPlace | null };
 
 interface ParsedResponse {
   outcomes: Map<string, AgentSessionServicePlaceOutcome>;
@@ -91,6 +112,7 @@ export class ServicePlaceReporter {
    */
   public async report(workspace: ResolvedRunWorkspace): Promise<void> {
     const reserved = this.reserveUnreportedServices();
+    await this.readMainFolderBranches(workspace);
     const places = await this.capturePlaces(reserved, workspace);
     if (places.length === 0) {
       return;
@@ -105,9 +127,192 @@ export class ServicePlaceReporter {
     this.deliveries.add(delivery);
   }
 
+  /**
+   * Records an approved attach through the place-change operation, never the launch report. The
+   * place sent is the request's approved worktree, never a fresh observation of a folder. The
+   * Service counts as reported only once the platform shows it in that worktree, which also drops
+   * any launch observation still waiting, so the old place is never sent after the move. Throws
+   * when the change cannot be delivered.
+   */
+  public async changePlace(change: ApprovedPlaceChange): Promise<PlaceChangeResult> {
+    const { logger, runId } = this.options;
+    const { serviceId } = change;
+
+    // A launch report for this Service that is already on its way finishes first.
+    await this.whenIdle();
+    this.inFlightServiceIds.add(serviceId);
+    try {
+      const machineId = await this.options.keyPairStore.loadCurrentMachineId();
+      if (!machineId) {
+        throw new Error('Changing where a Service works requires a verified machine binding.');
+      }
+
+      logger.debug('local.run.service_places.change_sending', { runId, change });
+      const recordedPlace = await this.sendChange(machineId, change).catch((error: unknown) => {
+        if (!(error instanceof TypeError)) {
+          throw error;
+        }
+
+        logger.warn('local.run.service_places.change_retrying', { runId, change, error });
+        return this.sendChange(machineId, change);
+      });
+      const moved =
+        recordedPlace?.kind === AgentSessionServicePlaceKind.Worktree &&
+        recordedPlace.branch === change.branch &&
+        recordedPlace.worktreePath === change.worktreePath;
+      if (!moved) {
+        logger.warn('local.run.service_places.change_not_applied', {
+          runId,
+          change,
+          recordedPlace,
+        });
+        return { status: 'not_moved', recordedPlace };
+      }
+
+      logger.info('local.run.service_places.changed', { runId, change });
+      await this.markChangedServiceReported(serviceId);
+      return { status: 'moved' };
+    } finally {
+      this.inFlightServiceIds.delete(serviceId);
+    }
+  }
+
+  /**
+   * Stops the launch report from ever sending this Service's old place. The platform has already
+   * moved, so a failed Run store write is logged and never turns the move into a failure; this
+   * process still stops resending, because its in-memory session is updated either way.
+   */
+  private async markChangedServiceReported(serviceId: string): Promise<void> {
+    const { logger, runId } = this.options;
+    try {
+      const updated = await this.options.runStore.markServicePlacesReported(runId, [serviceId]);
+      this.options.patchSession({
+        reportedServicePlaceServiceIds: updated.reportedServicePlaceServiceIds ?? [serviceId],
+        capturedServicePlaces: updated.capturedServicePlaces ?? [],
+      });
+    } catch (error) {
+      logger.warn('local.run.service_places.change_mark_reported_failed', {
+        runId,
+        serviceId,
+        error,
+      });
+      const session = this.options.session();
+      this.options.patchSession({
+        reportedServicePlaceServiceIds: Array.from(
+          new Set([...(session.reportedServicePlaceServiceIds ?? []), serviceId]),
+        ),
+        capturedServicePlaces: (session.capturedServicePlaces ?? []).filter(
+          (place) => place.serviceId !== serviceId,
+        ),
+      });
+    }
+  }
+
+  private async sendChange(
+    machineId: string,
+    change: ApprovedPlaceChange,
+  ): Promise<RecordedPlace | null> {
+    const { apiBaseUrl, organizationId, projectId, runId } = this.options;
+    const timeoutMs = this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () =>
+        controller.abort(new Error(`Service place change timed out after ${String(timeoutMs)}ms`)),
+      timeoutMs,
+    );
+
+    try {
+      const exchange = (async (): Promise<unknown> => {
+        const accessToken = await this.options.auth.getAccessToken();
+        const baseUrl = apiBaseUrl.replace(/\/$/u, '');
+        const url = `${baseUrl}/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/agent-sessions/${encodeURIComponent(runId)}/service-places/attach`;
+        const body = {
+          machineId,
+          serviceId: change.serviceId,
+          branch: change.branch,
+          worktreePath: change.worktreePath,
+          requestId: change.requestId,
+        } satisfies AttachAgentSessionServicePlaceDto;
+        const response = await this.options.fetchImpl(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const detail = (await response.text()).trim().replace(/\s+/gu, ' ').slice(0, 500);
+          throw new Error(
+            `Recording the new place failed with status ${String(response.status)}${detail ? `: ${detail}` : '.'}`,
+          );
+        }
+        return response.json();
+      })();
+      const payload = await rejectOnAbort(exchange, controller.signal);
+
+      return this.parseChangedPlace(payload, change.serviceId);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private parseChangedPlace(payload: unknown, serviceId: string): RecordedPlace | null {
+    const envelope = changedSessionSchema.safeParse(payload);
+    if (!envelope.success) {
+      throw new Error(
+        `Recording the new place returned an invalid response: ${issueSummaries(envelope.error).join('; ')}`,
+      );
+    }
+
+    for (const item of envelope.data.data.servicePlaces ?? []) {
+      const recorded = recordedPlaceSchema.safeParse(item);
+      if (recorded.success && recorded.data.serviceId === serviceId) {
+        return recorded.data;
+      }
+    }
+    this.options.logger.warn('local.run.service_places.change_place_missing', {
+      runId: this.options.runId,
+      serviceId,
+    });
+    return null;
+  }
+
   /** Resolves once every started delivery has finished. */
   public async whenIdle(): Promise<void> {
     await Promise.all([...this.deliveries]);
+  }
+
+  /**
+   * Keeps the branch of each Service working in its main folder on the Run, read
+   * once, so prompts and worktree-attach requests name it without asking git
+   * again. A failed read is logged and retried at the next resolution.
+   */
+  private async readMainFolderBranches(workspace: ResolvedRunWorkspace): Promise<void> {
+    const { logger, runId } = this.options;
+
+    for (const { id: serviceId } of this.options.session().services) {
+      const repositoryPath = workspace.servicePaths?.[serviceId];
+      const alreadyRead = this.options.session().mainFolderBranches?.[serviceId] !== undefined;
+      if (workspace.worktree?.[serviceId] || !repositoryPath || alreadyRead) {
+        continue;
+      }
+
+      try {
+        const branch = await readCheckedOutBranch(repositoryPath);
+        this.options.patchSession({
+          mainFolderBranches: {
+            ...this.options.session().mainFolderBranches,
+            [serviceId]: branch,
+          },
+        });
+        logger.debug('local.run.active_places.main_folder_branch_read', {
+          runId,
+          serviceId,
+          branch,
+        });
+      } catch (error) {
+        logger.warn('local.run.active_places.branch_read_failed', { runId, serviceId, error });
+      }
+    }
   }
 
   private reserveUnreportedServices(): AgenticSession['services'] {
@@ -233,7 +438,8 @@ export class ServicePlaceReporter {
         return null;
       }
 
-      const branch = await readCheckedOutBranch(repositoryPath);
+      const known = this.options.session().mainFolderBranches?.[serviceId];
+      const branch = known !== undefined ? known : await readCheckedOutBranch(repositoryPath);
       const place = {
         serviceId,
         kind: AgentSessionServicePlaceKind.MainFolder,

@@ -149,14 +149,14 @@ export class NewSessionRunner implements Runner {
     const mcpToolUseCase = handler.mcpToolUseCase;
 
     const prompt = this.ctx.serviceScopeRecovery
-      ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery.checkpoint)}\n\n---\n\n${providerPrompt}`
+      ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery)}\n\n---\n\n${providerPrompt}`
       : providerPrompt;
     const startupSegments =
       providerInput.kind === 'startup'
         ? {
             ...providerInput.segments,
             dynamicContext: this.ctx.serviceScopeRecovery
-              ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery.checkpoint)}\n\n---\n\n${providerInput.segments.dynamicContext}`
+              ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery)}\n\n---\n\n${providerInput.segments.dynamicContext}`
               : providerInput.segments.dynamicContext,
           }
         : null;

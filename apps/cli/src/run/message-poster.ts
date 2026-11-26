@@ -65,6 +65,8 @@ type PostOperation =
       messageId: string;
       data: UpdateMessageDto;
       stamp: MessageStamp | null;
+      /** Present only for a confirmed completion, whose caller waits for the stored result. */
+      confirmation?: { resolve: () => void; reject: (error: unknown) => void };
     };
 
 const RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000, 8000, 8000, 8000] as const;
@@ -398,12 +400,19 @@ export class MessagePoster {
               operation.data,
               operation.stamp,
             );
+            operation.confirmation?.resolve();
             break;
           }
         }
       } catch (error) {
         if (operation.type === 'createOutOfBand' || operation.type === 'externalAgentCompletion') {
           operation.reject(error);
+        } else if (operation.type === 'complete' && operation.confirmation) {
+          this.dependencies.logger.error('local.message_poster.confirmed_complete_failed', {
+            messageId: operation.messageId,
+            error,
+          });
+          operation.confirmation.reject(error);
         } else {
           // Update/complete are fire-and-forget, just log
           this.dependencies.logger.error('local.message_poster.operation_failed', {
@@ -633,6 +642,32 @@ export class MessagePoster {
     // Fire-and-forget: return immediately without awaiting
   }
 
+  /**
+   * Completes a message in queue order and resolves only once the platform stored it, for a
+   * caller whose next step depends on the platform reading that completed message.
+   */
+  public completeConfirmed(
+    organizationId: string,
+    projectId: string,
+    messageId: string,
+    data: UpdateMessageDto,
+  ): Promise<void> {
+    const update = this.dependencies.inert
+      ? { ...data, data: { ...data.data, ragEnabled: false } }
+      : data;
+    return new Promise<void>((resolve, reject) => {
+      this.enqueue({
+        type: 'complete',
+        organizationId,
+        projectId,
+        messageId,
+        data: update,
+        stamp: null,
+        confirmation: { resolve, reject },
+      });
+    });
+  }
+
   public async cleanup(): Promise<void> {
     // Signal to drain to stop after current operation
     this.isCleanupCalled = true;
@@ -675,8 +710,12 @@ export class MessagePoster {
         );
       } else if (operation.type === 'externalAgentCompletion') {
         operation.reject(new Error('MessagePoster cleanup: completion was not executed'));
+      } else if (operation.type === 'complete' && operation.confirmation) {
+        operation.confirmation.reject(
+          new Error('MessagePoster cleanup: message completion was not executed'),
+        );
       }
-      // Update and complete are fire-and-forget, no persistence needed
+      // Other updates and completions are fire-and-forget, no persistence needed
     }
   }
 }

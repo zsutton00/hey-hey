@@ -4761,6 +4761,7 @@ UIElement:
       agent_hidden: "#/AgentHiddenElement"
       agent-request-permission: "#/AgentRequestPermissionElement"
       agent-request-service-scope: "#/AgentRequestServiceScopeElement"
+      agent-request-worktree-attach: "#/AgentRequestWorktreeAttachElement"
       agent-request-review-file-scope: "#/AgentRequestReviewFileScopeElement"
       agent_question: "#/AgentQuestionElement"
       adr_context_starter: "#/AdrContextStarterElement"
@@ -4863,6 +4864,7 @@ UIElement:
         - $ref: "#/CodingPromptMergedFinalAssessmentPayload"
         - $ref: "#/AgentRequestPermissionPayload"
         - $ref: "#/AgentRequestServiceScopePayload"
+        - $ref: "#/AgentRequestWorktreeAttachPayload"
         - $ref: "#/AgentRequestReviewFileScopePayload"
         - $ref: "#/AgentQuestionPayload"
         - $ref: "#/FileDiffPayload"
@@ -5048,6 +5050,14 @@ AgentRequestServiceScopeElement:
       required:
       properties:
   x-discriminator-value: agent-request-service-scope
+
+AgentRequestWorktreeAttachElement:
+  allOf:
+    - $ref: "#/UIElement"
+    - type: object
+      required:
+      properties:
+  x-discriminator-value: agent-request-worktree-attach
 
 AgentRequestReviewFileScopeElement:
   allOf:
@@ -6845,6 +6855,104 @@ AgentRequestServiceScopePayload:
       nullable: true
       description: Why an approved request could not be applied. Set when the decision was recorded but nothing was granted.
   description: Structured payload for coding-session Service-scope review UI elements
+
+AgentSessionWorktreeAttachRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - runId
+    - sessionId
+    - agentId
+    - agentType
+    - timestamp
+    - idempotencyToken
+    - serviceId
+    - currentPlace
+    - branch
+    - worktreePath
+    - reason
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Unique worktree-attach request identifier
+    runId:
+      type: string
+      nullable: true
+      description: Active local Run identifier when available
+    sessionId:
+      type: string
+      minLength: 1
+      description: AgentSession identifier owning the request
+    agentId:
+      type: string
+      minLength: 1
+      description: Stable coding-agent handler identifier
+    agentType:
+      $ref: "./common.yaml#/AgentProviderId"
+    timestamp:
+      type: string
+      format: date-time
+      description: Request creation timestamp
+    idempotencyToken:
+      type: string
+      minLength: 1
+      description: Stable token used when responding to this request
+    serviceId:
+      type: string
+      minLength: 1
+      description: Service in the session whose place would change
+    currentPlace:
+      allOf:
+        - $ref: "./coding-sessions.yaml#/AgentSessionServiceLocation"
+      description: Where the Service works now (kind, branch and worktree path where applicable), shown so the reviewer sees the actual source location that changes
+    branch:
+      type: string
+      minLength: 1
+      description: Branch checked out in the existing worktree to attach
+    worktreePath:
+      type: string
+      minLength: 1
+      description: Existing worktree folder to attach. Filled by the CLI when it builds the request; the agent supplies only the Service, branch and reason.
+    reason:
+      type: string
+      minLength: 1
+      description: Agent explanation for attaching this worktree
+    planBranch:
+      type: string
+      nullable: true
+      description: Branch the session's plan targets, shown for context. Attaching never changes it.
+  description: Reviewable request to attach an existing worktree as one Service's place mid-session
+
+AgentRequestWorktreeAttachPayload:
+  type: object
+  additionalProperties: false
+  required:
+    - responseType
+    - worktreeAttachRequest
+  properties:
+    responseType:
+      type: string
+      enum: [agent_request_worktree_attach_v1]
+      description: Discriminator identifying a worktree-attach review payload
+    worktreeAttachRequest:
+      $ref: "#/AgentSessionWorktreeAttachRequest"
+    decision:
+      type: string
+      enum: [approve, deny]
+      nullable: true
+      description: User decision recorded on the review message
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: ISO timestamp of the recorded decision
+    failureReason:
+      type: string
+      nullable: true
+      description: Why an approved request could not be applied. Set when the decision was recorded but the place did not change.
+  description: Structured payload for worktree-attach review UI elements
 
 AgentSessionReviewFileScopeRequestFile:
   type: object

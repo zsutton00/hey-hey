@@ -27,6 +27,7 @@ type EnrichedPayload = LocalResearchPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
 };
 
 export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromptPayload> = {
@@ -73,6 +74,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       ...(run.services && run.services.length > 0 ? { _services: run.services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
     };
     return { payload: enriched };
   },
@@ -85,6 +87,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
         services: enriched._services,
         launchServiceId: enriched._launchServiceId,
         worktreeState: enriched._worktreeState,
+        mainFolderBranches: enriched._mainFolderBranches,
         focalEntityId: ctx?.entity?.entityId,
       },
       Array.isArray(enriched._touchedFiles),

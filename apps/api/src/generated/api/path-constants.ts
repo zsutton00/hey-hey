@@ -378,6 +378,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_WORK
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SERVICE_GRANTS_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-grants';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SERVICE_PLACES_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_SERVICE_PLACES_ATTACH_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places/attach';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONVERSATION_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_SKILLS_PATH = '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_MODEL_CATALOG_PATH = '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/model-catalog';

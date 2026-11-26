@@ -42,6 +42,7 @@ export const ExtendedUIFieldType = {
     AgentHidden: 'agent_hidden',
     AgentRequestPermission: 'agent-request-permission',
     AgentRequestServiceScope: 'agent-request-service-scope',
+    AgentRequestWorktreeAttach: 'agent-request-worktree-attach',
     AgentRequestReviewFileScope: 'agent-request-review-file-scope',
     AgentQuestion: 'agent_question',
     AgentReplyTextarea: 'agent-reply-textarea',

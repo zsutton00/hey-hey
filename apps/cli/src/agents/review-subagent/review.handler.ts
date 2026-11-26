@@ -1,3 +1,4 @@
+import type { AgenticSession } from '../../session/types';
 import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCodeReviewPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { ReportAudience, ReportType } from '../../shared/api/index';
@@ -25,6 +26,7 @@ type EnrichedCodeReviewPromptPayload = LocalCodeReviewPromptPayload & {
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
+  _mainFolderBranches?: AgenticSession['mainFolderBranches'];
   _touchedFiles?: readonly string[];
   _integrationContext?: ReviewIntegrationContext;
   _sessionId?: string;
@@ -122,6 +124,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
       ...(services.length > 0 ? { _services: services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
+      ...(run.mainFolderBranches ? { _mainFolderBranches: run.mainFolderBranches } : {}),
       ...(integrationContext ? { _integrationContext: integrationContext } : {}),
     };
     deps.logger.debug('local.review.prepare.session_scoped', {
@@ -144,6 +147,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
       services: enriched._services,
       launchServiceId: enriched._launchServiceId,
       worktreeState: enriched._worktreeState,
+      mainFolderBranches: enriched._mainFolderBranches,
       recentUserReplies: enriched._recentUserReplies ?? [],
       ...(enriched._integrationContext ? { integrationContext: enriched._integrationContext } : {}),
       ...(payload.userMessage !== undefined ? { userMessage: payload.userMessage } : {}),

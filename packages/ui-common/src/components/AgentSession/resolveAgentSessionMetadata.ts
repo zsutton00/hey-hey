@@ -9,6 +9,7 @@ import type {
   AgentSessionMetadataValues,
   AgentSessionServicePlaceView,
 } from "./AgentSessionMetadata";
+import { describeServiceLocation } from "./describeServiceLocation";
 import type { ReasoningEffort } from "./runtime/types";
 
 type DurableSessionConfig = Extract<AgentSessionConfig, { model: string }>;
@@ -44,6 +45,19 @@ const toPlace = (
   return { kind: "main-folder", branch: record.branch };
 };
 
+const toChange = (record: AgentSessionServicePlace | undefined) => {
+  if (!record?.changedDuringSession) {
+    return {};
+  }
+
+  // A Service attached before any place was reported has no known start.
+  const startedIn = record.launchPlace
+    ? describeServiceLocation(record.launchPlace)
+    : null;
+
+  return { change: { startedIn } };
+};
+
 const hasFastMode = (config: DurableSessionConfig): boolean =>
   "fastMode" in config && config.fastMode === true;
 
@@ -77,8 +91,9 @@ export const resolveAgentSessionMetadata = (
   const servicePlaces = [...new Set(agentSession.serviceIds ?? [])].flatMap(
     (id) => {
       const serviceName = servicesById.get(id)?.trim();
+      const record = placesByServiceId.get(id);
       return serviceName
-        ? [{ serviceName, place: toPlace(placesByServiceId.get(id)) }]
+        ? [{ serviceName, place: toPlace(record), ...toChange(record) }]
         : [];
     },
   );

@@ -27,6 +27,7 @@ ExtendedUIFieldType:
       agent_hidden,
       agent-request-permission,
       agent-request-service-scope,
+      agent-request-worktree-attach,
       agent-request-review-file-scope,
       agent_question,
       agent-reply-textarea,
