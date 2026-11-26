@@ -2648,11 +2648,45 @@ describe("OpenItemsSection", () => {
         [monitorId]: { kind: "status", status: "needs_feedback", stale: false },
       });
       view.update();
-      expect(
-        await screen.findByText("Needs feedback", {
-          selector: "[data-testid=open-item-monitor-status]",
-        }),
-      ).toBeInTheDocument();
+      const indicator = await screen.findByTestId(
+        "open-item-monitor-waiting-indicator",
+      );
+      expect(indicator).toHaveAttribute("aria-label", "Needs feedback");
+      expect(indicator).toHaveAttribute("data-stale", "false");
+      expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
+    });
+
+    it("shows the pause icon with accessible label for awaiting_approval and no status text", async () => {
+      renderMonitorRow({
+        kind: "status",
+        status: "awaiting_approval",
+        stale: false,
+      });
+
+      const indicator = await screen.findByTestId(
+        "open-item-monitor-waiting-indicator",
+      );
+      expect(indicator).toHaveAttribute("aria-label", "Awaiting approval");
+      expect(indicator).toHaveAttribute("data-stale", "false");
+      expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
+    });
+
+    it("dims the pause icon and marks its accessible label last known when a waiting status is stale", async () => {
+      renderMonitorRow({
+        kind: "status",
+        status: "needs_feedback",
+        stale: true,
+      });
+
+      const indicator = await screen.findByTestId(
+        "open-item-monitor-waiting-indicator",
+      );
+      expect(indicator).toHaveAttribute(
+        "aria-label",
+        "Last known: Needs feedback",
+      );
+      expect(indicator).toHaveAttribute("data-stale", "true");
+      expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
     });
 
     it("marks a last-known status as such", async () => {
@@ -2661,6 +2695,9 @@ describe("OpenItemsSection", () => {
       expect(
         await screen.findByTestId("open-item-monitor-status"),
       ).toHaveTextContent("Last known: Paused");
+      expect(
+        screen.queryByTestId("open-item-monitor-waiting-indicator"),
+      ).toBeNull();
     });
 
     it("shows no status when the monitor's state is unknown", async () => {
@@ -2672,6 +2709,9 @@ describe("OpenItemsSection", () => {
       );
 
       expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
+      expect(
+        screen.queryByTestId("open-item-monitor-waiting-indicator"),
+      ).toBeNull();
     });
   });
 

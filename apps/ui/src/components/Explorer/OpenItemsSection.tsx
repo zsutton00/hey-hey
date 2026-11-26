@@ -68,6 +68,7 @@ import { WebPathService } from "@hey-hey/ui-common/services";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import StarIcon from "@mui/icons-material/Star";
 import {
@@ -1016,6 +1017,31 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
               />
             </Box>
             {renderAgentSessionRowSignals(rowSignals)}
+            {monitorSignal?.kind === "status" &&
+            (monitorSignal.status === "needs_feedback" ||
+              monitorSignal.status === "awaiting_approval") ? (
+              <Box
+                aria-label={
+                  monitorSignal.stale
+                    ? `Last known: ${TASK_MONITOR_ROW_LABELS[monitorSignal.status]}`
+                    : TASK_MONITOR_ROW_LABELS[monitorSignal.status]
+                }
+                aria-live="polite"
+                data-stale={monitorSignal.stale}
+                data-status={monitorSignal.status}
+                data-testid="open-item-monitor-waiting-indicator"
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "text.secondary",
+                  flexShrink: 0,
+                  opacity: monitorSignal.stale ? 0.6 : 1,
+                }}
+              >
+                <PauseCircleOutlineIcon aria-hidden="true" />
+              </Box>
+            ) : null}
             <Typography
               variant="body2"
               noWrap
@@ -1026,12 +1052,12 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             >
               {label}
             </Typography>
-            {monitorSignal?.kind === "status" ? (
+            {monitorSignal?.kind === "status" &&
+            monitorSignal.status !== "needs_feedback" &&
+            monitorSignal.status !== "awaiting_approval" ? (
               <Typography
                 variant="caption"
                 color={
-                  monitorSignal.status === "needs_feedback" ||
-                  monitorSignal.status === "awaiting_approval" ||
                   monitorSignal.status === "failed"
                     ? "warning.main"
                     : "text.secondary"
