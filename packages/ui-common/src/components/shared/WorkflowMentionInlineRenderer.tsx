@@ -12,6 +12,16 @@ import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { DiagramReferenceActions } from "./DiagramReferenceActions";
+import { DiagramElementCardFace } from "./DiagramElementCardFace";
+import { DiagramRoleIconBadge } from "./DiagramRoleIconBadge";
+import {
+  DIAGRAM_CARD_ICON_BUTTON_SIZE,
+  DIAGRAM_CARD_TEXT,
+  type DiagramCardGeometry,
+  getDiagramCardGeometry,
+  getDiagramCardLinkStripWidth,
+  getDiagramCardRowReserve,
+} from "./diagramElementCardGeometry";
 import { DIAGRAM_TASK_TYPE } from "../../constants/taskTypes";
 import { MentionArtifactCard } from "./MentionArtifactCard";
 import { useMentionExpansion } from "./MentionExpansionContext";
@@ -91,6 +101,7 @@ import React, {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -111,7 +122,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   applyNodeChanges,
-  getNodesBounds,
   getViewportForBounds,
   getSmoothStepPath,
   type Edge,
@@ -146,10 +156,7 @@ import { renderInlineMentions } from "../SmarterTextAreaCard/renderInlineMention
 import type { EntityMention } from "../SmarterTextAreaCard/types";
 import { InteractionComponent } from "../InteractionComponent";
 import { getPathService } from "../../services/webPathService";
-import {
-  getFallbackEntityColors,
-  resolveWorkItemIcon,
-} from "../../utils/entityIcons";
+import { resolveWorkItemIcon } from "../../utils/entityIcons";
 import {
   getDirectEntityLinksByNodeId,
   getEdgeNodeName,
@@ -181,11 +188,15 @@ import {
   type WorkItemGraphEmptyCanvasContextMenu,
   type WorkItemGraphNodeContextMenu,
 } from "./workflowGraphInteractions";
-import { getAuthoredWorkflowStepColor } from "./workflowGraphNodePresentation";
 import {
-  DiagramElementScreenBody,
-  DiagramElementScreenUnavailable,
-} from "./DiagramElementScreen";
+  computeDiagramDrawingBounds,
+  DIAGRAM_BOUNDARY_LABEL_INSET,
+  DIAGRAM_EDGE_LABEL_HEIGHT,
+  type DiagramRect,
+} from "./diagramDrawingBounds";
+import { useDiagramCanvasOffset } from "./useDiagramCanvasOffset";
+import { getAuthoredWorkflowStepColor } from "./workflowGraphNodePresentation";
+import { DiagramElementScreenBody } from "./DiagramElementScreen";
 import {
   type DiagramElementScreenState,
   getDiagramScreenPlacement,
@@ -215,7 +226,6 @@ const WORKFLOW_GRAPH_CONDITIONAL_MARKER_LENGTH = 18;
 const WORKFLOW_GRAPH_CONDITIONAL_MARKER_HALF_WIDTH = 8;
 const WORKFLOW_GRAPH_CONDITIONAL_MARKER_OUTLINE_WIDTH = 2;
 const WORKFLOW_GRAPH_LOCAL_RETURN_CLEARANCE = 12;
-const WORKFLOW_GRAPH_LOCAL_RETURN_LABEL_HEIGHT = 36;
 const WORKFLOW_GRAPH_MIN_GROUPS_PER_BAND = 2;
 const WORKFLOW_GRAPH_MAX_BANDS = 3;
 const WORKFLOW_GRAPH_SCROLLBAR_ALLOWANCE = 20;
@@ -229,6 +239,8 @@ const WORKFLOW_GRAPH_MIN_ZOOM = 0.3;
 const WORKFLOW_GRAPH_MAX_ZOOM = 1.75;
 const WORKFLOW_GRAPH_DIALOG_HEIGHT = "92vh";
 const WORKFLOW_FULFILLED_COUNT_SIZE = 28;
+/** Enough text to fill the largest card; the card cuts it to whole lines. */
+const DIAGRAM_CARD_SUMMARY_MAX_LENGTH = 800;
 
 // React Flow disables pointer events for non-selectable edges unless it receives a click handler.
 const enableReadOnlyWorkflowEdgeHover = (): void => {};
@@ -473,8 +485,7 @@ type WorkflowLayoutEdge = AgentEdgeResponseDto & {
 export interface WorkflowGraphModel {
   nodes: WorkflowGraphNode[];
   edges: WorkflowGraphEdge[];
-  width: number;
-  height: number;
+  /** Height the elements and the gutters below them take from the origin. */
   canvasHeight: number;
   layoutMode: "horizontal" | "wrapped";
   preferredLayout?: WorkflowGraphPreferredLayoutSummary;
@@ -773,11 +784,16 @@ interface WorkflowGraphViewportSurfaceProps {
 }
 
 interface WorkflowGraphViewportControllerProps {
-  boundaryBoxes: readonly DiagramBoundaryBox[];
-  enableInitialFit: boolean;
+  /** Keep the drawing fitted to the canvas as `fitKey` or its size change. */
+  fitsDrawing: boolean;
+  fitKey: string;
   hasGraphNodes: boolean;
+  onFit: (instance: WorkflowGraphFlowInstance) => void;
   onReady: (instance: WorkflowGraphFlowInstance) => void;
+  onShowTopLeft: (instance: WorkflowGraphFlowInstance) => void;
   open: boolean;
+  /** A change returns a mounted canvas to the drawing's top-left. */
+  topLeftKey: string;
 }
 
 interface WorkflowGraphTitleProps {
@@ -863,6 +879,55 @@ const diagramLayoutGroupsFor = (
 
 const DIAGRAM_BOUNDARY_INTRUSION_SIZE = 20;
 
+/** Reports its rendered width, which can run past the boundary it names. */
+const DiagramBoundaryLabel: React.FC<{
+  groupId: string;
+  label: string;
+  color: string;
+  onWidthChange: (groupId: string, width: number) => void;
+}> = ({ groupId, label, color, onWidthChange }) => {
+  const theme = useTheme();
+  const labelRef = useRef<HTMLSpanElement | null>(null);
+
+  useLayoutEffect(() => {
+    const element = labelRef.current;
+    if (!element) {
+      return;
+    }
+    const report = () => onWidthChange(groupId, element.offsetWidth);
+    report();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    // Web fonts can load after the first measurement.
+    const resizeObserver = new ResizeObserver(report);
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, [groupId, label, onWidthChange]);
+
+  return (
+    <Typography
+      ref={labelRef}
+      variant="caption"
+      sx={{
+        position: "absolute",
+        top: 4,
+        left: DIAGRAM_BOUNDARY_LABEL_INSET,
+        color,
+        backgroundColor: theme.palette.background.paper,
+        border: `1px solid ${alpha(color, 0.5)}`,
+        borderRadius: 1,
+        px: 0.75,
+        fontWeight: 600,
+        fontStyle: "normal",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </Typography>
+  );
+};
+
 /**
  * Boundaries are painted beneath nodes inside the flow viewport, so they pan
  * and zoom with the graph and follow dragged nodes without reflowing them.
@@ -874,7 +939,8 @@ const DiagramBoundaryLayer: React.FC<{
     { x: number; y: number; width: number; height: number }
   >;
   testIdPrefix: string;
-}> = ({ boxes, nodeRects, testIdPrefix }) => {
+  onLabelWidthChange: (groupId: string, width: number) => void;
+}> = ({ boxes, nodeRects, testIdPrefix, onLabelWidthChange }) => {
   const theme = useTheme();
   const intrusions = boxes.flatMap((box) =>
     box.intrudingNodeIds.map((nodeId) => ({ box, nodeId })),
@@ -915,24 +981,12 @@ const DiagramBoundaryLayer: React.FC<{
                 ),
               }}
             >
-              <Typography
-                variant="caption"
-                sx={{
-                  position: "absolute",
-                  top: 4,
-                  left: 10,
-                  color,
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${alpha(color, 0.5)}`,
-                  borderRadius: 1,
-                  px: 0.75,
-                  fontWeight: 600,
-                  fontStyle: "normal",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {box.label}
-              </Typography>
+              <DiagramBoundaryLabel
+                groupId={box.id}
+                label={box.label}
+                color={color}
+                onWidthChange={onLabelWidthChange}
+              />
             </Box>
           );
         })}
@@ -1288,9 +1342,10 @@ export const hydrateWorkflowGraphEdges = (
   ]),
 });
 
-const getStepSummary = (step: GraphWorkItem): string =>
+const getStepSummary = (step: GraphWorkItem, maxLength?: number): string =>
   formatWorkflowCompactDescription(
     getTaskContentFromSections(step.sections).description,
+    maxLength,
   );
 
 const getStepDescription = (step: GraphWorkItem): string =>
@@ -2153,9 +2208,7 @@ const getLocalReturnCandidate = ({
           right: gutterX + labelHalfWidth,
           top: labelY + sizeConfig.edgeLabelYOffset,
           bottom:
-            labelY +
-            sizeConfig.edgeLabelYOffset +
-            WORKFLOW_GRAPH_LOCAL_RETURN_LABEL_HEIGHT,
+            labelY + sizeConfig.edgeLabelYOffset + DIAGRAM_EDGE_LABEL_HEIGHT,
         }
       : undefined,
     length:
@@ -4045,7 +4098,10 @@ export const buildWorkflowGraphModel = (
           isEditable: Boolean(options.editable),
           canStartConnection: false,
           title: step.name,
-          summary: getStepSummary(step),
+          summary: getStepSummary(
+            step,
+            isDiagram ? DIAGRAM_CARD_SUMMARY_MAX_LENGTH : undefined,
+          ),
           description: getStepDescription(step),
           handles:
             requiredHandlesByStepId.get(step.id) ?? createEmptyHandleState(),
@@ -4092,18 +4148,10 @@ export const buildWorkflowGraphModel = (
       };
     });
 
-  const maxNodeX = nodes.reduce(
-    (currentMax, node) => Math.max(currentMax, node.position.x),
-    sizeConfig.padding,
-  );
   const maxNodeY = nodes.reduce(
     (currentMax, node) => Math.max(currentMax, node.position.y),
     sizeConfig.padding,
   );
-  const baseWidth = wrappedLayout
-    ? (options.viewportWidth ??
-      maxNodeX + sizeConfig.nodeSize + sizeConfig.padding)
-    : maxNodeX + sizeConfig.nodeSize + sizeConfig.padding;
   const baseCanvasHeight = maxNodeY + sizeConfig.nodeSize + sizeConfig.padding;
   const returnLaneSpacing =
     sizeConfig.nodeSize * WORKFLOW_GRAPH_RETURN_EDGE_GUTTER_RATIO;
@@ -4117,22 +4165,7 @@ export const buildWorkflowGraphModel = (
     : 0;
   const flowEdgeGutterHeight =
     returnHandleAssignments.laneCount * returnLaneSpacing + loopEdgeGutter;
-  const localReturnRight = Array.from(
-    localReturnRouteAssignments.routeByEdgeId.values(),
-  ).reduce(
-    (currentMax, route) =>
-      Math.max(
-        currentMax,
-        route.gutterX + sizeConfig.edgeLabelWidth / 2 + sizeConfig.padding,
-      ),
-    0,
-  );
-  const width = Math.max(baseWidth, localReturnRight);
   const canvasHeight = baseCanvasHeight + flowEdgeGutterHeight;
-  const viewportHeight = Math.min(
-    WORKFLOW_GRAPH_MAX_HEIGHT,
-    canvasHeight + WORKFLOW_GRAPH_SCROLLBAR_ALLOWANCE,
-  );
 
   const nodeIds = new Set(nodes.map((node) => node.id));
   const graphEdges: WorkflowGraphModel["edges"] = flowEdges
@@ -4235,8 +4268,6 @@ export const buildWorkflowGraphModel = (
   return {
     nodes,
     edges: graphEdges,
-    width,
-    height: viewportHeight,
     canvasHeight,
     layoutMode: wrappedLayout ? "wrapped" : "horizontal",
     ...(preferredLayout && options.preferredLayout
@@ -4531,7 +4562,8 @@ const getWorkflowStepCardSx = (
   presentationState: WorkflowGraphPresentationState,
   authoredColor: string | undefined,
   sizeConfig: WorkflowGraphSizeConfig,
-  notation?: DiagramElementRoleDefinition["notation"],
+  notation: DiagramElementRoleDefinition["notation"] | undefined,
+  contentInsets: DiagramCardGeometry["content"] | undefined,
 ): SxProps<Theme> => {
   const hasCreatedPresentation = isWorkflowGraphAddedPresentation({
     isCreated,
@@ -4544,6 +4576,24 @@ const getWorkflowStepCardSx = (
   );
   const hasSuccessPresentation =
     hasCreatedPresentation || (hasDiffPresentation && diffStatus !== "deleted");
+  const isFrame = notation === "frame";
+  const hasThickBorder =
+    isHighlighted ||
+    isDropTarget ||
+    hasCreatedPresentation ||
+    hasDiffPresentation;
+  // A double border needs three pixels before it reads as two lines.
+  const borderWidth = (isFrame ? 2 : 0) + (hasThickBorder ? 2 : 1);
+  const padding = contentInsets
+    ? [
+        contentInsets.top,
+        contentInsets.side,
+        contentInsets.bottom,
+        contentInsets.side,
+      ]
+        .map((inset) => `${inset - borderWidth}px`)
+        .join(" ")
+    : sizeConfig.cardPadding;
   return {
     display: "block",
     position: "relative",
@@ -4552,14 +4602,7 @@ const getWorkflowStepCardSx = (
     height: "100%",
     boxSizing: "border-box",
     border: (theme) =>
-      `${
-        isHighlighted ||
-        isDropTarget ||
-        hasCreatedPresentation ||
-        hasDiffPresentation
-          ? 2
-          : 1
-      }px solid ${
+      `${borderWidth}px solid ${
         isHighlighted || isDropTarget
           ? theme.palette.primary.main
           : diffStatus === "deleted"
@@ -4568,12 +4611,14 @@ const getWorkflowStepCardSx = (
               ? theme.palette.success.main
               : authoredColor
                 ? authoredColor
-                : theme.palette.mode === "dark"
-                  ? theme.palette.grey[700]
-                  : theme.palette.grey[300]
+                : isFrame
+                  ? theme.palette.grey[500]
+                  : theme.palette.mode === "dark"
+                    ? theme.palette.grey[700]
+                    : theme.palette.grey[300]
       }`,
     borderRadius: notation === "cylinder" ? "45% / 12%" : 1,
-    borderStyle: notation === "frame" ? "double" : "solid",
+    borderStyle: isFrame ? "double" : "solid",
     bgcolor: (theme) =>
       isHighlighted
         ? theme.palette.background.paper
@@ -4615,7 +4660,7 @@ const getWorkflowStepCardSx = (
               }`
             : "none",
     color: "text.primary",
-    p: sizeConfig.cardPadding,
+    p: padding,
     overflow: "hidden",
     cursor: disableLinks ? "default" : "pointer",
     pointerEvents: "all",
@@ -4661,7 +4706,9 @@ const WorkflowStepCardContent: React.FC<{
   data: WorkflowStepNodeData;
   screen: DiagramElementScreenState;
   screenLayout: ReturnType<typeof useDiagramScreenLayout>;
-}> = ({ data, screen, screenLayout }) => {
+  /** Height the plain Diagram card keeps clear for its bottom icon row. */
+  rowReserve: number;
+}> = ({ data, screen, screenLayout, rowReserve }) => {
   const theme = useTheme();
   const {
     hasLeftSourceHandle,
@@ -4704,6 +4751,44 @@ const WorkflowStepCardContent: React.FC<{
           return { top: placement.top - 1 + 6, left: placement.left - 1 + 6 };
         })()
       : { top: 6, left: 6 };
+  // A reference's open control covers its icon and carries the tooltip.
+  const isCoveredByReferenceControl =
+    data.diagramRoleKey === "DIAGRAM_REFERENCE" && Boolean(data.referenceIcon);
+  const roleIcon =
+    data.isDiagram && DiagramRoleIcon ? (
+      <Tooltip
+        title={data.diagramRole ?? "Diagram element"}
+        arrow
+        disableHoverListener={isCoveredByReferenceControl}
+      >
+        <Box
+          component="span"
+          role="img"
+          aria-label={`${data.diagramRole ?? "Generic"} role`}
+          data-testid="diagram-element-role-icon"
+          sx={{
+            display: "inline-flex",
+            flexShrink: 0,
+            opacity: isCoveredByReferenceControl ? 0 : 1,
+            // Over a screen the icon floats; on the plain card it starts the
+            // title row.
+            ...(showsScreen
+              ? {
+                  position: "absolute",
+                  top: roleIconOffset.top,
+                  left: roleIconOffset.left,
+                  zIndex: 1,
+                }
+              : {}),
+          }}
+        >
+          <DiagramRoleIconBadge
+            Icon={DiagramRoleIcon}
+            iconTestId={diagramRoleIconTestId}
+          />
+        </Box>
+      </Tooltip>
+    ) : null;
   const forwardSourceHandleStyle = {
     right: -7,
     width: 14,
@@ -4851,37 +4936,7 @@ const WorkflowStepCardContent: React.FC<{
           }}
         />
       ))}
-      {data.isDiagram && DiagramRoleIcon ? (
-        <Tooltip title={data.diagramRole ?? "Diagram element"} arrow>
-          <Box
-            component="span"
-            role="img"
-            aria-label={`${data.diagramRole ?? "Generic"} role`}
-            data-testid="diagram-element-role-icon"
-            sx={{
-              position: "absolute",
-              top: roleIconOffset.top,
-              left: roleIconOffset.left,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 20,
-              height: 20,
-              borderRadius: "2px",
-              bgcolor: getFallbackEntityColors().background,
-              color: getFallbackEntityColors().color,
-              lineHeight: 0,
-              zIndex: 1,
-            }}
-          >
-            <DiagramRoleIcon
-              aria-hidden
-              data-testid={diagramRoleIconTestId}
-              sx={{ fontSize: "1rem" }}
-            />
-          </Box>
-        </Tooltip>
-      ) : null}
+      {showsScreen ? roleIcon : null}
       {showsScreen ? (
         <DiagramElementScreenBody
           state={screen}
@@ -4893,6 +4948,19 @@ const WorkflowStepCardContent: React.FC<{
           }
           organizationId={data.organizationId}
           projectId={data.projectId}
+        />
+      ) : data.isDiagram ? (
+        <DiagramElementCardFace
+          roleIcon={roleIcon}
+          title={data.title}
+          summary={renderInlineMentions(data.summary, "minimal", {
+            disableLinks: data.disableLinks,
+          })}
+          textColor={data.isHighlighted ? highlightTextColor : undefined}
+          text={DIAGRAM_CARD_TEXT[data.sizeMode]}
+          isSmall={data.sizeMode === "small"}
+          isScreenUnavailable={screen.kind === "unavailable"}
+          bottomReserve={rowReserve}
         />
       ) : (
         <Stack
@@ -4910,11 +4978,9 @@ const WorkflowStepCardContent: React.FC<{
                 : fulfilledByCount > 0
                   ? 3
                   : 0,
-            pt: data.isDiagram ? 3 : 0,
           }}
         >
-          {(!data.isDiagram || data.diagramRoleKey === "DIAGRAM_REFERENCE") &&
-          data.diagramRole ? (
+          {data.diagramRole ? (
             <Typography
               variant="caption"
               data-testid="diagram-element-role"
@@ -4947,9 +5013,6 @@ const WorkflowStepCardContent: React.FC<{
           >
             {data.title}
           </Typography>
-          {screen.kind === "unavailable" ? (
-            <DiagramElementScreenUnavailable />
-          ) : null}
           {data.summary && (
             <Typography
               data-testid="workflow-inline-step-summary"
@@ -5041,6 +5104,26 @@ const WorkflowStepNode = memo(
             4,
         }
       : undefined;
+    const showsScreen = screen.kind === "loading" || screen.kind === "ready";
+    const diagramGeometry = data.isDiagram
+      ? getDiagramCardGeometry(
+          data.sizeMode,
+          data.sizeConfig.nodeSize,
+          data.diagramNotation,
+        )
+      : undefined;
+    // Layout of the plain Diagram card; screens and workflow steps keep their
+    // own.
+    const cardGeometry = showsScreen ? undefined : diagramGeometry;
+    const isDiagramReference = data.diagramRoleKey === "DIAGRAM_REFERENCE";
+    const openableReference =
+      !isDiagramReference && !data.disableLinks
+        ? data.canonicalReference
+        : undefined;
+    const hasBottomRow =
+      data.directEntityLinks.length > 0 || Boolean(openableReference);
+    const rowReserve =
+      cardGeometry && hasBottomRow ? getDiagramCardRowReserve(cardGeometry) : 0;
 
     return (
       <Box>
@@ -5131,12 +5214,14 @@ const WorkflowStepNode = memo(
                   data.authoredColor,
                   data.sizeConfig,
                   data.diagramNotation,
+                  cardGeometry?.content,
                 )}
               >
                 <WorkflowStepCardContent
                   data={data}
                   screen={screen}
                   screenLayout={screenLayout}
+                  rowReserve={rowReserve}
                 />
               </Box>
             ) : (
@@ -5176,12 +5261,14 @@ const WorkflowStepNode = memo(
                     data.authoredColor,
                     data.sizeConfig,
                     data.diagramNotation,
+                    cardGeometry?.content,
                   )}
                 >
                   <WorkflowStepCardContent
                     data={data}
                     screen={screen}
                     screenLayout={screenLayout}
+                    rowReserve={rowReserve}
                   />
                 </Box>
               </InteractionComponent>
@@ -5190,12 +5277,32 @@ const WorkflowStepNode = memo(
               links={data.directEntityLinks}
               organizationId={data.organizationId}
               projectId={data.projectId}
-              inset={screenInset}
+              inset={
+                cardGeometry
+                  ? {
+                      left: cardGeometry.row.side,
+                      bottom: cardGeometry.row.bottom,
+                    }
+                  : screenInset
+              }
+              maxWidth={
+                cardGeometry
+                  ? getDiagramCardLinkStripWidth(
+                      cardGeometry,
+                      data.sizeConfig.nodeSize,
+                      Boolean(openableReference),
+                    )
+                  : undefined
+              }
             />
-            {data.diagramRoleKey === "DIAGRAM_REFERENCE" &&
-            data.referenceIcon ? (
+            {isDiagramReference && data.referenceIcon && diagramGeometry ? (
               <DiagramReferenceActions
                 Icon={data.referenceIcon}
+                roleLabel={data.diagramRole ?? "Diagram reference"}
+                position={{
+                  top: diagramGeometry.content.top,
+                  left: diagramGeometry.content.side,
+                }}
                 href={
                   !data.disableLinks &&
                   data.canonicalReference?.entityType ===
@@ -5211,11 +5318,8 @@ const WorkflowStepNode = memo(
                 onExplore={data.onExpandReference}
               />
             ) : null}
-            {data.diagramRoleKey !== "DIAGRAM_REFERENCE" &&
-            data.canonicalReference &&
-            !data.disableLinks ? (
-              <Stack
-                direction="row"
+            {openableReference ? (
+              <Box
                 className="nodrag nopan"
                 sx={
                   screenPlacement
@@ -5235,11 +5339,10 @@ const WorkflowStepNode = memo(
                       }
                     : {
                         position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        justifyContent: "center",
-                        bgcolor: "background.paper",
+                        right: cardGeometry?.row.side,
+                        bottom: cardGeometry?.row.bottom,
+                        zIndex: 3,
+                        lineHeight: 0,
                       }
                 }
               >
@@ -5248,33 +5351,32 @@ const WorkflowStepNode = memo(
                     size="small"
                     component={RouterLink}
                     to={
-                      data.canonicalReference.entityType ===
-                      TargetEntityType.Task
+                      openableReference.entityType === TargetEntityType.Task
                         ? getPathService().task({
                             projectId: data.projectId,
-                            taskId: data.canonicalReference.entityId,
+                            taskId: openableReference.entityId,
                           })
                         : getPathService().service({
                             projectId: data.projectId,
-                            serviceId: data.canonicalReference.entityId,
+                            serviceId: openableReference.entityId,
                           })
                     }
                     aria-label="Open reference"
                     data-testid="diagram-reference-open"
+                    sx={
+                      cardGeometry
+                        ? {
+                            width: DIAGRAM_CARD_ICON_BUTTON_SIZE,
+                            height: DIAGRAM_CARD_ICON_BUTTON_SIZE,
+                            p: 0,
+                          }
+                        : undefined
+                    }
                   >
                     <OpenInNewIcon sx={{ fontSize: "1rem" }} />
                   </IconButton>
                 </Tooltip>
-                {data.onExpandReference ? (
-                  <Button
-                    size="small"
-                    onClick={data.onExpandReference}
-                    data-testid="diagram-reference-expand"
-                  >
-                    Expand
-                  </Button>
-                ) : null}
-              </Stack>
+              </Box>
             ) : null}
           </Box>
         </Tooltip>
@@ -5461,23 +5563,18 @@ const WorkflowGraphControls: React.FC<{
   </Stack>
 );
 
-/** Bounds of the nodes plus every group box, so padding and labels stay in view. */
-const getBoundsWithBoundaryBoxes = (
-  nodes: Parameters<typeof getNodesBounds>[0],
-  boxes: readonly DiagramBoundaryBox[],
-) => {
-  const nodeBounds = getNodesBounds(nodes);
-  const rects = [nodeBounds, ...boxes];
-  const left = Math.min(...rects.map((rect) => rect.x));
-  const top = Math.min(...rects.map((rect) => rect.y));
-  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
-  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
-  return { x: left, y: top, width: right - left, height: bottom - top };
-};
-
 const WorkflowGraphViewportController: React.FC<
   WorkflowGraphViewportControllerProps
-> = ({ boundaryBoxes, enableInitialFit, hasGraphNodes, onReady, open }) => {
+> = ({
+  fitsDrawing,
+  fitKey,
+  hasGraphNodes,
+  onFit,
+  onReady,
+  onShowTopLeft,
+  open,
+  topLeftKey,
+}) => {
   const reactFlow = useReactFlow<WorkflowGraphNode, WorkflowGraphEdge>();
   const canvasWidth = useStore((state) => state.width);
   const canvasHeight = useStore((state) => state.height);
@@ -5486,6 +5583,14 @@ const WorkflowGraphViewportController: React.FC<
   });
   const viewportInitialized = reactFlow.viewportInitialized;
   const readyInstanceRef = useRef<WorkflowGraphFlowInstance | null>(null);
+  const fittedKeyRef = useRef<string | null>(null);
+  const shownTopLeftKeyRef = useRef(topLeftKey);
+  // The fit callback changes with every presentation update, such as a hover.
+  // Only the keys below may move the view.
+  const onFitRef = useRef(onFit);
+  useLayoutEffect(() => {
+    onFitRef.current = onFit;
+  }, [onFit]);
 
   useEffect(() => {
     if (readyInstanceRef.current === reactFlow) {
@@ -5496,49 +5601,38 @@ const WorkflowGraphViewportController: React.FC<
   }, [onReady, reactFlow]);
 
   useEffect(() => {
+    if (!open) {
+      fittedKeyRef.current = null;
+      return;
+    }
     if (
-      !enableInitialFit ||
-      !open ||
+      !fitsDrawing ||
       !hasGraphNodes ||
       !nodesInitialized ||
-      !viewportInitialized
+      !viewportInitialized ||
+      canvasWidth <= 0 ||
+      canvasHeight <= 0
     ) {
+      return;
+    }
+    const nextKey = `${canvasWidth}x${canvasHeight}:${fitKey}`;
+    if (fittedKeyRef.current === nextKey) {
       return;
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      if (boundaryBoxes.length > 0 && canvasWidth > 0 && canvasHeight > 0) {
-        const bounds = getBoundsWithBoundaryBoxes(
-          reactFlow.getNodes(),
-          boundaryBoxes,
-        );
-        void reactFlow.setViewport(
-          getViewportForBounds(
-            bounds,
-            canvasWidth,
-            canvasHeight,
-            WORKFLOW_GRAPH_MIN_ZOOM,
-            WORKFLOW_GRAPH_MAX_ZOOM,
-            WORKFLOW_GRAPH_FIT_VIEW_PADDING,
-          ),
-          { duration: 0 },
-        );
-        return;
-      }
-      void reactFlow.fitView({
-        duration: 0,
-        padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
-      });
+      fittedKeyRef.current = nextKey;
+      onFitRef.current(reactFlow);
     });
 
     return () => {
       window.cancelAnimationFrame(frameId);
     };
   }, [
-    boundaryBoxes,
     canvasHeight,
     canvasWidth,
-    enableInitialFit,
+    fitKey,
+    fitsDrawing,
     hasGraphNodes,
     nodesInitialized,
     open,
@@ -5546,8 +5640,38 @@ const WorkflowGraphViewportController: React.FC<
     viewportInitialized,
   ]);
 
+  useEffect(() => {
+    if (!viewportInitialized || shownTopLeftKeyRef.current === topLeftKey) {
+      return;
+    }
+    shownTopLeftKeyRef.current = topLeftKey;
+    if (!fitsDrawing) {
+      onShowTopLeft(reactFlow);
+    }
+  }, [fitsDrawing, onShowTopLeft, reactFlow, topLeftKey, viewportInitialized]);
+
   return null;
 };
+
+const resetScroll = (element: HTMLElement | null): void => {
+  if (element) {
+    element.scrollLeft = 0;
+    element.scrollTop = 0;
+  }
+};
+
+/** The inline canvas runs from its origin past the drawing, plus a margin. */
+const getInlineCanvasSize = (
+  bounds: DiagramRect | undefined,
+  offset: WorkflowGraphPosition,
+  margin: number,
+): { width: number; height: number } =>
+  bounds
+    ? {
+        width: offset.x + bounds.x + bounds.width + margin,
+        height: offset.y + bounds.y + bounds.height + margin,
+      }
+    : { width: 0, height: 0 };
 
 interface DiagramExplorationTarget {
   diagramId: string;
@@ -5746,6 +5870,66 @@ const WorkflowGraphViewportSurface: React.FC<
   const canCreateEmptyCanvas =
     isEditing && Boolean(interaction?.onEmptyCanvasContextMenu);
   const startsFitToView = isFullscreen;
+  const [groupLabelWidths, setGroupLabelWidths] = useState<
+    ReadonlyMap<string, number>
+  >(() => new Map());
+  const handleGroupLabelWidthChange = useCallback(
+    (groupId: string, width: number) => {
+      setGroupLabelWidths((current) =>
+        current.get(groupId) === width
+          ? current
+          : new Map(current).set(groupId, width),
+      );
+    },
+    [],
+  );
+  const drawingBounds = useMemo(
+    () =>
+      computeDiagramDrawingBounds({
+        model: graphModel,
+        groups: diagramGroups,
+        groupLabelWidths,
+        getLabelPosition: getWorkflowEdgeLabelPosition,
+      }),
+    [diagramGroups, graphModel, groupLabelWidths],
+  );
+  const showsCanvas = !isArranging && (hasGraphNodes || canCreateEmptyCanvas);
+  const canvasId = `${variant}-${graphSizeMode}`;
+  const drawingMargin = WORKFLOW_GRAPH_SIZE_CONFIGS[graphSizeMode].padding;
+  const { offset: canvasOffset, resetKey: topLeftKey } = useDiagramCanvasOffset(
+    {
+      topLeft: drawingBounds
+        ? {
+            x: drawingMargin - drawingBounds.x,
+            y: drawingMargin - drawingBounds.y,
+          }
+        : { x: 0, y: 0 },
+      isEditing,
+      canvasId: showsCanvas ? canvasId : null,
+      arrangement: comparison.positions,
+    },
+  );
+  const { width: canvasWidth, height: canvasHeight } = getInlineCanvasSize(
+    drawingBounds,
+    canvasOffset,
+    drawingMargin,
+  );
+  const inlineWindowHeight = Math.min(
+    WORKFLOW_GRAPH_MAX_HEIGHT,
+    Math.max(
+      WORKFLOW_GRAPH_MIN_VIEWPORT_HEIGHT,
+      canvasHeight + WORKFLOW_GRAPH_SCROLLBAR_ALLOWANCE,
+    ),
+  );
+  // An editor refits only when its canvas opens or changes size.
+  const fitKey =
+    isEditing || !drawingBounds ? "" : Object.values(drawingBounds).join(",");
+  // Fitting a very large drawing needs to zoom out past the usual limit.
+  const [fittedZoom, setFittedZoom] = useState<number>();
+  const minZoom = Math.min(
+    WORKFLOW_GRAPH_MIN_ZOOM,
+    fittedZoom ?? WORKFLOW_GRAPH_MIN_ZOOM,
+  );
   const [dragTargetStepId, setDragTargetStepId] = useState<
     string | undefined
   >();
@@ -6050,48 +6234,56 @@ const WorkflowGraphViewportSurface: React.FC<
     [resolveGestureTarget],
   );
 
-  const fitGraphToViewport = useCallback(() => {
-    if (!reactFlowInstance || !hasGraphNodes) {
-      return;
-    }
-
-    if (!isFullscreen) {
+  const fitDrawing = useCallback(
+    (instance: WorkflowGraphFlowInstance) => {
       const viewportElement = viewportElementRef.current;
       const width = viewportElement?.clientWidth ?? 0;
       const height = viewportElement?.clientHeight ?? 0;
-
-      if (width > 0 && height > 0) {
-        const bounds = getBoundsWithBoundaryBoxes(
-          graphModel.nodes,
-          boundaryBoxes,
-        );
-        const nextViewport = getViewportForBounds(
-          bounds,
-          width,
-          height,
-          WORKFLOW_GRAPH_MIN_ZOOM,
-          WORKFLOW_GRAPH_MAX_ZOOM,
-          WORKFLOW_GRAPH_FIT_VIEW_PADDING,
-        );
-
-        void reactFlowInstance.setViewport(nextViewport, {
-          duration: 0,
-        });
+      if (!viewportElement || !drawingBounds || width <= 0 || height <= 0) {
         return;
       }
-    }
 
-    void reactFlowInstance.fitView({
-      duration: 0,
-      padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
-    });
-  }, [
-    boundaryBoxes,
-    graphModel.nodes,
-    hasGraphNodes,
-    isFullscreen,
-    reactFlowInstance,
-  ]);
+      const viewport = getViewportForBounds(
+        drawingBounds,
+        width,
+        height,
+        0,
+        WORKFLOW_GRAPH_MAX_ZOOM,
+        WORKFLOW_GRAPH_FIT_VIEW_PADDING,
+      );
+      setFittedZoom(viewport.zoom);
+      void instance.setViewport(viewport, { duration: 0 });
+      resetScroll(viewportElement);
+    },
+    [drawingBounds],
+  );
+
+  const showTopLeft = useCallback(
+    (instance: WorkflowGraphFlowInstance) => {
+      void instance.setViewport(
+        { x: canvasOffset.x, y: canvasOffset.y, zoom: 1 },
+        { duration: 0 },
+      );
+      resetScroll(viewportElementRef.current);
+    },
+    [canvasOffset.x, canvasOffset.y],
+  );
+
+  // Each new canvas starts at the top-left with the usual zoom limit.
+  const handleCanvasReady = useCallback(
+    (instance: WorkflowGraphFlowInstance) => {
+      setReactFlowInstance(instance);
+      setFittedZoom(undefined);
+      resetScroll(viewportElementRef.current);
+    },
+    [],
+  );
+
+  const fitGraphToViewport = useCallback(() => {
+    if (reactFlowInstance) {
+      fitDrawing(reactFlowInstance);
+    }
+  }, [fitDrawing, reactFlowInstance]);
 
   const zoomIn = useCallback(() => {
     if (!reactFlowInstance) {
@@ -6265,8 +6457,10 @@ const WorkflowGraphViewportSurface: React.FC<
         }}
         sx={{
           display: "block",
-          flex: 1,
-          height: isFullscreen ? "100%" : graphModel.height,
+          // A flexible basis would size the inline window to its content and
+          // ignore the height limit.
+          flex: isFullscreen ? 1 : "none",
+          height: isFullscreen ? "100%" : inlineWindowHeight,
           minHeight: isFullscreen ? 0 : WORKFLOW_GRAPH_MIN_VIEWPORT_HEIGHT,
           bgcolor: (theme) =>
             theme.palette.mode === "dark"
@@ -6275,8 +6469,8 @@ const WorkflowGraphViewportSurface: React.FC<
           overflowX: isFullscreen ? "hidden" : "auto",
           overflowY: isFullscreen
             ? "hidden"
-            : graphModel.canvasHeight + WORKFLOW_GRAPH_SCROLLBAR_ALLOWANCE >
-                graphModel.height
+            : canvasHeight + WORKFLOW_GRAPH_SCROLLBAR_ALLOWANCE >
+                inlineWindowHeight
               ? "auto"
               : "hidden",
           cursor: hasGraphNodes ? "grab" : "default",
@@ -6285,27 +6479,29 @@ const WorkflowGraphViewportSurface: React.FC<
           },
         }}
       >
-        {!isArranging && (hasGraphNodes || canCreateEmptyCanvas) ? (
+        {showsCanvas ? (
           <Box
+            data-testid={`${testIdPrefix}-canvas`}
             sx={{
               position: "relative",
               width: "100%",
-              minWidth: isFullscreen ? "100%" : graphModel.width,
-              height: isFullscreen ? "100%" : graphModel.canvasHeight,
+              minWidth: isFullscreen ? "100%" : canvasWidth,
+              height: isFullscreen ? "100%" : canvasHeight,
+              minHeight: "100%",
             }}
           >
             <ReactFlowProvider>
               <ReactFlow
                 id={reactFlowId}
-                key={`${variant}-${graphSizeMode}`}
+                key={canvasId}
                 nodes={interactiveNodes}
                 edges={interactiveEdges}
                 nodeTypes={workflowNodeTypes}
                 edgeTypes={workflowEdgeTypes}
                 defaultViewport={
-                  isFullscreen ? undefined : { x: 0, y: 0, zoom: 1 }
+                  isFullscreen ? undefined : { ...canvasOffset, zoom: 1 }
                 }
-                minZoom={WORKFLOW_GRAPH_MIN_ZOOM}
+                minZoom={minZoom}
                 maxZoom={WORKFLOW_GRAPH_MAX_ZOOM}
                 nodesDraggable={
                   isEditing && Boolean(interaction?.allowNodeDragging)
@@ -6499,14 +6695,18 @@ const WorkflowGraphViewportSurface: React.FC<
                     boxes={boundaryBoxes}
                     nodeRects={boundaryNodeRects}
                     testIdPrefix={testIdPrefix}
+                    onLabelWidthChange={handleGroupLabelWidthChange}
                   />
                 )}
                 <WorkflowGraphViewportController
-                  boundaryBoxes={boundaryBoxes}
-                  enableInitialFit={startsFitToView}
+                  fitsDrawing={startsFitToView}
+                  fitKey={fitKey}
                   hasGraphNodes={hasGraphNodes}
-                  onReady={setReactFlowInstance}
+                  onFit={fitDrawing}
+                  onReady={handleCanvasReady}
+                  onShowTopLeft={showTopLeft}
                   open={open}
+                  topLeftKey={topLeftKey}
                 />
               </ReactFlow>
             </ReactFlowProvider>

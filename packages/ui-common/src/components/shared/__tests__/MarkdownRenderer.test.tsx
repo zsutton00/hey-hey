@@ -1634,11 +1634,11 @@ describe("diagram graph metadata", () => {
 
     const card = screen.getByTestId("workflow-inline-step");
     const roleIcon = within(card).getByRole("img", { name: "Generic role" });
-    expect(roleIcon).toHaveStyle({
-      position: "absolute",
-      top: "6px",
-      left: "6px",
-    });
+    const titleRow = within(card).getByTestId("diagram-element-title-row");
+    expect(titleRow).toContainElement(roleIcon);
+    expect(titleRow).toContainElement(
+      within(card).getByTestId("workflow-inline-step-title"),
+    );
     const linkStrip = screen.getByRole("group", {
       name: "Directly linked entities",
     });
@@ -3101,10 +3101,7 @@ describe("MarkdownRenderer mention rendering", () => {
       );
       expect(model.nodes.map((node) => node.id)).toEqual([step.id]);
       expect(model.edges).toEqual([]);
-      expect([model.width, model.canvasHeight]).toEqual([
-        empty.width,
-        empty.canvasHeight,
-      ]);
+      expect(model.canvasHeight).toBe(empty.canvasHeight);
       expect(
         model.nodes[0]?.data.directEntityLinks.map(
           (link) => link.targetEntityId,
@@ -5440,7 +5437,6 @@ describe("MarkdownRenderer mention rendering", () => {
       ).size,
     ).toBe(returnEdges.length);
     expect(model.canvasHeight).toBe(baseCanvasHeight + returnEdges.length * 70);
-    expect(model.width).toBe(reorderedModel.width);
     expect(model.canvasHeight).toBe(reorderedModel.canvasHeight);
     expect(
       model.nodes.map((node) => ({
@@ -5713,7 +5709,6 @@ describe("MarkdownRenderer mention rendering", () => {
       hasLoopTargetHandle: true,
     });
     expect(model.canvasHeight).toBeGreaterThan(188);
-    expect(model.height).toBeGreaterThan(model.canvasHeight);
   });
 
   it("keeps fulfilled-by targets on the step node without creating flow edges", () => {
@@ -5801,9 +5796,7 @@ describe("MarkdownRenderer mention rendering", () => {
       edges: [],
     });
 
-    expect(model.width).toBe(188);
-    expect(model.height).toBe(760);
-    expect(model.canvasHeight).toBeGreaterThan(model.height);
+    expect(model.canvasHeight).toBeGreaterThan(760);
     expect(model.nodes[0]?.position).toEqual({ x: 24, y: 24 });
     expect(model.nodes[1]?.position.x).toBe(model.nodes[0]?.position.x);
     expect(model.nodes[1]?.position.y).toBeGreaterThan(
@@ -6109,7 +6102,6 @@ describe("MarkdownRenderer mention rendering", () => {
     );
 
     expect(model.layoutMode).toBe("wrapped");
-    expect(model.width).toBe(750);
     expect(positions.slice(0, 2).map((position) => position?.y)).toEqual([
       24, 24,
     ]);
