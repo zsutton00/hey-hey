@@ -81,7 +81,7 @@ function ApprovalEvidenceDetails({
       component="section"
       aria-label="Approval details"
       data-testid="proposal-approval-details"
-      sx={{ p: 2, borderTop: 1, borderColor: "divider" }}
+      sx={{ p: 2 }}
     >
       <Stack spacing={1}>
         <Stack direction="row" spacing={1} alignItems="center">
