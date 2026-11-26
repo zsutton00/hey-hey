@@ -30,7 +30,8 @@ const TaskEntityPreview: React.FC<{
   organizationId: string;
   projectId: string;
   taskId: string;
-}> = ({ organizationId, projectId, taskId }) => {
+  diagramElementIds: readonly string[] | undefined;
+}> = ({ organizationId, projectId, taskId, diagramElementIds }) => {
   const { workItem, isFetched } = useWorkItem(organizationId, "task", taskId, {
     projectId,
     enabled: !!organizationId && !!taskId,
@@ -48,7 +49,15 @@ const TaskEntityPreview: React.FC<{
   }
 
   if (workItem && DIAGRAM_TYPE_KEYS.has(workItem.type)) {
-    return <WorkflowDetailPage preview={{ projectId, taskId }} />;
+    return (
+      <WorkflowDetailPage
+        preview={{
+          projectId,
+          taskId,
+          highlightedElementIds: diagramElementIds,
+        }}
+      />
+    );
   }
 
   return (
@@ -83,6 +92,7 @@ export const CanonicalEntityPreview: React.FC<CanonicalEntityPreviewProps> = ({
           organizationId={organizationId}
           projectId={projectId}
           taskId={entity.entityId}
+          diagramElementIds={entity.diagramElementIds}
         />
       );
     case "goal":

@@ -56,10 +56,13 @@ export function HostedModalInstance({
                     ? createProjectCollectionPreviewRequest(
                         request.target.collection,
                       )
-                    : createOpenItemEntity(
-                        request.target.entityType,
-                        request.target.entityId,
-                      )
+                    : {
+                        ...createOpenItemEntity(
+                          request.target.entityType,
+                          request.target.entityId,
+                        ),
+                        diagramElementIds: request.target.diagramElementIds,
+                      }
                 }
                 ownerKey={instanceId}
                 closePreview={onClose}

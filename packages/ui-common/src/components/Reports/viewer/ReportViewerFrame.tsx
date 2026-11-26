@@ -13,6 +13,7 @@ import { ReportType, type ReportDto } from "../../../api";
 import { formatActivityTimestamp } from "../../Activity/activityFormatting";
 import { usePathService } from "../../../contexts";
 import { buildEntityHref } from "../../../utils/buildEntityHref";
+import { OUTSIDE_DIAGRAM_DRAWING } from "../../shared/diagramDrawing";
 import { ReportUsageBar } from "./ReportUsageBar";
 
 const USAGE_REPORT_TYPES: ReadonlySet<ReportType> = new Set([
@@ -82,21 +83,27 @@ export const ReportViewerFrame: React.FC<ReportViewerFrameProps> = ({
       p: 2,
       width: "100%",
       fontFamily: reportFontFamily,
-      "& .MuiTypography-root": { fontFamily: reportFontFamily },
-      "& .MuiTypography-body1, & .MuiTypography-body2": {
-        fontSize: "1rem",
-        lineHeight: 1.6,
-        whiteSpace: "pre-wrap",
-        overflowWrap: "anywhere",
+      // Report text styles stop at a Diagram drawing.
+      [`& .MuiTypography-root${OUTSIDE_DIAGRAM_DRAWING}`]: {
+        fontFamily: reportFontFamily,
       },
-      "& .MuiTypography-caption": {
+      [`& .MuiTypography-body1${OUTSIDE_DIAGRAM_DRAWING}, & .MuiTypography-body2${OUTSIDE_DIAGRAM_DRAWING}`]:
+        {
+          fontSize: "1rem",
+          lineHeight: 1.6,
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+        },
+      [`& .MuiTypography-caption${OUTSIDE_DIAGRAM_DRAWING}`]: {
         fontSize: "0.875rem",
         lineHeight: 1.5,
         whiteSpace: "pre-wrap",
       },
-      "& .MuiTypography-subtitle2": { fontSize: "1rem" },
-      "& p:first-of-type": { marginTop: 0 },
-      "& p:last-of-type": { marginBottom: 0 },
+      [`& .MuiTypography-subtitle2${OUTSIDE_DIAGRAM_DRAWING}`]: {
+        fontSize: "1rem",
+      },
+      [`& p:first-of-type${OUTSIDE_DIAGRAM_DRAWING}`]: { marginTop: 0 },
+      [`& p:last-of-type${OUTSIDE_DIAGRAM_DRAWING}`]: { marginBottom: 0 },
       backgroundColor:
         theme.palette.mode === "dark"
           ? theme.palette.grey[900]

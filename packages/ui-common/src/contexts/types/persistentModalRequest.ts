@@ -32,6 +32,7 @@ const preview = z
         .object({
           entityType: z.enum(OPEN_ITEM_ENTITY_TYPES),
           entityId: z.string().min(1),
+          diagramElementIds: z.array(z.string().min(1)).optional(),
         })
         .strict(),
       z
@@ -104,9 +105,16 @@ export function persistentModalIdentity(
       return `${prefix}:${request.entityType}:${request.entityId}`;
     case "triage":
       return prefix;
-    case "preview":
-      return "kind" in request.target
-        ? `${prefix}:collection:${request.target.collection}`
-        : `${prefix}:${request.target.entityType}:${request.target.entityId}`;
+    case "preview": {
+      if ("kind" in request.target) {
+        return `${prefix}:collection:${request.target.collection}`;
+      }
+      const { entityType, entityId, diagramElementIds } = request.target;
+      const identity = `${prefix}:${entityType}:${entityId}`;
+      // A different highlight is a different view of the same Diagram.
+      return diagramElementIds?.length
+        ? `${identity}:${[...diagramElementIds].sort().join(",")}`
+        : identity;
+    }
   }
 }

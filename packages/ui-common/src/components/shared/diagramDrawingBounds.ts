@@ -36,11 +36,46 @@ const pointRect = (x: number, y: number): DiagramRect => ({
   height: 0,
 });
 
-const elementRect = ({ position, data }: DrawingNode): DiagramRect => ({
+export const getDiagramElementRect = ({
+  position,
+  data,
+}: DrawingNode): DiagramRect => ({
   ...position,
   width: data.sizeConfig.nodeSize,
   height: data.sizeConfig.nodeSize,
 });
+
+/** The smallest rectangle holding every given one. */
+export const unionDiagramRects = (
+  rects: readonly DiagramRect[],
+): DiagramRect | undefined => {
+  if (rects.length === 0) {
+    return undefined;
+  }
+
+  const left = Math.min(...rects.map((rect) => rect.x));
+  const top = Math.min(...rects.map((rect) => rect.y));
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+/**
+ * Group boxes with their labels. Labels do not wrap, so they can only widen a
+ * box to the right.
+ */
+export const getDiagramGroupRects = (
+  boxes: ReturnType<typeof computeBoundaryBoxes>,
+  groupLabelWidths: ReadonlyMap<string, number>,
+): DiagramRect[] => [
+  ...boxes,
+  ...boxes.map((box) => ({
+    x: box.x,
+    y: box.y,
+    width: DIAGRAM_BOUNDARY_LABEL_INSET + (groupLabelWidths.get(box.id) ?? 0),
+    height: 0,
+  })),
+];
 
 /** Where a connection meets an element, matching the element's handles. */
 const getHandleAnchor = (node: DrawingNode, handleId: string): HandleAnchor => {
@@ -98,7 +133,7 @@ const stubEnd = ({ x, y, side }: HandleAnchor): DiagramRect => {
 };
 
 /** The outermost points of a connection's path, plus its label. */
-const getConnectionRects = (
+export const getDiagramConnectionRects = (
   edge: DrawingEdge,
   nodesById: ReadonlyMap<string, DrawingNode>,
   getLabelPosition: typeof getWorkflowEdgeLabelPosition,
@@ -170,35 +205,25 @@ export function computeDiagramDrawingBounds({
   const nodesById = new Map(model.nodes.map((node) => [node.id, node]));
   const elements = model.nodes.map((node) => ({
     id: node.id,
-    ...elementRect(node),
+    ...getDiagramElementRect(node),
   }));
   const boxes = computeBoundaryBoxes(groups, elements);
-  const groupLabels = boxes.map((box) => ({
-    x: box.x,
-    y: box.y,
-    width: DIAGRAM_BOUNDARY_LABEL_INSET + (groupLabelWidths.get(box.id) ?? 0),
-    height: 0,
-  }));
   const connections = model.edges.flatMap((edge) =>
-    getConnectionRects(edge, nodesById, getLabelPosition),
+    getDiagramConnectionRects(edge, nodesById, getLabelPosition),
   );
   // The model reserves room below the elements for return and loop gutters.
   const usesBottomGutter = model.edges.some(
     ({ data }) => data?.route.kind === "return" || data?.route.kind === "loop",
   );
-  const rects: DiagramRect[] = [
-    ...elements,
-    ...boxes,
-    ...groupLabels,
-    ...connections,
-  ];
 
-  const left = Math.min(...rects.map((rect) => rect.x));
-  const top = Math.min(...rects.map((rect) => rect.y));
-  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bounds = unionDiagramRects([
+    ...elements,
+    ...getDiagramGroupRects(boxes, groupLabelWidths),
+    ...connections,
+  ])!;
   const bottom = Math.max(
-    ...rects.map((rect) => rect.y + rect.height),
+    bounds.y + bounds.height,
     ...(usesBottomGutter ? [model.canvasHeight] : []),
   );
-  return { x: left, y: top, width: right - left, height: bottom - top };
+  return { ...bounds, height: bottom - bounds.y };
 }

@@ -1,15 +1,11 @@
-import { Box, Button, Stack, Typography } from "@mui/material";
-import { useState } from "react";
-import type {
-  ChangeWalkthroughDiagramElementRef,
-  ChangeWalkthroughReportPayload,
-} from "../../../api";
+import { Box, Stack, Typography } from "@mui/material";
+import type { ChangeWalkthroughReportPayload } from "../../../api";
 import { useProjectContext } from "../../../contexts/ProjectContext";
-import { DiagramElementReferenceCard } from "../../shared/DiagramElementReferenceCard";
 import { SyntaxHighlightedCodeBlock } from "../../CodingPlan/SyntaxHighlightedCodeBlock";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { ReportItemCard, ReportLabeledText } from "./reportPrimitives";
 import type { ReportRenderer } from "./rendererContract";
+import { WalkthroughPartPreviews } from "./WalkthroughPartPreviews";
 import { WalkthroughSourceLink } from "./WalkthroughSourceLink";
 
 const WalkthroughMarkdown = ({ text }: { text: string }) => (
@@ -17,54 +13,6 @@ const WalkthroughMarkdown = ({ text }: { text: string }) => (
     {text}
   </MarkdownRenderer>
 );
-
-/** Elements shown on a part before the rest sit behind "Show N more". */
-const VISIBLE_ELEMENT_COUNT = 3;
-
-const PartDiagramElements = ({
-  refs,
-  organizationId,
-  projectId,
-}: {
-  refs: readonly ChangeWalkthroughDiagramElementRef[];
-  organizationId: string;
-  projectId: string;
-}) => {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? refs : refs.slice(0, VISIBLE_ELEMENT_COUNT);
-  const hiddenCount = refs.length - visible.length;
-
-  return (
-    <Stack spacing={1} data-testid="walkthrough-part-diagram-elements">
-      <Typography
-        component="h4"
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontWeight: 650 }}
-      >
-        In the design
-      </Typography>
-      {visible.map((ref) => (
-        <DiagramElementReferenceCard
-          key={ref.diagramElementId}
-          organizationId={organizationId}
-          projectId={projectId}
-          diagramElementId={ref.diagramElementId}
-        />
-      ))}
-      {hiddenCount > 0 ? (
-        <Button
-          size="small"
-          onClick={() => setExpanded(true)}
-          data-testid="walkthrough-part-show-more-elements"
-          sx={{ alignSelf: "flex-start" }}
-        >
-          Show {hiddenCount} more
-        </Button>
-      ) : null}
-    </Stack>
-  );
-};
 
 export const ChangeWalkthroughReport: ReportRenderer<
   ChangeWalkthroughReportPayload
@@ -113,10 +61,12 @@ export const ChangeWalkthroughReport: ReportRenderer<
                 {part.diagramElementRefs?.length &&
                 organizationId &&
                 projectId ? (
-                  <PartDiagramElements
-                    refs={part.diagramElementRefs}
+                  <WalkthroughPartPreviews
                     organizationId={organizationId}
                     projectId={projectId}
+                    elementIds={part.diagramElementRefs.map(
+                      ({ diagramElementId }) => diagramElementId,
+                    )}
                   />
                 ) : null}
               </Stack>

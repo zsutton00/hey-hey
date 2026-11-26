@@ -66,7 +66,11 @@ export const WorkflowDetailPage: React.FC<{
    * route, tabs stay local, breadcrumbs are hidden, and graph authoring (which
    * navigates to the review page) is unavailable.
    */
-  preview?: { projectId: string; taskId: string };
+  preview?: {
+    projectId: string;
+    taskId: string;
+    highlightedElementIds?: readonly string[];
+  };
 }> = ({ workItemTypeDefinition, preview }) => {
   const navigate = useNavigate();
   const params = useParams();
@@ -379,6 +383,7 @@ export const WorkflowDetailPage: React.FC<{
         parent={parent}
         project={project}
         graphData={graphData}
+        highlightedElementIds={preview.highlightedElementIds}
         featureAncestors={featureAncestors}
         relatedEntities={relatedEntities}
         proposals={proposals}

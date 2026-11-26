@@ -78,6 +78,26 @@ describe("persistent modal opening boundary", () => {
       expect.objectContaining({ id: second.id, minimized: true }),
     ]);
   });
+  it("carries a Diagram highlight and treats each highlight as its own view", () => {
+    const highlighted = (diagramElementIds: string[]) => ({
+      ...request(),
+      target: { ...request().target, diagramElementIds },
+    });
+    expect(copyPersistentModalRequest(highlighted(["b", "a"]))).toEqual(
+      highlighted(["b", "a"]),
+    );
+
+    const store = createModalStore();
+    store.getState().open(request());
+    store.getState().open(highlighted(["a", "b"]));
+    store.getState().open(highlighted(["b", "a"]));
+    store.getState().open(highlighted(["a"]));
+    expect(store.getState().instances.map(({ config }) => config)).toEqual([
+      request(),
+      highlighted(["a", "b"]),
+      highlighted(["a"]),
+    ]);
+  });
   it("keeps legacy callbacks intact and ineligible", () => {
     const store = createModalStore();
     const onSelect = vi.fn();

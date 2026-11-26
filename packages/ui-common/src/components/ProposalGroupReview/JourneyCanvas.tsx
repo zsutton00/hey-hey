@@ -6,6 +6,10 @@ import React, {
   useState,
 } from "react";
 import { Box, useTheme } from "@mui/material";
+import {
+  DIAGRAM_DRAWING_ATTRIBUTES,
+  diagramDrawingFontSx,
+} from "../shared/diagramDrawing";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
 import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
 import { findUxFlowStartScreenId } from "../shared/diagramElementMetadata";
@@ -25,13 +29,15 @@ const isHighlighted = (state: JourneyChangeState | undefined) =>
   state === "added" || state === "changed";
 
 /** Plain canvas gray: the UX Flow Grid View mockup's light gray, or a dark gray in dark mode. */
-const CANVAS_COLOR = { light: "#f0f2f5", dark: "#1e2126" };
+export const JOURNEY_CANVAS_COLOR = { light: "#f0f2f5", dark: "#1e2126" };
 const TRANSITION_COLOR = { light: "#5f6670", dark: "#a3aab4" };
 const SCREEN_WIDTH = JOURNEY_SCREEN_WIDTH;
 const DEFAULT_SCREEN_HEIGHT = 450;
 const COLUMN_GAP = 160;
 const ROW_GAP = 96;
 const ARROW_INSET = 12;
+/** Space between the canvas edge and the drawing. */
+const CANVAS_PADDING = 24;
 /** Arrowheads scale with this, so thicker lines also give larger arrows. */
 const CONNECTOR_WIDTH = 2.5;
 /** Keeps horizontal arrows near the top of tall screens. */
@@ -106,6 +112,43 @@ function useDragScroll(container: React.RefObject<HTMLElement | null>) {
   return { dragging, onPointerDown, onClickCapture, onDragStart };
 }
 
+/** The grid column and row of every screen of a flow. */
+const getJourneyCells = (
+  steps: WorkflowGraphSurfaceData["steps"],
+  edges: WorkflowGraphSurfaceData["edges"],
+  savedPositions: ReadonlyMap<string, { x: number; y: number }>,
+) =>
+  layoutJourneyScreens(
+    steps.map(({ id, name }) => ({ id, name })),
+    edges.map((edge) => ({
+      id: edge.id,
+      sourceId: edge.sourceNodeId,
+      targetId: edge.targetNodeId,
+      role: edge.transitionRole ?? null,
+      actionLabel: edge.actionLabel ?? null,
+    })),
+    savedPositions,
+    findUxFlowStartScreenId(steps),
+  );
+
+/** Where screens sit relative to each other before their heights are measured. */
+export const estimateJourneyScreenBoxes = (
+  steps: WorkflowGraphSurfaceData["steps"],
+  edges: WorkflowGraphSurfaceData["edges"],
+  savedPositions: ReadonlyMap<string, { x: number; y: number }>,
+): Map<string, ScreenBox> =>
+  new Map(
+    [...getJourneyCells(steps, edges, savedPositions)].map(([id, cell]) => [
+      id,
+      {
+        x: cell.column * (SCREEN_WIDTH + COLUMN_GAP),
+        y: cell.row * (DEFAULT_SCREEN_HEIGHT + ROW_GAP),
+        width: SCREEN_WIDTH,
+        height: DEFAULT_SCREEN_HEIGHT,
+      },
+    ]),
+  );
+
 export const JourneyCanvas: React.FC<{
   steps: WorkflowGraphSurfaceData["steps"];
   edges: WorkflowGraphSurfaceData["edges"];
@@ -119,6 +162,14 @@ export const JourneyCanvas: React.FC<{
     steps: ReadonlyMap<string, JourneyChangeState>;
     edges: ReadonlyMap<string, JourneyChangeState>;
   };
+  /**
+   * Receives each screen's box, measured from the canvas's outer corner.
+   * `isMeasured` is false while any box still has the assumed height.
+   */
+  onLayout?: (
+    screens: ReadonlyMap<string, ScreenBox>,
+    isMeasured: boolean,
+  ) => void;
 }> = ({
   steps,
   edges,
@@ -126,6 +177,7 @@ export const JourneyCanvas: React.FC<{
   renderScreen,
   readOnly = false,
   changeStates,
+  onLayout,
 }) => {
   const markerId = useId();
   const changedMarkerId = `${markerId}-changed`;
@@ -157,18 +209,7 @@ export const JourneyCanvas: React.FC<{
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, [steps]);
-  const cells = layoutJourneyScreens(
-    steps.map(({ id, name }) => ({ id, name })),
-    edges.map((edge) => ({
-      id: edge.id,
-      sourceId: edge.sourceNodeId,
-      targetId: edge.targetNodeId,
-      role: edge.transitionRole ?? null,
-      actionLabel: edge.actionLabel ?? null,
-    })),
-    savedPositions,
-    findUxFlowStartScreenId(steps),
-  );
+  const cells = getJourneyCells(steps, edges, savedPositions);
   const connectorEdges = edges.map((edge) => ({
     id: edge.id,
     sourceId: edge.sourceNodeId,
@@ -226,14 +267,35 @@ export const JourneyCanvas: React.FC<{
       return [[step.id, box] as const];
     }),
   );
+  const layoutKey = JSON.stringify([...positions]);
+  const isMeasured = [...positions.keys()].every(
+    (id) => heights[id] !== undefined,
+  );
+  useLayoutEffect(() => {
+    if (!onLayout) {
+      return;
+    }
+    const boxes: [string, ScreenBox][] = JSON.parse(layoutKey);
+    onLayout(
+      new Map(
+        boxes.map(([id, box]) => [
+          id,
+          { ...box, x: box.x + CANVAS_PADDING, y: box.y + CANVAS_PADDING },
+        ]),
+      ),
+      isMeasured,
+    );
+  }, [isMeasured, layoutKey, onLayout]);
   return (
     <Box
+      {...DIAGRAM_DRAWING_ATTRIBUTES}
       ref={container}
       data-testid="journey-canvas"
       onPointerDown={readOnly ? undefined : dragScroll.onPointerDown}
       onClickCapture={readOnly ? undefined : dragScroll.onClickCapture}
       onDragStart={readOnly ? undefined : dragScroll.onDragStart}
       sx={{
+        ...diagramDrawingFontSx,
         ...(readOnly
           ? { width: "max-content" }
           : {
@@ -241,8 +303,8 @@ export const JourneyCanvas: React.FC<{
               cursor: dragScroll.dragging ? "grabbing" : "grab",
               userSelect: dragScroll.dragging ? "none" : undefined,
             }),
-        bgcolor: (theme) => CANVAS_COLOR[theme.palette.mode],
-        p: 3,
+        bgcolor: (theme) => JOURNEY_CANVAS_COLOR[theme.palette.mode],
+        p: `${CANVAS_PADDING}px`,
       }}
     >
       <Box
@@ -262,7 +324,7 @@ export const JourneyCanvas: React.FC<{
             overflow: "visible",
             color: (theme) => TRANSITION_COLOR[theme.palette.mode],
             "& text": {
-              stroke: (theme) => CANVAS_COLOR[theme.palette.mode],
+              stroke: (theme) => JOURNEY_CANVAS_COLOR[theme.palette.mode],
             },
           }}
         >

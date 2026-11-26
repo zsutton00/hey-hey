@@ -15,15 +15,25 @@ export interface ProjectCollectionPreviewRequest {
   collection: ProjectCollectionKind;
 }
 
-export type EntityPreviewRequest = OpenItemEntity;
-export type PreviewRequest = EntityPreviewRequest | ProjectCollectionPreviewRequest;
+export type EntityPreviewRequest = OpenItemEntity & {
+  /**
+   * For a task that is a Diagram: the Diagram Elements Preview shows
+   * highlighted.
+   */
+  diagramElementIds?: string[];
+};
+export type PreviewRequest =
+  EntityPreviewRequest | ProjectCollectionPreviewRequest;
 
 export const createProjectCollectionPreviewRequest = (
-  collection: ProjectCollectionKind
-): ProjectCollectionPreviewRequest => ({ kind: "project_collection", collection });
+  collection: ProjectCollectionKind,
+): ProjectCollectionPreviewRequest => ({
+  kind: "project_collection",
+  collection,
+});
 
 export const isProjectCollectionPreviewRequest = (
-  request: PreviewRequest
+  request: PreviewRequest,
 ): request is ProjectCollectionPreviewRequest =>
   "kind" in request && request.kind === "project_collection";
 
@@ -39,7 +49,7 @@ export interface PreviewHostProviderProps {
 const missingPreviewHost: PreviewHost = {
   openPreview: () => {
     throw new Error(
-      "PreviewHostProvider is required for previewable InteractionComponent entities."
+      "PreviewHostProvider is required for previewable InteractionComponent entities.",
     );
   },
 };
@@ -59,7 +69,7 @@ export const PreviewHostProvider: React.FC<PreviewHostProviderProps> = ({
         hostRef.current.openPreview(request);
       },
     }),
-    []
+    [],
   );
 
   return (

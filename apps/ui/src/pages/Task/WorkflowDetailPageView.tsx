@@ -73,6 +73,8 @@ interface WorkflowDetailPageViewProps {
   parent?: TaskResponseDto | null;
   project?: { id: string; name?: string } | null;
   graphData: WorkflowGraphSurfaceData | null;
+  /** Elements the shown Diagram highlights. */
+  highlightedElementIds?: readonly string[];
   graphProjection?: WorkItemGraphDraftProjection;
   graphDraft?: UseWorkItemGraphDraftReturn;
   childTypeDefinition?: WorkItemTypeDefinitionDto;
@@ -112,6 +114,7 @@ export const WorkflowDetailPageView: React.FC<WorkflowDetailPageViewProps> = ({
   parent,
   project,
   graphData,
+  highlightedElementIds,
   graphProjection,
   graphDraft,
   childTypeDefinition,
@@ -329,6 +332,7 @@ export const WorkflowDetailPageView: React.FC<WorkflowDetailPageViewProps> = ({
                   ) : graphData ? (
                     <WorkflowGraphSurface
                       graphData={graphData}
+                      highlightedStepId={highlightedElementIds}
                       allowFullscreen
                     />
                   ) : graphProjection ? (

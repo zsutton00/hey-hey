@@ -12,6 +12,7 @@ import {
   usePreviewHost,
   type PreviewRequest,
 } from "@hey-hey/ui-common/context";
+import { createOpenItemEntity } from "@hey-hey/ui-common";
 import {
   fireEvent,
   render as renderView,
@@ -71,12 +72,17 @@ vi.mock("../pages/Task/WorkflowDetailPage", () => ({
   WorkflowDetailPage: ({
     preview,
   }: {
-    preview?: { projectId: string; taskId: string };
+    preview?: {
+      projectId: string;
+      taskId: string;
+      highlightedElementIds?: readonly string[];
+    };
   }) => (
     <div
       data-testid="diagram-page"
       data-task-id={preview?.taskId}
       data-project-id={preview?.projectId}
+      data-highlighted-element-ids={preview?.highlightedElementIds?.join(" ")}
     />
   ),
 }));
@@ -278,6 +284,51 @@ describe("CanonicalEntityPreview", () => {
     );
     expect(screen.getByText("Features collection")).toBe(first);
     expect(screen.queryByText("Goals collection")).not.toBeInTheDocument();
+  });
+
+  it("opens a Diagram with the requested elements highlighted", () => {
+    mockUseWorkItem.mockReturnValue({
+      workItem: { id: "diagram-1", type: "DIAGRAM" },
+      isFetched: true,
+    });
+    const HighlightTrigger = ({ elementId }: { elementId: string }) => {
+      const host = usePreviewHost();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            host.openPreview({
+              ...createOpenItemEntity("task", "diagram-1"),
+              diagramElementIds: [elementId],
+            })
+          }
+        >
+          Highlight {elementId}
+        </button>
+      );
+    };
+    render(
+      <MemoryRouter>
+        <OpenItemsPreviewHost organizationId="org-1" projectId="project-1">
+          <HighlightTrigger elementId="queue" />
+          <HighlightTrigger elementId="run" />
+        </OpenItemsPreviewHost>
+        <HeyHeyModal />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Highlight queue" }));
+    expect(screen.getByTestId("diagram-page")).toHaveAttribute(
+      "data-highlighted-element-ids",
+      "queue",
+    );
+    // Another highlight of the same Diagram does not restore the earlier view.
+    fireEvent.click(screen.getByRole("button", { name: "Highlight run" }));
+    expect(
+      screen
+        .getAllByTestId("diagram-page")
+        .map((page) => page.getAttribute("data-highlighted-element-ids")),
+    ).toEqual(["queue", "run"]);
   });
 
   it("opens and closes without changing location or history", () => {

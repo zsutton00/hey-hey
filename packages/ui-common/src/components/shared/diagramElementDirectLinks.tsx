@@ -1,17 +1,3 @@
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
-import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
-import CodeIcon from "@mui/icons-material/Code";
-import HubIcon from "@mui/icons-material/Hub";
-import Inventory2Icon from "@mui/icons-material/Inventory2";
-import LoginIcon from "@mui/icons-material/Login";
-import PersonIcon from "@mui/icons-material/Person";
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import PsychologyIcon from "@mui/icons-material/Psychology";
-import StopCircleOutlinedIcon from "@mui/icons-material/StopCircleOutlined";
-import StorageIcon from "@mui/icons-material/Storage";
-import WebAssetIcon from "@mui/icons-material/WebAsset";
-import WidgetsIcon from "@mui/icons-material/Widgets";
 import { IconButton, Stack } from "@mui/material";
 import type { SvgIconProps } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -21,7 +7,6 @@ import {
   AgentEdgeType,
   type AgentEdgeResponseDto,
   type AgentEdgeEndpointEntityType,
-  type DiagramElementRoleDefinition,
   type TargetEntityType,
 } from "../../api";
 import type { GraphWorkItem } from "./diagramElementMetadata";
@@ -33,14 +18,16 @@ import {
   getEntityIcon,
   resolveWorkItemIconPresentation,
 } from "../../utils/entityIcons";
-import { DecisionIcon } from "../../utils/icons/Decision";
 import { EntityHoverCard } from "../SmarterTextAreaCard/EntityHoverCard";
 
 /**
- * Diagram Element presentation shared by the Diagram canvas and the report
- * viewer: role icons and the direct-link strip whose icons open an entity
- * preview without navigating.
+ * Diagram Element presentation: role icons and the direct-link strip whose
+ * icons open an entity preview without navigating.
  */
+
+/** Matches a linked-item icon, so a surrounding control can leave its clicks. */
+export const DIAGRAM_ELEMENT_LINK_SELECTOR =
+  '[data-testid="diagram-element-direct-link"]';
 
 export interface WorkflowGraphDirectEntityLink {
   sourceNodeId: string;
@@ -55,49 +42,6 @@ export interface WorkflowGraphRenderedEntityLink extends WorkflowGraphDirectEnti
   href: string;
   Icon: ComponentType<SvgIconProps>;
 }
-
-export const DIAGRAM_ROLE_ICONS: Readonly<
-  Record<string, ComponentType<SvgIconProps>>
-> = {
-  GENERIC: CategoryOutlinedIcon,
-  PERSON: PersonIcon,
-  AGENT: PsychologyIcon,
-  START: PlayCircleOutlineIcon,
-  END: StopCircleOutlinedIcon,
-  SOFTWARE_SYSTEM: HubIcon,
-  CONTAINER: Inventory2Icon,
-  COMPONENT: WidgetsIcon,
-  CODE: CodeIcon,
-  DATABASE: StorageIcon,
-  UI: WebAssetIcon,
-  UI_START: LoginIcon,
-  PRODUCT: Inventory2Icon,
-  DECISION: DecisionIcon,
-  EXTERNAL_SYSTEM: CloudOutlinedIcon,
-  DIAGRAM_REFERENCE: AccountTreeIcon,
-};
-
-export const getDiagramRoleIcon = (
-  roleKey: string,
-  notation?: DiagramElementRoleDefinition["notation"],
-): ComponentType<SvgIconProps> => {
-  const knownRoleIcon = DIAGRAM_ROLE_ICONS[roleKey];
-  if (knownRoleIcon) return knownRoleIcon;
-
-  switch (notation) {
-    case "person":
-      return PersonIcon;
-    case "cylinder":
-      return StorageIcon;
-    case "diamond":
-      return DecisionIcon;
-    case "frame":
-      return AccountTreeIcon;
-    case "box":
-    default:
-      return CategoryOutlinedIcon;
-  }
-};
 
 export const getDirectEntityHref = (
   entityType: AgentEdgeEndpointEntityType | TargetEntityType,
@@ -272,8 +216,6 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
   /** Bounds the overlaid row; icons past it are reached by scrolling. */
   maxWidth?: number;
   buttonSize?: number;
-  /** `inline` flows with its container instead of overlaying a canvas node. */
-  layout?: "overlay" | "inline";
 }> = ({
   links,
   organizationId,
@@ -281,7 +223,6 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
   inset,
   maxWidth,
   buttonSize = DEFAULT_LINK_BUTTON_SIZE,
-  layout = "overlay",
 }) => {
   const hasScope = Boolean(organizationId && projectId);
   const [hoveredTarget, setHoveredTarget] = useState<{
@@ -398,21 +339,17 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
         role="group"
         aria-label="Directly linked entities"
         data-testid="diagram-element-link-strip"
-        sx={
-          layout === "inline"
-            ? { alignItems: "center", flexWrap: "wrap" }
-            : {
-                position: "absolute",
-                left: inset?.left ?? 4,
-                bottom: inset?.bottom ?? 4,
-                alignItems: "center",
-                zIndex: 3,
-                pointerEvents: "all",
-                ...(maxWidth === undefined
-                  ? {}
-                  : getBoundedStripSx(links.length, buttonSize, maxWidth)),
-              }
-        }
+        sx={{
+          position: "absolute",
+          left: inset?.left ?? 4,
+          bottom: inset?.bottom ?? 4,
+          alignItems: "center",
+          zIndex: 3,
+          pointerEvents: "all",
+          ...(maxWidth === undefined
+            ? {}
+            : getBoundedStripSx(links.length, buttonSize, maxWidth)),
+        }}
       >
         {links.map((link) => (
           <WorkflowGraphDirectEntityLinkButton
