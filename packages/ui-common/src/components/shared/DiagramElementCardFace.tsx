@@ -42,7 +42,7 @@ const clampedTextSx = (lineClamp: number) => ({
 
 interface DiagramElementCardFaceProps {
   roleIcon: React.ReactNode;
-  title: string;
+  title: React.ReactNode;
   summary: React.ReactNode;
   textColor: string | undefined;
   text: DiagramCardText;

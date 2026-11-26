@@ -1,5 +1,5 @@
 import { legacyStatuses } from "../../../../test/fixtures/workItemStatuses";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -20,6 +20,8 @@ import { useEntityDetails } from "../../../../data/hooks/useEntityDetails";
 import { useLatestMessage } from "../../../../data/hooks/useLatestMessage";
 import { useWorkItemTypeByKey } from "../../../../data/hooks/useWorkItemTypes";
 import type { PlanWorkItem } from "../../../../data/plans/canonicalPlan";
+import { MentionEditorContext } from "../../../SmarterTextAreaCard/EditorContext";
+import { getPathService } from "../../../../services/webPathService";
 import { EntityHoverCard } from "../EntityHoverCard";
 
 vi.mock("../../../SmarterTextAreaCard/MentionBadge", () => ({
@@ -50,7 +52,10 @@ vi.mock("../../../../data/hooks/useLatestMessage", () => ({
   useLatestMessage: vi.fn(),
 }));
 
-vi.mock("../../../../data/hooks/useWorkItemTypes", () => ({
+vi.mock("../../../../data/hooks/useWorkItemTypes", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../../../data/hooks/useWorkItemTypes")
+  >()),
   useWorkItemTypeByKey: vi.fn(),
   useMentionWorkItemTypeKey: () => ({ typeKey: undefined, isResolved: true }),
 }));
@@ -225,6 +230,134 @@ describe("EntityHoverCard plan preview", () => {
       markStale: vi.fn(),
     });
   });
+
+  it.each(["COMPONENT", "GENERIC"] as const)(
+    "keeps a loaded %s element available when the pointer enters the card",
+    async (role) => {
+      const { MentionBadgeInner } = await vi.importActual<
+        typeof import("../../../SmarterTextAreaCard/MentionBadge")
+      >("../../../SmarterTextAreaCard/MentionBadge");
+      const task = buildTask({
+        name: "Release packaging",
+        type: "DIAGRAM_ELEMENT",
+        sections: [
+          {
+            id: "metadata",
+            key: "diagramElementMetadata",
+            order: 0,
+            materializedMarkdown: JSON.stringify({ role }),
+          },
+          ...(role === "COMPONENT"
+            ? [
+                {
+                  id: "description",
+                  key: "description",
+                  order: 1,
+                  materializedMarkdown: "Builds and signs the desktop release.",
+                },
+              ]
+            : []),
+        ],
+      });
+      mockUseEntityDetails.mockReturnValue({
+        data: task,
+        isLoading: false,
+        error: null,
+      });
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        ...mockUseWorkItemTypeByKey(),
+        isFetched: true,
+        workItemTypeDefinition: {
+          key: task.type,
+          name: "Diagram Element",
+          role: WorkItemTypeRole.ProjectInfo,
+          sections: [
+            {
+              key: "diagramElementMetadata",
+              label: "Metadata",
+              kind: WorkItemTypeSectionDefinitionKindEnum.Json,
+            },
+          ],
+          statuses: legacyStatuses([WorkStatus.Active]),
+        },
+      });
+      mockUseWorkItemTypeByKey.mockClear();
+
+      render(
+        <MemoryRouter>
+          <MentionEditorContext.Provider
+            value={{
+              organizationId: task.organizationId,
+              projectId: task.projectId,
+              navigate: vi.fn(),
+            }}
+          >
+            <MentionBadgeInner
+              mention={{
+                entityId: task.id,
+                entityType: "task",
+                entityName: task.name,
+              }}
+              mode="minimal"
+            />
+          </MentionEditorContext.Provider>
+        </MemoryRouter>,
+      );
+
+      const badge = screen.getByTestId("mention-badge");
+      expect(mockUseEntityDetails).not.toHaveBeenCalled();
+      fireEvent.mouseEnter(badge);
+      act(() => vi.advanceTimersByTime(300));
+      expect(mockUseEntityDetails).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: task.id,
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          enabled: true,
+        }),
+      );
+      expect(
+        mockUseEntityDetails.mock.calls.every(
+          ([read]) => !read.enabled || read.entityId === task.id,
+        ),
+      ).toBe(true);
+      const hover = screen.getByTestId("entity-hover-card");
+      expect(screen.getByRole("img", { name: role })).toBeInTheDocument();
+      expect(
+        screen.getByTestId("workflow-inline-step-title"),
+      ).toHaveTextContent(task.name);
+      const face = within(hover).getByTestId("diagram-element-hover-face");
+      expect(within(hover).getAllByText(task.name)).toHaveLength(1);
+      expect(
+        within(face).getByRole("link", { name: task.name }),
+      ).toBeInTheDocument();
+      if (role === "COMPONENT") {
+        const description = within(hover).getByText(
+          "Builds and signs the desktop release.",
+        );
+        expect(face).not.toContainElement(description);
+        expect(
+          face.compareDocumentPosition(description) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+      } else {
+        expect(face.parentElement).toHaveTextContent(task.name);
+      }
+      fireEvent.mouseLeave(badge);
+      act(() => vi.advanceTimersByTime(50));
+      fireEvent.mouseEnter(hover);
+      act(() => vi.advanceTimersByTime(200));
+      expect(
+        screen.getByTestId("entity-hover-card-title-link"),
+      ).toHaveAttribute(
+        "href",
+        getPathService().task({ projectId: task.projectId, taskId: task.id }),
+      );
+      fireEvent.mouseLeave(hover);
+      act(() => vi.advanceTimersByTime(150));
+      expect(screen.queryByTestId("entity-hover-card")).toBeNull();
+    },
+  );
 
   it("selects registry-declared markdown content for a custom work item", () => {
     const task = buildTask();

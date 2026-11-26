@@ -1,3 +1,5 @@
+import { getPathService } from "../../../services/webPathService";
+import { DiagramElementHoverFace } from "../DiagramElementHoverFace";
 import { isConversationReadDenied } from "../../../data/query/queryPolicy";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import {
@@ -237,6 +239,7 @@ export interface EntityHoverCardProps {
   onPopoverMouseLeave?: () => void;
   placement?: "bottom-start" | "right-start";
   /** Canonical href; when set, the preview title navigates to it. */
+  onDiagramElementPreview?: (isDiagramElement: boolean) => void;
   titleHref?: string;
   /**
    * Dismisses an explicitly opened preview on Escape or an outside click.
@@ -256,6 +259,7 @@ export const EntityHoverCard: React.FC<EntityHoverCardProps> = ({
   onPopoverMouseEnter,
   onPopoverMouseLeave,
   placement = "bottom-start",
+  onDiagramElementPreview,
   titleHref,
   onClose,
   focusOnOpen = false,
@@ -309,6 +313,13 @@ export const EntityHoverCard: React.FC<EntityHoverCardProps> = ({
     definition: workItemType.workItemTypeDefinition,
     isFetched: workItemType.isFetched,
   });
+  const isDiagramElement =
+    taskSectionSelection.status === "resolved" &&
+    taskSectionSelection.typeKey === "DIAGRAM_ELEMENT";
+  useEffect(() => {
+    onDiagramElementPreview?.(isDiagramElement);
+    return () => onDiagramElementPreview?.(false);
+  }, [isDiagramElement, onDiagramElementPreview]);
   const proposal =
     baseEntityType === "proposal" && data
       ? (data as ProposalResponseDto)
@@ -494,7 +505,7 @@ const EntityHoverCardContent: React.FC<{
   isLatestMessageEnabled: boolean;
   latestMessageProgress: number;
   taskSectionSelection: ReturnType<typeof selectWorkItemSections>;
-  taskStatusDefinition: WorkItemStatusVocabulary | undefined;
+  taskStatusDefinition: WorkItemTypeDefinitionDto | undefined;
   conversationTitle?: string;
   proposalPreview: TaskPreviewContent;
   titleHref?: string;
@@ -715,8 +726,37 @@ const TaskPreview: React.FC<{
   entity: TaskResponseDto;
   sectionSelection: ReturnType<typeof selectWorkItemSections>;
   titleHref?: string;
-  statusDefinition: WorkItemStatusVocabulary | undefined;
+  statusDefinition: WorkItemTypeDefinitionDto | undefined;
 }> = ({ entity, sectionSelection, titleHref, statusDefinition }) => {
+  if (
+    sectionSelection.status === "resolved" &&
+    sectionSelection.typeKey === "DIAGRAM_ELEMENT"
+  ) {
+    const href =
+      titleHref ??
+      getPathService().task({
+        projectId: entity.projectId,
+        taskId: entity.id,
+      });
+
+    const description = getTaskSectionContent(entity.sections, "description");
+
+    return (
+      <Box sx={{ p: 2, maxWidth: 400 }}>
+        <DiagramElementHoverFace
+          entity={entity}
+          definition={statusDefinition}
+          titleHref={href}
+        />
+        {description.trim() && (
+          <Box sx={{ mt: 1 }}>
+            <PreviewDescription text={description} />
+          </Box>
+        )}
+      </Box>
+    );
+  }
+
   const preview = getTaskPreviewContent(entity, sectionSelection);
 
   return (

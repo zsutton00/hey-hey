@@ -16,6 +16,7 @@ export const DiagramElementScreenBody: React.FC<{
   state: Extract<DiagramElementScreenState, { kind: "loading" | "ready" }>;
   layout: DiagramScreenLayout;
   title: string;
+  titleLink?: React.ReactNode;
   titleFontSize: string;
   titleColor: string;
   organizationId: string;
@@ -24,6 +25,7 @@ export const DiagramElementScreenBody: React.FC<{
   state,
   layout,
   title,
+  titleLink,
   titleFontSize,
   titleColor,
   organizationId,
@@ -113,7 +115,7 @@ export const DiagramElementScreenBody: React.FC<{
         WebkitBoxOrient: "vertical",
       }}
     >
-      {title}
+      {titleLink ?? title}
     </Typography>
   </Stack>
 );

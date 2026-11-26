@@ -20,6 +20,7 @@ import {
   type WorkItemGraphProjectionData,
   WorkflowGraphSurface,
 } from "../WorkflowMentionInlineRenderer";
+import { EntityHoverCard } from "../EntityHoverCard";
 import { DIAGRAM_SCREEN_UNAVAILABLE_TEXT } from "../DiagramElementScreen";
 
 const apiMocks = vi.hoisted(() => ({
@@ -246,6 +247,82 @@ beforeEach(() => {
 });
 
 describe("Diagram Element Mockup screen cards", () => {
+  it.each(["screen", "missing", "linked-only"] as const)(
+    "renders the %s case in an open hover without reading the Diagram",
+    async (kind) => {
+      const elementId = "77777777-7777-4777-8777-777777777777";
+      const reference =
+        kind === "linked-only"
+          ? undefined
+          : { entityType: "TASK", entityId: MOCKUP_ID };
+      const item = mockupItem(elementId, {
+        type: "DIAGRAM_ELEMENT",
+        name: "Review cart",
+        status: "ACTIVE",
+        parentTaskId: "diagram-root",
+        sections: [
+          {
+            id: "metadata",
+            key: "diagramElementMetadata",
+            order: 0,
+            materializedMarkdown: JSON.stringify({
+              role: "UI",
+              canonicalReference: reference,
+            }),
+          },
+        ],
+      });
+      respondWith({
+        [elementId]: item,
+        ...(kind === "screen" ? { [MOCKUP_ID]: mockupItem(MOCKUP_ID) } : {}),
+      });
+      apiMocks.fetchType.mockImplementation(async (typeKey: string) =>
+        typeKey === "mockup"
+          ? mockupTypeSummary()
+          : {
+              definition: {
+                key: "DIAGRAM_ELEMENT",
+                name: "Diagram Element",
+                role: "project-info",
+                sections: [],
+                statuses: legacyStatuses([]),
+              },
+            },
+      );
+      const { container } = render(<div />, { wrapper: Wrapper });
+      render(
+        <EntityHoverCard
+          entityId={elementId}
+          entityType="task"
+          projectId={PROJECT}
+          organizationId={ORG}
+          anchorEl={container}
+        />,
+        { wrapper: Wrapper },
+      );
+      await screen.findByTestId("diagram-element-hover-face");
+      if (kind === "screen") {
+        expect(
+          await screen.findByTitle("Cart screen screen"),
+        ).toBeInTheDocument();
+      } else if (kind === "missing") {
+        expect(
+          await screen.findByText(DIAGRAM_SCREEN_UNAVAILABLE_TEXT),
+        ).toBeInTheDocument();
+      } else {
+        expect(
+          screen.getByTestId("diagram-element-card-face"),
+        ).toBeInTheDocument();
+      }
+      const readIds = new Set(
+        apiMocks.getTask.mock.calls.map(([params]) => params.taskId),
+      );
+      expect(readIds).toEqual(
+        new Set(kind === "linked-only" ? [elementId] : [elementId, MOCKUP_ID]),
+      );
+    },
+  );
+
   it.each([true, false])(
     "preserves projected walkthrough arrow order with start marker %s",
     async (hasStart) => {

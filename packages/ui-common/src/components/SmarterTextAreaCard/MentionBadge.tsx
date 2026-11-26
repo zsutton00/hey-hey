@@ -51,6 +51,10 @@ export const MentionBadgeInner: React.FC<MentionBadgeInnerProps> = ({
   const [isNavigating, setIsNavigating] = useState(false);
   const [hoverAnchor, setHoverAnchor] = useState<HTMLElement | null>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
+  const isDiagramElementPreview = useRef(false);
+  const recordPreviewType = useCallback((isDiagramElement: boolean) => {
+    isDiagramElementPreview.current = isDiagramElement;
+  }, []);
   const badgeRef = useRef<HTMLElement | null>(null);
 
   // Prefer MentionEditorContext (explicit override), fall back to ProjectContext
@@ -62,36 +66,39 @@ export const MentionBadgeInner: React.FC<MentionBadgeInnerProps> = ({
   const setTextLinkRef = useCallback((node: HTMLElement | null) => {
     badgeRef.current = node;
   }, []);
-  const closeHoverCard = useCallback(() => {
+  const clearHoverTimer = useCallback(() => {
     if (hoverTimeoutRef.current !== null) {
       window.clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
-    setHoverAnchor(null);
   }, []);
+  const closeHoverCard = useCallback(() => {
+    clearHoverTimer();
+    setHoverAnchor(null);
+  }, [clearHoverTimer]);
 
   const isWorkItem = resolvePreviewEntityType(mention.entityType) === "task";
   const mentionType = useMentionWorkItemTypeKey(
     isWorkItem ? ctx?.organizationId : undefined,
     isWorkItem ? ctx?.projectId : undefined,
-    isWorkItem ? mention.entityType : undefined
+    isWorkItem ? mention.entityType : undefined,
   );
   const typeKey = mentionType.typeKey;
   const typeQuery = useWorkItemTypeByKey(
     isWorkItem ? ctx?.organizationId : undefined,
     isWorkItem ? ctx?.projectId : undefined,
-    isWorkItem ? typeKey : undefined
+    isWorkItem ? typeKey : undefined,
   );
   const workItemPresentation =
     isWorkItem && typeKey && typeQuery.isFetched && !typeQuery.error
       ? resolveWorkItemIconPresentation(
           typeKey,
           typeQuery.workItemTypeDefinition,
-          typeQuery.workItemTypeSummary?.effectiveSource
+          typeQuery.workItemTypeSummary?.effectiveSource,
         )
       : undefined;
   const IconComponent = isWorkItem
-    ? workItemPresentation?.Icon ?? getEntityIcon("task")
+    ? (workItemPresentation?.Icon ?? getEntityIcon("task"))
     : getEntityIcon(mention.entityType);
   const entityColors = isWorkItem
     ? workItemPresentation?.colors
@@ -106,7 +113,7 @@ export const MentionBadgeInner: React.FC<MentionBadgeInnerProps> = ({
   } as const;
   const contextualActions = useMemo<readonly ContextualMenuAction[]>(() => {
     const previewCapability = resolveEntityTypeConfig(
-      mention.entityType
+      mention.entityType,
     )?.previewCapability;
     if (previewCapability?.kind === "supported") {
       return [];
@@ -173,22 +180,24 @@ export const MentionBadgeInner: React.FC<MentionBadgeInnerProps> = ({
   };
 
   const handleMouseEnter = () => {
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setHoverAnchor(badgeRef.current);
-    }, 300);
+    clearHoverTimer();
+    if (!hoverAnchor) {
+      hoverTimeoutRef.current = window.setTimeout(() => {
+        setHoverAnchor(badgeRef.current);
+      }, 300);
+    }
   };
 
   const handleMouseLeave = () => {
+    if (hoverAnchor && isDiagramElementPreview.current) {
+      clearHoverTimer();
+      hoverTimeoutRef.current = window.setTimeout(closeHoverCard, 150);
+      return;
+    }
     closeHoverCard();
   };
 
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
+  useEffect(() => clearHoverTimer, [clearHoverTimer]);
 
   const hoverCard = ctx && hoverAnchor && (
     <EntityHoverCard
@@ -197,11 +206,8 @@ export const MentionBadgeInner: React.FC<MentionBadgeInnerProps> = ({
       organizationId={ctx.organizationId}
       projectId={ctx.projectId}
       anchorEl={hoverAnchor}
-      onPopoverMouseEnter={() => {
-        if (hoverTimeoutRef.current) {
-          clearTimeout(hoverTimeoutRef.current);
-        }
-      }}
+      onDiagramElementPreview={recordPreviewType}
+      onPopoverMouseEnter={clearHoverTimer}
       onPopoverMouseLeave={handleMouseLeave}
     />
   );
