@@ -7,7 +7,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { queryOptions } from "@tanstack/react-query";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentEdgeType,
   type WorkItemTypeSummaryDto,
@@ -1161,6 +1161,188 @@ describe("Diagram Element screen model", () => {
     expect(withReference.nodes[0].initialWidth).toBe(
       without.nodes[0].initialWidth,
     );
+  });
+});
+
+describe("plain Diagram Element cards", () => {
+  const longDescription = `${"Adds tax and delivery to the order. ".repeat(8)}The shopper then sees the final amount.`;
+
+  const stubDescriptionHeight = () => {
+    let height = 0;
+    const observed = new Map<Element, ResizeObserverCallback>();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          observed.set(target, this.callback);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      () => height,
+    );
+
+    return (next: number) => {
+      height = next;
+      const summaryArea = screen.getByTestId("workflow-inline-step-summary")
+        .parentElement as HTMLElement;
+      act(() => {
+        observed.get(summaryArea)?.([], {} as ResizeObserver);
+      });
+    };
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("gives the description only the whole lines that fit under the title row", async () => {
+    const resizeDescription = stubDescriptionHeight();
+    renderSurface(
+      buildProjection([
+        element("total", "Confirm the order total", undefined, [
+          { key: "description", content: longDescription },
+        ]),
+      ]),
+    );
+    await flush();
+
+    const titleRow = screen.getByTestId("diagram-element-title-row");
+    expect(titleRow).toContainElement(
+      screen.getByTestId("diagram-element-role-icon"),
+    );
+    expect(titleRow).toContainElement(
+      screen.getByTestId("workflow-inline-step-title"),
+    );
+    const summary = screen.getByTestId("workflow-inline-step-summary");
+    // The large card has room for far more than the first sentences.
+    expect(summary).toHaveTextContent(
+      "The shopper then sees the final amount.",
+    );
+
+    // Medium description lines are 16px tall.
+    resizeDescription(87);
+    expect(getComputedStyle(summary).webkitLineClamp).toBe("5");
+    resizeDescription(40);
+    expect(getComputedStyle(summary).webkitLineClamp).toBe("2");
+    resizeDescription(12);
+    expect(summary).not.toBeVisible();
+  });
+
+  it("keeps the linked-item icons short of the open-reference icon at the lower-right", async () => {
+    renderSurface(
+      buildProjection([
+        element("checkout", "Checkout", {
+          entityType: "SERVICE",
+          entityId: SERVICE_ID,
+        }),
+      ]),
+      {
+        directEntityLinks: [
+          {
+            sourceNodeId: "checkout",
+            targetEntityId: SERVICE_ID,
+            targetEntityType: "SERVICE",
+            targetTitle: "Checkout API",
+            relationshipType: AgentEdgeType.RelatedTo,
+          },
+        ],
+      },
+    );
+    await flush();
+
+    const open = screen.getByTestId("diagram-reference-open");
+    expect(getComputedStyle(open.parentElement as HTMLElement)).toMatchObject({
+      right: "5px",
+      bottom: "5px",
+    });
+    // 140px card, 5px on each side, less the 22px open icon and its 2px gap.
+    expect(screen.getByTestId("diagram-element-link-strip")).toHaveStyle({
+      left: "5px",
+      bottom: "5px",
+      maxWidth: "106px",
+      overflowX: "auto",
+    });
+  });
+
+  it("identifies a Diagram reference by one named icon and a double outline", async () => {
+    respondWith({
+      [FEATURE_ID]: {
+        ...mockupItem(FEATURE_ID),
+        name: "Payment",
+        type: "DIAGRAM",
+        sections: [],
+      },
+    });
+    const definitions: Record<string, unknown> = {
+      DIAGRAM: {
+        key: "DIAGRAM",
+        name: "Diagram",
+        iconKey: "workflow",
+        sections: [],
+        statuses: legacyStatuses([]),
+      },
+      DIAGRAM_ELEMENT: {
+        key: "DIAGRAM_ELEMENT",
+        name: "Diagram element",
+        statuses: legacyStatuses([]),
+        sections: [
+          {
+            key: "diagramElementMetadata",
+            name: "Metadata",
+            type: "JSON",
+            required: true,
+            order: 0,
+            diagramElementPolicy: {
+              roles: [
+                {
+                  key: "DIAGRAM_REFERENCE",
+                  label: "Diagram reference",
+                  notation: "frame",
+                },
+              ],
+              referenceTargets: [],
+            },
+          },
+        ],
+      },
+    };
+    apiMocks.fetchType.mockImplementation(async (typeKey: string) =>
+      definitions[typeKey] ? { definition: definitions[typeKey] } : null,
+    );
+    const reference = element("payment", "Take payment");
+    reference.sections = [
+      {
+        key: "diagramElementMetadata",
+        content: {
+          role: "DIAGRAM_REFERENCE",
+          canonicalReference: { entityType: "TASK", entityId: FEATURE_ID },
+        },
+      },
+    ];
+    renderSurface(buildProjection([reference]));
+    await flush();
+
+    const open = await screen.findByRole("link", {
+      name: "Open linked Diagram",
+    });
+    expect(screen.queryByTestId("diagram-element-role")).toBeNull();
+    expect(
+      screen.getByRole("img", { name: "Diagram reference role" }),
+    ).toBeInTheDocument();
+    fireEvent.mouseOver(open);
+    expect(
+      await screen.findByRole("tooltip", {
+        name: "Diagram reference: Open linked Diagram",
+      }),
+    ).toBeInTheDocument();
+    const card = getComputedStyle(screen.getByTestId("workflow-inline-step"));
+    expect(card.borderTopStyle).toBe("double");
+    expect(parseFloat(card.borderTopWidth)).toBeGreaterThanOrEqual(3);
   });
 });
 

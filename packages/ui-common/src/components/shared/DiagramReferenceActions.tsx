@@ -7,9 +7,16 @@ import {
   type SvgIconProps,
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
+import {
+  DiagramRoleIconBadge,
+  getDiagramRoleBadgeSx,
+} from "./DiagramRoleIconBadge";
 
 interface DiagramReferenceActionsProps {
   Icon: ComponentType<SvgIconProps>;
+  roleLabel: string;
+  /** Where the card's role icon sits, measured from the card's outer edge. */
+  position: { top: number; left: number };
   href: string | undefined;
   selected: boolean;
   onExplore: (() => void) | undefined;
@@ -17,10 +24,16 @@ interface DiagramReferenceActionsProps {
 
 export function DiagramReferenceActions({
   Icon,
+  roleLabel,
+  position,
   href,
   selected,
   onExplore,
 }: DiagramReferenceActionsProps) {
+  const action = href
+    ? "Open linked Diagram"
+    : "Linked Diagram navigation unavailable";
+
   return (
     <Box
       className="nodrag nopan"
@@ -28,24 +41,36 @@ export function DiagramReferenceActions({
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <Tooltip
-        title={
-          href ? "Open linked Diagram" : "Linked Diagram navigation unavailable"
-        }
-      >
-        <Box sx={{ position: "absolute", top: 4, left: 8 }}>
+      <Tooltip title={`${roleLabel}: ${action}`}>
+        {/* Covers the card's role icon, so one icon names the role and opens. */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: position.top,
+            left: position.left,
+            zIndex: 2,
+            lineHeight: 0,
+          }}
+        >
           {href ? (
             <IconButton
               component={RouterLink}
               to={href}
-              size="small"
               aria-label="Open linked Diagram"
               data-testid="diagram-reference-open"
+              sx={{
+                ...getDiagramRoleBadgeSx(),
+                p: 0,
+                "&:hover": {
+                  bgcolor: getDiagramRoleBadgeSx().bgcolor,
+                  opacity: 0.85,
+                },
+              }}
             >
               <Icon sx={{ fontSize: "1rem" }} />
             </IconButton>
           ) : (
-            <Icon color="disabled" sx={{ fontSize: "1rem" }} />
+            <DiagramRoleIconBadge Icon={Icon} />
           )}
         </Box>
       </Tooltip>

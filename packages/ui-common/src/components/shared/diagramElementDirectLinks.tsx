@@ -146,11 +146,36 @@ export const formatDiagramSemanticLabel = (value: string): string =>
     .replace(/_/g, " ")
     .replace(/^\w/, (character) => character.toUpperCase());
 
+const DEFAULT_LINK_BUTTON_SIZE = 24;
+/** Button size less icon size. */
+const LINK_ICON_PADDING = 8;
+const LINK_BUTTON_GAP = 2;
+/** Fades the strip's cut edge so hidden icons are not mistaken for none. */
+const LINK_STRIP_OVERFLOW_MASK =
+  "linear-gradient(to right, black calc(100% - 20px), transparent)";
+
+const getBoundedStripSx = (
+  linkCount: number,
+  buttonSize: number,
+  maxWidth: number,
+) => {
+  const contentWidth =
+    linkCount * (buttonSize + LINK_BUTTON_GAP) - LINK_BUTTON_GAP;
+
+  return {
+    maxWidth,
+    overflowX: "auto",
+    scrollbarWidth: "none",
+    ...(contentWidth > maxWidth ? { maskImage: LINK_STRIP_OVERFLOW_MASK } : {}),
+  };
+};
+
 const DIRECT_ENTITY_PREVIEW_OPEN_DELAY_MS = 300;
 const DIRECT_ENTITY_PREVIEW_CLOSE_DELAY_MS = 150;
 
 const WorkflowGraphDirectEntityLinkButton: React.FC<{
   link: WorkflowGraphRenderedEntityLink;
+  size: number;
   expanded: boolean;
   organizationId: string;
   projectId: string;
@@ -165,6 +190,7 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
   ) => void;
 }> = ({
   link,
+  size,
   expanded,
   organizationId,
   projectId,
@@ -217,8 +243,9 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
       data-target-work-item-type={taskType}
       data-relationship-type={link.relationshipType}
       sx={{
-        width: 24,
-        height: 24,
+        width: size,
+        height: size,
+        flexShrink: 0,
         p: 0,
         borderRadius: "2px",
         bgcolor: colors.background,
@@ -228,7 +255,7 @@ const WorkflowGraphDirectEntityLinkButton: React.FC<{
     >
       <Icon
         aria-hidden
-        sx={{ fontSize: 16 }}
+        sx={{ fontSize: size - LINK_ICON_PADDING }}
         data-testid="diagram-element-direct-link-icon"
         data-work-item-type={taskType}
       />
@@ -242,9 +269,20 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
   projectId: string;
   /** Frame-relative inset of the strip's lower-left corner. */
   inset?: { left: number; bottom: number };
+  /** Bounds the overlaid row; icons past it are reached by scrolling. */
+  maxWidth?: number;
+  buttonSize?: number;
   /** `inline` flows with its container instead of overlaying a canvas node. */
   layout?: "overlay" | "inline";
-}> = ({ links, organizationId, projectId, inset, layout = "overlay" }) => {
+}> = ({
+  links,
+  organizationId,
+  projectId,
+  inset,
+  maxWidth,
+  buttonSize = DEFAULT_LINK_BUTTON_SIZE,
+  layout = "overlay",
+}) => {
   const hasScope = Boolean(organizationId && projectId);
   const [hoveredTarget, setHoveredTarget] = useState<{
     anchorEl: HTMLElement;
@@ -354,7 +392,9 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
       <Stack
         direction="row"
         spacing={0.25}
-        className="nodrag nopan"
+        className={
+          maxWidth === undefined ? "nodrag nopan" : "nodrag nopan nowheel"
+        }
         role="group"
         aria-label="Directly linked entities"
         data-testid="diagram-element-link-strip"
@@ -368,6 +408,9 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
                 alignItems: "center",
                 zIndex: 3,
                 pointerEvents: "all",
+                ...(maxWidth === undefined
+                  ? {}
+                  : getBoundedStripSx(links.length, buttonSize, maxWidth)),
               }
         }
       >
@@ -375,6 +418,7 @@ export const WorkflowGraphDirectEntityLinkStrip: React.FC<{
           <WorkflowGraphDirectEntityLinkButton
             key={`${link.targetEntityId}:${link.relationshipType}`}
             link={link}
+            size={buttonSize}
             expanded={
               hoveredTarget?.link.targetEntityId === link.targetEntityId &&
               hoveredTarget.link.relationshipType === link.relationshipType

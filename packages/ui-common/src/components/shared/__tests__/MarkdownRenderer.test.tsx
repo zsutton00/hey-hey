@@ -1644,8 +1644,8 @@ describe("diagram graph metadata", () => {
     });
     expect(linkStrip).toHaveStyle({
       position: "absolute",
-      bottom: "4px",
-      left: "4px",
+      bottom: "5px",
+      left: "5px",
     });
     expect(screen.getAllByTestId("diagram-element-direct-link")).toHaveLength(
       5,

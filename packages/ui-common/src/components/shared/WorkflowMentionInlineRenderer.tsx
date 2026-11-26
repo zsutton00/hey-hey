@@ -5285,6 +5285,9 @@ const WorkflowStepNode = memo(
                     }
                   : screenInset
               }
+              buttonSize={
+                cardGeometry ? DIAGRAM_CARD_ICON_BUTTON_SIZE : undefined
+              }
               maxWidth={
                 cardGeometry
                   ? getDiagramCardLinkStripWidth(

@@ -16,13 +16,16 @@ const segmentMarkdown = (segment: MentionContentSegment): string =>
 const getDisplayLength = (segments: MentionContentSegment[]): number =>
   segments.reduce(
     (length, segment) => length + segmentDisplayText(segment).length,
-    0
+    0,
   );
 
 const renderSegmentsAsMarkdown = (segments: MentionContentSegment[]): string =>
   segments.map(segmentMarkdown).join("");
 
-export const formatWorkflowCompactDescription = (content: string): string => {
+export const formatWorkflowCompactDescription = (
+  content: string,
+  maxLength: number = WORKFLOW_COMPACT_DESCRIPTION_MAX_LENGTH,
+): string => {
   const segments = splitContentByMentions(content.trim(), {
     allowMentionEscapes: true,
   });
@@ -31,14 +34,12 @@ export const formatWorkflowCompactDescription = (content: string): string => {
     return "";
   }
 
-  if (displayLength <= WORKFLOW_COMPACT_DESCRIPTION_MAX_LENGTH) {
+  if (displayLength <= maxLength) {
     return renderSegmentsAsMarkdown(segments).trim();
   }
 
   const truncatedSegments: string[] = [];
-  let remaining =
-    WORKFLOW_COMPACT_DESCRIPTION_MAX_LENGTH -
-    WORKFLOW_DESCRIPTION_ELLIPSIS.length;
+  let remaining = maxLength - WORKFLOW_DESCRIPTION_ELLIPSIS.length;
 
   for (const segment of segments) {
     if (remaining <= 0) {
@@ -65,5 +66,5 @@ export const formatWorkflowMentionDescription = (content: string): string =>
   renderSegmentsAsMarkdown(
     splitContentByMentions(content.trim(), {
       allowMentionEscapes: true,
-    })
+    }),
   ).trim();
