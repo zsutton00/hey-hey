@@ -26,8 +26,12 @@ const row = (id: string, data: object, type = 'SYSTEM') =>
   ({ id, type, data }) as unknown as Parameters<
     typeof resolveReviewedCodingPlan
   >[0][number];
-const saved = (id: string) =>
-  row(id, { uiElements: [{ type: 'coding_plan_version', payload: context }] });
+const saved = (id: string, markdown = context.markdown) =>
+  row(id, {
+    uiElements: [
+      { type: 'coding_plan_version', payload: { ...context, markdown } },
+    ],
+  });
 describe('reviewed conversational planning context', () => {
   it('excludes queued replies that never entered the reviewed conversation timeline', () => {
     const query = codingPlanMessagesQuery('org', 'project', 'conversation');
@@ -315,6 +319,7 @@ describe('explicit approval to implementation', () => {
             findMany: jest
               .fn()
               .mockResolvedValue([
+                saved('draft', '# Draft plan: support pointer input.'),
                 row(
                   'reply1',
                   { agentInput: { userMessage: 'Keep keyboard access.' } },
@@ -378,6 +383,10 @@ describe('explicit approval to implementation', () => {
       approvalFeedback: 'Preserve all agreed behavior.',
       runtime,
     });
+    expect(trigger.payload?.planningDiscussion).not.toContain(context.markdown);
+    expect(trigger.payload?.planningDiscussion).toContain(
+      '# Draft plan: support pointer input.',
+    );
     expect(JSON.stringify(trigger.payload)).toContain('Keep keyboard access.');
     expect(JSON.stringify(trigger.payload)).toContain('Looks good.');
   });

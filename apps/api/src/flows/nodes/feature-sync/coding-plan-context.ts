@@ -71,7 +71,7 @@ export function resolveReviewedCodingPlan(
     messageId: string;
     context: ReturnType<typeof CodingPlanVersionSchema.safeParse>;
   } | null = null;
-  const discussion: string[] = [];
+  const discussion: (string | { messageId: string; markdown: string })[] = [];
   let unreviewedReply = false;
   for (const row of rows) {
     const parsed = planningMessageData.safeParse(row.data);
@@ -99,7 +99,10 @@ export function resolveReviewedCodingPlan(
         };
         unreviewedReply = false;
         if (latest.context.success) {
-          discussion.push(`Plan (${row.id}): ${latest.context.data.markdown}`);
+          discussion.push({
+            messageId: row.id,
+            markdown: latest.context.data.markdown,
+          });
           for (const issue of latest.context.data.discrepancies ?? [])
             discussion.push(
               `Issue (${row.id}): ${JSON.stringify(withCurrentDisposition(issue))}`,
@@ -143,6 +146,7 @@ export function resolveReviewedCodingPlan(
   logger.debug('Coding Plan current complete version resolved', {
     versionMessageId,
   });
+  const approvedMarkdown = latest.context.data.markdown;
   return {
     versionMessageId: latest.messageId,
     approvedVersion: {
@@ -151,7 +155,18 @@ export function resolveReviewedCodingPlan(
         withCurrentDisposition,
       ),
     },
-    planningDiscussion: discussion.join('\n\n'),
+    planningDiscussion: discussion
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return entry;
+        }
+        const body =
+          entry.markdown === approvedMarkdown
+            ? 'See the approved plan above.'
+            : entry.markdown;
+        return `Plan (${entry.messageId}): ${body}`;
+      })
+      .join('\n\n'),
   };
 }
 
