@@ -6366,7 +6366,7 @@ const WorkflowGraphViewportSurface: React.FC<
         border: (theme) => `1px solid ${theme.palette.divider}`,
         borderRadius: 1,
         my: isFullscreen ? 0 : 1,
-        bgcolor: "background.default",
+        bgcolor: getDiagramCanvasColor,
         overflow: "hidden",
         width: "100%",
         height: isFullscreen ? "100%" : "auto",
@@ -6376,16 +6376,14 @@ const WorkflowGraphViewportSurface: React.FC<
       <Stack
         direction="row"
         spacing={1}
+        useFlexGap
         alignItems="center"
         sx={{
           display: "flex",
           px: 1.5,
           py: 1,
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-          bgcolor: "background.paper",
         }}
       >
-        <AccountTreeIcon color="primary" sx={{ fontSize: 20 }} />
         <WorkflowGraphTitle
           graphData={graphData}
           testId={`${testIdPrefix}-title-link`}

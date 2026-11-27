@@ -329,6 +329,44 @@ const renderSurface = async (
 };
 
 describe("inline Diagram opening view", () => {
+  it.each(["light", "dark"] as const)(
+    "keeps the header on the drawing surface in %s mode",
+    async (mode) => {
+      render(
+        <ThemeProvider theme={createHeyTheme(mode)}>
+          <WorkflowGraphSurface
+            graphData={diagram()}
+            disableLinks
+            allowFullscreen
+          />
+        </ThemeProvider>,
+        { wrapper },
+      );
+      await screen.findByTestId(`${INLINE}-canvas`);
+
+      const surface = screen.getByTestId(INLINE);
+      const header = surface.firstElementChild as HTMLElement;
+      const controls = header.lastElementChild as HTMLElement;
+
+      expect(getComputedStyle(surface).borderTopWidth).toBe("1px");
+      expect(getComputedStyle(header).borderBottomWidth).toBe("");
+      expect(getComputedStyle(header).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+      expect(getComputedStyle(surface).backgroundColor).toBe(
+        getComputedStyle(screen.getByTestId(`${INLINE}-viewport`))
+          .backgroundColor,
+      );
+      expect(getComputedStyle(header).gap).not.toBe("");
+      expect(header.firstElementChild).toHaveTextContent("diagram");
+      expect(
+        header.querySelector('[data-testid="AccountTreeIcon"]'),
+      ).toBeNull();
+      expect(controls).toContainElement(
+        screen.getByTestId(`${INLINE}-open-fullscreen`),
+      );
+      expect(getComputedStyle(controls).marginLeft).toBe("auto");
+    },
+  );
+
   // Drawing edges in each size's pixels: the group reaches 24 left of and 48
   // above the first element; "standards" is rightmost; the group is lowest.
   it.each([
