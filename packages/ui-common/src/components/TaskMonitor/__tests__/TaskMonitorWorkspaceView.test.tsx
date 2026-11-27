@@ -23,6 +23,7 @@ import { useActionsCapsule } from "../../ActionsCapsule/ActionsCapsuleContext";
 import { ActionsCapsuleProvider } from "../../ActionsCapsule/ActionsCapsuleProvider";
 import {
   AuthorizationProtocolVersion,
+  type ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto,
   CurrentControllerMachineEligibilityState,
   MachineExecutionReadinessState,
   type MachineDto,
@@ -31,7 +32,11 @@ import type { TaskMonitorProjectedNode } from "../useTaskMonitorProjection";
 import type { TaskMonitorTaskServicesControl } from "../taskMonitorStartReadiness";
 import { http, HttpResponse } from "msw";
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
-import { setCapabilityCatalogForTests } from "../../AgentSession/capabilityCatalog";
+import {
+  resetCapabilityCatalogForTests,
+  setCapabilityCatalogForTests,
+  setMachineCapabilityCatalogState,
+} from "../../AgentSession/capabilityCatalog";
 import { TEST_CAPABILITY_CATALOG } from "../../../test/capabilityCatalogFixture";
 import {
   createSession,
@@ -1655,7 +1660,7 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     return user;
   };
 
-  it("tells the user how many unstarted tasks will be replaced and writes nothing until Apply", async () => {
+  it("applies the Default model to the unstarted tasks on one press, and saves nothing before it", async () => {
     const onApplyToUnstartedTasks = vi.fn().mockResolvedValue({
       updatedTaskIds: [mixedNodes[0]?.taskId, mixedNodes[1]?.taskId],
       skippedTaskIds: [startedNode.taskId],
@@ -1668,18 +1673,20 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
       onSaveLaunchConfiguration,
     });
 
+    const card = screen.getByRole("region", { name: "Default model" });
+    expect(card).toHaveTextContent("Applies to tasks that haven't started.");
+    const apply = within(card).getByRole("button", {
+      name: "Apply to 2 tasks",
+    });
     const user = await chooseEffort("high");
     expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
 
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
-    expect(
-      screen.getByTestId("task-monitor-apply-unstarted-confirm"),
-    ).toHaveTextContent(
-      "Replace session settings on 2 tasks that haven't started.",
-    );
-    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+    await user.click(apply);
 
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: /^(Apply|Cancel)$/ }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() =>
       expect(
@@ -1697,22 +1704,58 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     expect(onSaveLaunchConfiguration).not.toHaveBeenCalled();
   });
 
-  it("writes nothing when the confirmation is cancelled", async () => {
-    const onApplyToUnstartedTasks = vi.fn();
+  it("names a single task, reports a zero skip count, and holds the button while applying", async () => {
+    let finishApply: () => void = () => undefined;
+    const onApplyToUnstartedTasks = vi.fn(
+      () =>
+        new Promise<ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto>(
+          (resolve) => {
+            finishApply = () =>
+              resolve({
+                updatedTaskIds: [mixedNodes[0].taskId],
+                skippedTaskIds: [],
+              });
+          },
+        ),
+    );
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [mixedNodes[0], startedNode],
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    const apply = screen.getByRole("button", { name: "Apply to 1 task" });
+
+    await user.click(apply);
+
+    expect(apply).toBeDisabled();
+    expect(onApplyToUnstartedTasks).toHaveBeenCalledTimes(1);
+
+    act(() => finishApply());
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("task-monitor-apply-unstarted-result"),
+      ).toHaveTextContent(
+        "Updated 1 task. 0 tasks already had a session and were left unchanged.",
+      ),
+    );
+    expect(apply).toBeEnabled();
+  });
+
+  it("keeps Apply unavailable while the model list is loading", () => {
+    resetCapabilityCatalogForTests();
+    setMachineCapabilityCatalogState(readyMachine.machineId, {
+      status: "loading",
+    });
     renderWorkspace({
       monitorStatus: WorkStatus.Backlog,
       nodes: mixedNodes,
-      onApplyToUnstartedTasks,
     });
 
-    const user = await chooseEffort("max");
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-cancel"));
-
     expect(
-      screen.queryByTestId("task-monitor-apply-unstarted-confirm"),
-    ).not.toBeInTheDocument();
-    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+      screen.getByTestId("task-monitor-apply-unstarted-submit"),
+    ).toBeDisabled();
   });
 
   it("rejects a combination the machine's catalog no longer offers and sends nothing", async () => {
@@ -1722,8 +1765,6 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
       nodes: mixedNodes,
       onApplyToUnstartedTasks,
     });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
 
     // The machine's catalog drops the chosen model as Apply is pressed,
     // before the picker can reshape the draft.
@@ -1742,7 +1783,7 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
   });
 
-  it("rejects a confirmed Fast mode the model no longer offers instead of sending a setup without it", async () => {
+  it("rejects a chosen Fast mode the model no longer offers instead of sending a setup without it", async () => {
     const onApplyToUnstartedTasks = vi.fn();
     const opusFast = {
       ...sonnet,
@@ -1756,8 +1797,6 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
       ],
       onApplyToUnstartedTasks,
     });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
 
     // The machine stops offering Fast mode for the model as Apply is pressed.
     act(() => {
@@ -1844,7 +1883,6 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
       onApplyToUnstartedTasks,
     });
     const user = userEvent.setup();
-    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
     await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
 
     await waitFor(() =>
@@ -1854,7 +1892,7 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     );
   });
 
-  it("is offered while paused for tasks that have not started, and hidden once none remain", () => {
+  it("is offered while paused for tasks that have not started, and hidden once none remain or the monitor finishes", () => {
     const { rerender } = renderWorkspace({
       monitorStatus: WorkStatus.Active,
       executionState: retainedState("paused"),
@@ -1871,6 +1909,16 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
         monitorStatus: WorkStatus.Active,
         executionState: retainedState("paused"),
         nodes: [startedNode],
+      }),
+    );
+
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted"),
+    ).not.toBeInTheDocument();
+    rerender(
+      workspaceElement({
+        monitorStatus: WorkStatus.Completed,
+        nodes: mixedNodes,
       }),
     );
 
