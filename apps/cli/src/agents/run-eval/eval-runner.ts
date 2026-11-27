@@ -174,12 +174,21 @@ export const runEvalAttempts = async (
         error: errorMessage(error),
       });
     };
-    const finish = async (patch: EvalAttemptPatch): Promise<void> => {
+    const finish = async (
+      patch: EvalAttemptPatch & { status: 'STOPPED' | 'ERROR' | 'COMPLETED' },
+    ): Promise<void> => {
       await ports.recorder.updateAttempt(attempt.attemptId, {
         ...patch,
         measurements,
         completedAt: ports.now().toISOString(),
       });
+      if (patch.status === 'COMPLETED') {
+        tally.completed += 1;
+      } else if (patch.status === 'STOPPED') {
+        tally.stopped += 1;
+      } else {
+        tally.errored += 1;
+      }
     };
 
     try {
@@ -204,10 +213,8 @@ export const runEvalAttempts = async (
         measurements.push(toMeasurement('TARGET_HANDLER', elapsedMs, usage, cost));
         const retained = recordedToolCalls ? { recordedToolCalls } : {};
         if (stopped.reason !== null) {
-          tally.stopped += 1;
           await finish({ status: 'STOPPED', stopReason: stopped.reason, ...retained });
         } else {
-          tally.errored += 1;
           logAttemptError('target_failed', error);
           await finish({
             status: 'ERROR',
@@ -227,12 +234,11 @@ export const runEvalAttempts = async (
         ),
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
-      const summary = target.outputText ? { outputText: target.outputText } : undefined;
+      const summary = target.outputText;
       const retainedToolCalls = target.recordedToolCalls
         ? { recordedToolCalls: target.recordedToolCalls }
         : {};
       if (stopped.reason !== null) {
-        tally.stopped += 1;
         await finish({
           status: 'STOPPED',
           stopReason: stopped.reason,
@@ -242,7 +248,6 @@ export const runEvalAttempts = async (
         return;
       }
       if (!target.assistantCompleted || !target.outputText) {
-        tally.errored += 1;
         ports.logger?.warn('run_eval.attempt.errored', {
           attemptId: attempt.attemptId,
           stage: 'target_incomplete',
@@ -269,8 +274,9 @@ export const runEvalAttempts = async (
         ...retainedToolCalls,
       });
       const judgedTurn = target.turns?.find((turn) => turn.index === target.judgedTurnIndex);
+      let judged: EvalJudgeResult;
       try {
-        const judged = await ports.judge(
+        judged = await ports.judge(
           attempt,
           {
             outputText: target.outputText,
@@ -293,14 +299,10 @@ export const runEvalAttempts = async (
           },
           controller.signal,
         );
-        tally.completed += 1;
-        await finish({ status: 'COMPLETED', automatedAssessment: judged.assessment, summary });
       } catch (error) {
         if (stopped.reason !== null) {
-          tally.stopped += 1;
           await finish({ status: 'STOPPED', stopReason: stopped.reason, summary });
         } else {
-          tally.errored += 1;
           logAttemptError('judge', error, 'JUDGE_FAILED');
           await finish({
             status: 'ERROR',
@@ -308,7 +310,9 @@ export const runEvalAttempts = async (
             summary,
           });
         }
+        return;
       }
+      await finish({ status: 'COMPLETED', automatedAssessment: judged.assessment, summary });
     } catch (error) {
       // A failed record write belongs to this attempt only; the others carry on.
       tally.errored += 1;
@@ -318,7 +322,9 @@ export const runEvalAttempts = async (
           status: 'ERROR',
           error: { code: 'RECORD_FAILED', message: errorMessage(error) },
         })
-        .catch(() => undefined);
+        .catch((writeError: unknown) =>
+          logAttemptError('record_error_state', writeError, 'RECORD_FAILED'),
+        );
     } finally {
       if (timer) clearTimeout(timer);
       signal.removeEventListener('abort', onRunAbort);

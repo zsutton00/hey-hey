@@ -15,15 +15,12 @@ import type { RunStore } from '../../run-store/run-store';
  */
 
 import { z } from 'zod';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import type {
-  ApiErrorResponse,
-  CreateReportCompletedAttemptError,
-  CreateReportValidationError,
-  CreateReportValidationIssue,
-} from '@hey-hey/contracts/api/models';
-import { reportErrorSchemas } from '../../shared/api/generated/report-error-schemas';
+import type { CreateReportValidationIssue } from '@hey-hey/contracts/api/models';
+import {
+  parsePlatformError,
+  parseValidationError,
+  parseCompletedAttempt,
+} from '../../shared/api/report-error-validators';
 import { extractOrganizationIdFromToken } from '../../auth/index';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 import type { ReportEmissionEvents } from './report-emission-events';
@@ -37,18 +34,6 @@ import {
 const reportGuidanceSchema = z.object({
   actions: z.array(z.string()),
 });
-
-const errorValidator = new Ajv({ strict: false });
-addFormats(errorValidator);
-const parsePlatformError = errorValidator.compile<ApiErrorResponse>(
-  reportErrorSchemas.ApiErrorResponse,
-);
-const parseValidationError = errorValidator.compile<CreateReportValidationError>(
-  reportErrorSchemas.CreateReportValidationError,
-);
-const parseCompletedAttempt = errorValidator.compile<CreateReportCompletedAttemptError>(
-  reportErrorSchemas.CreateReportCompletedAttemptError,
-);
 
 const reportResourceSchema = z
   .object({

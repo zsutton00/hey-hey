@@ -133,6 +133,7 @@ describe('runEvalAttempts', () => {
     const patches = attempts.get('a')!;
     expect(patches.find((patch) => patch.status === 'JUDGING')).toMatchObject({
       judgedOutput: 'THE-SAVED-RESEARCH',
+      summary: 'THE-SAVED-RESEARCH',
     });
     expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'ERROR' });
   });
@@ -178,6 +179,33 @@ describe('runEvalAttempts', () => {
       error: { message: 'boom' },
     });
     expect(finalPatch(attempts, 'b')).toMatchObject({ status: 'COMPLETED' });
+    expect(tally).toEqual({ completed: 1, errored: 1, stopped: 0 });
+  });
+
+  it('counts a rejected result write once and continues judging the remaining attempts', async () => {
+    const { ports, attempts } = makePorts(async () => completed);
+    const save = ports.recorder.updateAttempt;
+    ports.recorder.updateAttempt = async (id, patch) => {
+      if (id === 'a' && patch.status === 'COMPLETED') {
+        throw new Error('report update unavailable');
+      }
+      await save(id, patch);
+    };
+
+    const tally = await runEvalAttempts(
+      {
+        attempts: [makeAttempt('a'), makeAttempt('b')],
+        settings: { maxConcurrentAttempts: 1 },
+        signal: new AbortController().signal,
+      },
+      ports,
+    );
+
+    expect(finalPatch(attempts, 'a')).toMatchObject({
+      status: 'ERROR',
+      error: { code: 'RECORD_FAILED', message: 'report update unavailable' },
+    });
+    expect(finalPatch(attempts, 'b').status).toBe('COMPLETED');
     expect(tally).toEqual({ completed: 1, errored: 1, stopped: 0 });
   });
 
@@ -231,7 +259,7 @@ describe('runEvalAttempts', () => {
     expect(finalPatch(attempts, 'a')).toMatchObject({
       status: 'STOPPED',
       stopReason: 'TOKEN_LIMIT',
-      summary: { outputText: 'partial' },
+      summary: 'partial',
       measurements: [{ scope: 'TARGET_HANDLER', inputTokens: 900, outputTokens: 200 }],
     });
   });

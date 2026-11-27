@@ -5,6 +5,7 @@ import type {
   EvalRunReportPayload,
   ReportDto,
 } from '@hey-hey/contracts/api/models';
+import { parseValidationError } from '../../shared/api/report-error-validators';
 import type { EvalAttemptPatch, EvalRunRecorder } from './eval-runner';
 
 const RUN_WRITE_ATTEMPTS = 5;
@@ -105,11 +106,33 @@ export class EvalReportRecorder implements EvalRunRecorder {
       cached.catch(() => this.payloads.delete(reportId));
     }
     const updated = apply(await cached);
-    await this.client.updateReport({
-      organizationId: this.organizationId,
-      reportId,
-      updateReportDto: { payload: updated, ragEnabled: false },
-    });
+    try {
+      await this.client.updateReport({
+        organizationId: this.organizationId,
+        reportId,
+        updateReportDto: { payload: updated, ragEnabled: false },
+      });
+    } catch (error) {
+      if (
+        isAxiosError<unknown>(error) &&
+        error.response &&
+        parseValidationError(error.response.data)
+      ) {
+        const failure = error.response.data;
+        const issues = failure.data.issues.slice(0, 5).map((issue) => {
+          // Additional property names can contain caller-supplied content.
+          const path =
+            issue.keyword === 'additionalProperties'
+              ? issue.path.slice(0, issue.path.lastIndexOf('/')) || '/'
+              : issue.path;
+          return `${path} (${issue.keyword})`;
+        });
+        throw new Error(`HTTP ${error.response.status} ${failure.code}: ${issues.join(', ')}`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
     this.payloads.set(reportId, Promise.resolve(updated));
   }
 
