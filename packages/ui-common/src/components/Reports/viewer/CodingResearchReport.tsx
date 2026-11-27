@@ -1,5 +1,5 @@
 import { Stack } from "@mui/material";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { CodingResearchReportPayload, ReportDto } from "../../../api";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { CodingResearchFrameSection } from "./CodingResearchFrameSection";
@@ -7,7 +7,10 @@ import { CodingResearchProvenanceSections } from "./CodingResearchProvenanceSect
 import { CodingResearchUpdatesSection } from "./CodingResearchUpdatesSection";
 import { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
 import { parseCodingResearchSubagentParentAnalysis } from "./codingResearchSubagentParentUncertainties";
-import { createCodingResearchFrameModel } from "./codingResearchReportModel";
+import {
+  createCodingResearchFrameModel,
+  type CodingResearchFrameModel,
+} from "./codingResearchReportModel";
 import { ReportDisclosure, ReportLabeledText } from "./reportPrimitives";
 
 export interface CodingResearchReportProps {
@@ -35,11 +38,20 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
   renderUpdates = true,
 }) => {
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
+  const frame =
+    payload.format === "SUBAGENT_PARENT" ? undefined : payload.frame;
+  // Written reports carry no frame, so there is nothing to read or to log.
+  const frameModel = useMemo<CodingResearchFrameModel>(
+    () =>
+      payload.format === "SUBAGENT_PARENT"
+        ? { state: "unavailable" }
+        : createCodingResearchFrameModel(frame, report?.id),
+    [frame, payload.format, report?.id],
+  );
   const reportData =
     payload.format === "SUBAGENT_PARENT"
       ? {
           format: payload.format,
-          frameModel: createCodingResearchFrameModel(undefined),
           discoveryCalls: [],
           edgesTraversed: [],
           updates: [],
@@ -49,7 +61,6 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
           // Reports saved before the format discriminator existed are self-research reports.
           // These optional reads are only for that persisted legacy shape.
           format: payload.format,
-          frameModel: createCodingResearchFrameModel(payload.frame),
           discoveryCalls: payload.provenance?.discoveryCalls ?? [],
           edgesTraversed: payload.provenance?.edgesTraversed ?? [],
           updates: payload.updates ?? [],
@@ -67,7 +78,7 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
       />
       {renderUpdates ? (
         <CodingResearchUpdatesSection
-          frameModel={reportData.frameModel}
+          frameModel={frameModel}
           report={evaluationOutput ? undefined : report}
           reportTestId={reportTestId}
           updates={reportData.updates}
@@ -95,7 +106,7 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         >
           <Stack spacing={1.5}>
             <CodingResearchFrameSection
-              frameModel={reportData.frameModel}
+              frameModel={frameModel}
               reportTestId={reportTestId}
             />
             <CodingResearchProvenanceSections

@@ -2,10 +2,9 @@ import { Box, Chip } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
-import { ConversationCard } from "../Conversation/Card";
+import { ConversationCard, DiscussCircleControl } from "../Conversation/Card";
 import { renderInlineMentions } from "../SmarterTextAreaCard/renderInlineMentions";
 import { NEEDS_YOUR_ANSWER_LABEL } from "./QuestionFrame";
-import { UncertaintyDiscussControl } from "./UncertaintyDiscussControl";
 
 export const UNCERTAINTY_CATEGORY_LABELS: Record<
   AgentUncertaintySystemMessageData["category"],
@@ -166,7 +165,11 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
         <>
           {renderInlineMentions(statement)}
           {onDiscuss ? (
-            <UncertaintyDiscussControl onDiscuss={onDiscuss} />
+            <DiscussCircleControl
+              label="Discuss this uncertainty"
+              testId="uncertainty-discuss-control"
+              onDiscuss={onDiscuss}
+            />
           ) : null}
         </>
       }

@@ -121,7 +121,7 @@ const AvailableCodingResearchDiscussionAction: React.FC<
       projectAssistant: PROJECT_ASSISTANT_DISABLED,
       context: {
         entityId: focalNode.id,
-        entityType: focalNode.type,
+        entityType: focalNode.entityType,
         entityTitle: focalNode.title,
       },
     });

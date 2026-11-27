@@ -131,7 +131,7 @@ const FrameEntityLink: React.FC<FrameEntityLinkProps> = ({ node, testId }) => (
     <ReportEntityMention
       entityId={node.id}
       entityName={node.title}
-      entityType={node.type}
+      entityType={node.entityType}
     />
   </Stack>
 );

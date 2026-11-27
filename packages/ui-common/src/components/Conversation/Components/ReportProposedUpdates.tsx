@@ -1,14 +1,5 @@
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SyncAlt from "@mui/icons-material/SyncAlt";
-import {
-  Alert,
-  Button,
-  Chip,
-  CircularProgress,
-  Link,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Alert, Button, Chip, Link, Stack, Typography } from "@mui/material";
 import { useApolloClient } from "@apollo/client/react";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -45,6 +36,7 @@ import {
   ConversationCard,
   ConversationCardRelatedRows,
   ConversationCardSection,
+  DiscussCircleControl,
 } from "../Card";
 import { useConversationContext } from "./ConversationContext";
 
@@ -100,9 +92,7 @@ export const ReportProposedUpdates: React.FC<ReportProposedUpdatesProps> = ({
   return (
     <ProposedUpdateCards
       context={context}
-      focalNode={getCodingResearchFocalNode(
-        createCodingResearchFrameModel(payload.frame),
-      )}
+      frame={payload.frame}
       report={report}
       updates={updates}
     />
@@ -113,15 +103,23 @@ interface ProposedUpdateCardsProps {
   report: ReportDto;
   context: ProposedUpdateCardContext;
   updates: CodingResearchUpdate[];
-  focalNode: CodingResearchFrameNode | null;
+  /** The report's saved research frame, not yet validated. */
+  frame: unknown;
 }
 
 const ProposedUpdateCards: React.FC<ProposedUpdateCardsProps> = ({
   report,
   context,
   updates,
-  focalNode,
+  frame,
 }) => {
+  const focalNode = useMemo(
+    () =>
+      getCodingResearchFocalNode(
+        createCodingResearchFrameModel(frame, report.id),
+      ),
+    [frame, report.id],
+  );
   const keys = useMemo(
     () => buildProposedUpdateKeys(context.messageId, report.id, updates),
     [context.messageId, report.id, updates],
@@ -214,6 +212,13 @@ const ProposedUpdateCard: React.FC<ProposedUpdateCardProps> = ({
     ],
   );
 
+  const sessionPath = startedSessionId
+    ? paths.agentSession({
+        projectId: context.projectId,
+        agentSessionId: startedSessionId,
+      })
+    : null;
+
   const targetRows = update.targets.map((target) => ({
     key: `${target.entityType}-${target.entityId}`,
     mention: {
@@ -234,35 +239,46 @@ const ProposedUpdateCard: React.FC<ProposedUpdateCardProps> = ({
         />
       }
       data-testid="proposed-update-card"
-      footer={{
-        content: (
-          <ProposedUpdateFooter
-            focalNode={focalNode}
-            onLaunched={(agentSessionId) => void saveStart(agentSessionId)}
-            onRetrySave={
-              unsaved?.failed && !savedMetadata
-                ? () => void saveStart(unsaved.agentSessionId)
-                : null
+      footer={
+        sessionPath
+          ? {
+              content: (
+                <ProposedUpdateStarted
+                  onRetrySave={
+                    unsaved?.failed && !savedMetadata
+                      ? () => void saveStart(unsaved.agentSessionId)
+                      : null
+                  }
+                  sessionPath={sessionPath}
+                />
+              ),
             }
-            report={report}
-            sessionPath={
-              startedSessionId
-                ? paths.agentSession({
-                    projectId: context.projectId,
-                    agentSessionId: startedSessionId,
-                  })
-                : null
-            }
-            update={update}
-          />
-        ),
-      }}
+          : undefined
+      }
       icon={<SyncAlt fontSize="small" />}
       kindLabel="Project sync · Proposed update"
       lead={
-        <MarkdownRenderer allowMentionEscapes>
-          {update.description}
-        </MarkdownRenderer>
+        <>
+          {/* Inline, so the Discuss control follows the last line of text. */}
+          <MarkdownRenderer
+            allowMentionEscapes
+            sx={{
+              display: "inline",
+              "& > p:last-child": { display: "inline" },
+            }}
+          >
+            {update.description}
+          </MarkdownRenderer>
+          {!sessionPath && report.projectId && focalNode ? (
+            <ProposedUpdateDiscussAction
+              focalNode={focalNode}
+              onLaunched={(agentSessionId) => void saveStart(agentSessionId)}
+              projectId={report.projectId}
+              report={report}
+              update={update}
+            />
+          ) : null}
+        </>
       }
       tone={{ role: "projectSync" }}
     >
@@ -280,86 +296,59 @@ const ProposedUpdateCard: React.FC<ProposedUpdateCardProps> = ({
   );
 };
 
-interface ProposedUpdateFooterProps {
-  report: ReportDto;
-  update: CodingResearchUpdate;
-  focalNode: CodingResearchFrameNode | null;
-  /** Set once a discussion has been started for this update. */
-  sessionPath: string | null;
-  onLaunched: (agentSessionId: string) => void;
+interface ProposedUpdateStartedProps {
+  sessionPath: string;
   /** Set only when a started discussion could not be saved. */
   onRetrySave: (() => void) | null;
 }
 
-const ProposedUpdateFooter: React.FC<ProposedUpdateFooterProps> = ({
-  report,
-  update,
-  focalNode,
+const ProposedUpdateStarted: React.FC<ProposedUpdateStartedProps> = ({
   sessionPath,
-  onLaunched,
   onRetrySave,
-}) => {
-  if (sessionPath) {
-    return (
-      <Stack alignItems="flex-start" spacing={1}>
-        <Stack alignItems="center" direction="row" spacing={1.5}>
-          <Typography
-            data-testid="proposed-update-started"
-            sx={{ fontWeight: 600 }}
-            variant="body2"
+}) => (
+  <Stack alignItems="flex-start" spacing={1}>
+    <Stack alignItems="center" direction="row" spacing={1.5}>
+      <Typography
+        data-testid="proposed-update-started"
+        sx={{ fontWeight: 600 }}
+        variant="body2"
+      >
+        Discussion started
+      </Typography>
+      <Link
+        component={RouterLink}
+        data-testid="proposed-update-session-link"
+        sx={(theme) => ({
+          color: theme.palette.conversationCard.roles.projectSync.main,
+          fontWeight: 600,
+        })}
+        to={sessionPath}
+        underline="hover"
+      >
+        Open session →
+      </Link>
+    </Stack>
+    {onRetrySave ? (
+      <Alert
+        action={
+          <Button
+            color="inherit"
+            data-testid="proposed-update-retry-save"
+            onClick={onRetrySave}
+            size="small"
           >
-            Discussion started
-          </Typography>
-          <Link
-            component={RouterLink}
-            data-testid="proposed-update-session-link"
-            sx={(theme) => ({
-              color: theme.palette.conversationCard.roles.projectSync.main,
-              fontWeight: 600,
-            })}
-            to={sessionPath}
-            underline="hover"
-          >
-            Open session →
-          </Link>
-        </Stack>
-        {onRetrySave ? (
-          <Alert
-            action={
-              <Button
-                color="inherit"
-                data-testid="proposed-update-retry-save"
-                onClick={onRetrySave}
-                size="small"
-              >
-                Retry saving
-              </Button>
-            }
-            data-testid="proposed-update-save-failed"
-            severity="warning"
-          >
-            Discussion started, but we could not save that for others. Retrying
-            only saves it; it does not start the discussion again.
-          </Alert>
-        ) : null}
-      </Stack>
-    );
-  }
-
-  if (!report.projectId || !focalNode) {
-    return null;
-  }
-
-  return (
-    <ProposedUpdateDiscussAction
-      focalNode={focalNode}
-      onLaunched={onLaunched}
-      projectId={report.projectId}
-      report={report}
-      update={update}
-    />
-  );
-};
+            Retry saving
+          </Button>
+        }
+        data-testid="proposed-update-save-failed"
+        severity="warning"
+      >
+        Discussion started, but we could not save that for others. Retrying only
+        saves it; it does not start the discussion again.
+      </Alert>
+    ) : null}
+  </Stack>
+);
 
 interface ProposedUpdateDiscussActionProps {
   report: ReportDto;
@@ -423,74 +412,59 @@ const ProposedUpdateDiscussAction: React.FC<
       projectAssistant: PROJECT_ASSISTANT_DISABLED,
       context: {
         entityId: focalNode.id,
-        entityType: focalNode.type,
+        entityType: focalNode.entityType,
         entityTitle: focalNode.title,
       },
       onLaunched,
     });
   }, [focalNode, launcher, onLaunched, prompt, selectedMachine, selection]);
 
+  const hasNoMachine = isMachineInventoryReady && machineMode === "zero";
+  const showsDetails =
+    machineMode === "many" || hasNoMachine || launcher.error !== null;
+
   return (
-    <Stack alignItems="flex-start" spacing={1}>
-      {machineMode === "many" ? (
-        <MachinePicker
-          disabled={launcher.isLoading}
-          machines={machines}
-          mobileMode="editor"
-          onSelect={setSelectedMachineId}
-          selectedMachineId={selectedMachine?.machineId ?? null}
-        />
-      ) : null}
-      {isMachineInventoryReady && machineMode === "zero" ? (
-        <Typography color="error" variant="caption">
-          Connect or pair a CLI machine to discuss this change.
-        </Typography>
-      ) : null}
-      <Button
-        aria-busy={launcher.isLoading}
-        data-testid="proposed-update-discuss"
+    <>
+      <DiscussCircleControl
         disabled={
-          launcher.isLoading ||
           !isMachineInventoryReady ||
           selectedMachine === null ||
           selection === null
         }
-        onClick={handleLaunch}
-        size="small"
-        startIcon={<ChatBubbleOutlineIcon />}
-        disableElevation
-        sx={(theme) => ({
-          alignSelf: "flex-start",
-          backgroundColor: "var(--card-main)",
-          color: "var(--card-contrast)",
-          "&:hover": {
-            backgroundColor: "var(--card-main)",
-            filter: "brightness(0.92)",
-          },
-          "&.Mui-disabled": {
-            backgroundColor: theme.palette.action.disabledBackground,
-            color: theme.palette.action.disabled,
-          },
-        })}
-        variant="contained"
-      >
-        {launcher.isLoading ? (
-          <CircularProgress
-            aria-label="Starting discussion"
-            color="inherit"
-            size={18}
-          />
-        ) : (
-          "Discuss this change"
-        )}
-      </Button>
-      {launcher.error ? (
-        <SessionErrorAlert
-          error={launcher.error.message}
-          errorCode={launcher.error.code}
-          onDismiss={launcher.clearError}
-        />
+        isStarting={launcher.isLoading}
+        label="Discuss this change"
+        onDiscuss={() => void handleLaunch()}
+        testId="proposed-update-discuss"
+      />
+      {showsDetails ? (
+        <Stack
+          alignItems="flex-start"
+          spacing={1}
+          sx={{ mt: 1, fontWeight: 400 }}
+        >
+          {machineMode === "many" ? (
+            <MachinePicker
+              disabled={launcher.isLoading}
+              machines={machines}
+              mobileMode="editor"
+              onSelect={setSelectedMachineId}
+              selectedMachineId={selectedMachine?.machineId ?? null}
+            />
+          ) : null}
+          {hasNoMachine ? (
+            <Typography color="error" variant="caption">
+              Connect or pair a CLI machine to discuss this change.
+            </Typography>
+          ) : null}
+          {launcher.error ? (
+            <SessionErrorAlert
+              error={launcher.error.message}
+              errorCode={launcher.error.code}
+              onDismiss={launcher.clearError}
+            />
+          ) : null}
+        </Stack>
       ) : null}
-    </Stack>
+    </>
   );
 };

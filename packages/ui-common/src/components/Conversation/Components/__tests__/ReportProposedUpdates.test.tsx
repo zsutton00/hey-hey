@@ -13,6 +13,7 @@ import {
   type SuggestionDecisionResponseDto,
 } from "../../../../api";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
+import { log } from "../../../../utils/logger";
 import { ReportViewer } from "../../../Reports";
 import { buildProposedUpdateKeys } from "../../../Reports/viewer/codingResearchProposedUpdate";
 import { ReportProposedUpdates } from "../ReportProposedUpdates";
@@ -233,9 +234,58 @@ describe("ReportProposedUpdates", () => {
       expect(cards[0]).toHaveTextContent("Coding Research Reports");
       expect(
         within(cards[0]).getByTestId("proposed-update-discuss"),
-      ).toHaveTextContent("Discuss this change");
+      ).toHaveAccessibleName("Discuss this change");
     },
   );
+
+  // Frame nodes are agent-labelled, so saved reports carry work-item type keys.
+  it.each(["CONTRACT", "mockup", "customer_interview"])(
+    "keeps Discuss on every card when the research includes a %s item",
+    async (label) => {
+      mocks.launch.mockResolvedValue(false);
+      const user = userEvent.setup();
+      const payload = structuredPayload as Extract<
+        CodingResearchReportPayload,
+        { format: "SELF_RESEARCH" }
+      >;
+      const focal = {
+        id: TASK_ID,
+        type: label,
+        title: "Focal item",
+        content: "Body",
+        contentSource: "original",
+        edges: [],
+      };
+      renderCards({ ...payload, frame: { focalId: TASK_ID, nodes: [focal] } });
+
+      const actions = screen.getAllByTestId("proposed-update-discuss");
+      expect(actions).toHaveLength(2);
+      await user.click(actions[0]);
+
+      expect(mocks.launch.mock.calls[0][0].context).toMatchObject({
+        entityId: TASK_ID,
+        entityType: EntityType.Task,
+      });
+    },
+  );
+
+  it("logs why a research frame could not be read, without its content", () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(() => undefined);
+    const payload = structuredPayload as Extract<
+      CodingResearchReportPayload,
+      { format: "SELF_RESEARCH" }
+    >;
+
+    renderCards({ ...payload, frame: { focalId: TASK_ID } });
+
+    expect(screen.getAllByTestId("proposed-update-card")).toHaveLength(2);
+    expect(screen.queryByTestId("proposed-update-discuss")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("ui", expect.any(String), {
+      reportId: "report-1",
+      reason: "nodes: invalid_type",
+    });
+    warn.mockRestore();
+  });
 
   it("renders no cards for a written report, a legacy-free empty list, or no updates", () => {
     const written = {
