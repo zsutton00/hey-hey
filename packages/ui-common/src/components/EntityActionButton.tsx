@@ -7,6 +7,7 @@ import {
   useTheme,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import type { AgentSessionType } from "../api";
 import type { WorkItemIconIdentity } from "../utils/entityIcons";
@@ -14,35 +15,52 @@ import { EntityIcon } from "./Entity/EntityIcon";
 
 export type EntityActionVerb = "create" | "start";
 
-const VERB_LABELS: Record<EntityActionVerb, string> = {
+const VERB_LABELS: Record<EntityActionVerb | "quick", string> = {
   create: "Create",
   start: "Start",
+  quick: "Quick",
 };
 
-const DEFAULT_ICONS: Record<EntityActionVerb, React.ReactNode> = {
+const DEFAULT_ICONS: Record<EntityActionVerb | "quick", React.ReactNode> = {
   create: <AddIcon />,
   start: <PlayArrowIcon />,
+  quick: null,
 };
 
-export interface EntityActionButtonProps extends Omit<ButtonProps, "children"> {
-  verb: EntityActionVerb;
-  /** Already-resolved display noun (TERMS or a work-item type name). */
-  noun: string;
-  /** Entity type the action creates or starts; its icon shows at `≤ md`. */
-  entityType: string;
-  /** Registry identity for work-item types (task, feature, plan, ...). */
-  workItemIcon?: WorkItemIconIdentity;
-  /** Subtype for agent sessions. */
-  agentSessionType?: AgentSessionType;
-  /** Replaces the visible label while a pending action runs. */
-  loadingLabel?: string;
-  loading?: boolean;
-}
+type EntityActionTarget =
+  | {
+      verb: EntityActionVerb;
+      /** Entity type the action creates or starts; its icon shows at `≤ md`. */
+      entityType: string;
+      /** Registry identity for work-item types (task, feature, plan, ...). */
+      workItemIcon?: WorkItemIconIdentity;
+      /** Subtype for agent sessions. */
+      agentSessionType?: AgentSessionType;
+    }
+  | {
+      /** A quick ask creates no entity of its own: `≤ md` shows a question mark. */
+      verb: "quick";
+      entityType?: never;
+      workItemIcon?: never;
+      agentSessionType?: never;
+    };
+
+export type EntityActionButtonProps = Omit<ButtonProps, "children"> &
+  EntityActionTarget & {
+    /** Already-resolved display noun (TERMS or a work-item type name). */
+    noun: string;
+    /** Replaces the visible label while a pending action runs. */
+    loadingLabel?: string;
+    /** While loading, shows only a spinner with this accessible name. */
+    loadingSpinnerName?: string;
+    loading?: boolean;
+  };
 
 /**
  * Shared create/start action. Shows "<Verb> <Noun>" above `md` and only
- * "<Verb>" plus the entity type's icon at `≤ md`; the accessible name is
- * always the full label.
+ * "<Verb>" plus an icon for what it acts on at `≤ md`; the accessible name is
+ * the full label unless the caller names a state. Pass `startIcon={null}` for
+ * a text-only button above `md`.
  */
 export const EntityActionButton = ({
   verb,
@@ -51,9 +69,11 @@ export const EntityActionButton = ({
   workItemIcon,
   agentSessionType,
   loadingLabel,
+  loadingSpinnerName,
   loading = false,
   startIcon,
   sx,
+  "aria-label": ariaLabel,
   ...buttonProps
 }: EntityActionButtonProps) => {
   const theme = useTheme();
@@ -66,28 +86,32 @@ export const EntityActionButton = ({
   // definition is available rather than showing a guessed icon.
   const typeIconAvailable =
     workItemIcon === undefined || workItemIcon.definition !== undefined;
-  const typeIcon = typeIconAvailable ? (
-    <EntityIcon
-      entityType={entityType}
-      workItemIcon={workItemIcon}
-      agentSessionType={agentSessionType}
-      size={20}
-      round={false}
-      aria-hidden
-      sx={{ bgcolor: "transparent", color: "inherit" }}
-    />
-  ) : undefined;
-  const resolvedStartIcon = loading ? (
-    <CircularProgress size={16} color="inherit" />
-  ) : isCompact ? (
-    typeIcon
-  ) : (
-    (startIcon ?? DEFAULT_ICONS[verb])
-  );
+  const typeIcon =
+    entityType !== undefined && typeIconAvailable ? (
+      <EntityIcon
+        entityType={entityType}
+        workItemIcon={workItemIcon}
+        agentSessionType={agentSessionType}
+        size={20}
+        round={false}
+        aria-hidden
+        sx={{ bgcolor: "transparent", color: "inherit" }}
+      />
+    ) : undefined;
+  const compactIcon = verb === "quick" ? <HelpOutlineIcon /> : typeIcon;
+  const wideIcon = startIcon === undefined ? DEFAULT_ICONS[verb] : startIcon;
+  const showsSpinnerOnly = loading && loadingSpinnerName !== undefined;
+
+  let resolvedStartIcon = isCompact ? compactIcon : wideIcon;
+  if (showsSpinnerOnly) {
+    resolvedStartIcon = undefined;
+  } else if (loading) {
+    resolvedStartIcon = <CircularProgress size={16} color="inherit" />;
+  }
 
   return (
     <Button
-      aria-label={fullLabel}
+      aria-label={ariaLabel ?? fullLabel}
       startIcon={resolvedStartIcon}
       sx={[
         { whiteSpace: "nowrap", flexShrink: 0 },
@@ -95,7 +119,15 @@ export const EntityActionButton = ({
       ]}
       {...buttonProps}
     >
-      {visibleLabel}
+      {showsSpinnerOnly ? (
+        <CircularProgress
+          size={18}
+          color="inherit"
+          aria-label={loadingSpinnerName}
+        />
+      ) : (
+        visibleLabel
+      )}
     </Button>
   );
 };

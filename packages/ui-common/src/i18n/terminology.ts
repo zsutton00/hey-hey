@@ -58,6 +58,11 @@ export interface TerminologySet {
     plural: string;
     article: string;
   };
+  question: {
+    singular: string;
+    plural: string;
+    article: string;
+  };
   agentSession: {
     singular: string;
     plural: string;
@@ -130,6 +135,11 @@ export const DEFAULT_TERMINOLOGY: TerminologySet = {
     plural: "conversations",
     article: "a",
   },
+  question: {
+    singular: "question",
+    plural: "questions",
+    article: "a",
+  },
   agentSession: {
     singular: "agent session",
     plural: "agent sessions",
@@ -198,6 +208,11 @@ export const GOAL_FOCUSED_TERMINOLOGY: TerminologySet = {
     plural: "conversations",
     article: "a",
   },
+  question: {
+    singular: "question",
+    plural: "questions",
+    article: "a",
+  },
   agentSession: {
     singular: "agent session",
     plural: "agent sessions",
@@ -263,6 +278,11 @@ export const AGILE_TERMINOLOGY: TerminologySet = {
   conversation: {
     singular: "conversation",
     plural: "conversations",
+    article: "a",
+  },
+  question: {
+    singular: "question",
+    plural: "questions",
     article: "a",
   },
   agentSession: {
@@ -337,6 +357,7 @@ export const getEntityTerm = (
     | "feature"
     | "plan"
     | "conversation"
+    | "question"
     | "agentSession",
   form: "singular" | "plural" | "article",
 ): string => {
@@ -457,6 +478,9 @@ export const TERMS = {
   },
   get Conversation() {
     return capitalize(getEntityTerm("conversation", "singular"));
+  },
+  get Question() {
+    return capitalize(getEntityTerm("question", "singular"));
   },
   get AgentSession() {
     return capitalize(getEntityTerm("agentSession", "singular"));

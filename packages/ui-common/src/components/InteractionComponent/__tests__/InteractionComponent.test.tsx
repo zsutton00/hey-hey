@@ -357,7 +357,7 @@ describe("InteractionComponent — hasProposalSupport=true", () => {
     await user.click(screen.getByTestId("feature-two-discuss"));
     expect(screen.getByText("Feature Two")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Cancel"));
+    await user.click(screen.getByTestId("modal-close"));
     await user.click(screen.getByTestId("feature-two-create-task"));
 
     expect(onCreateTask).toHaveBeenCalledOnce();
@@ -644,7 +644,7 @@ describe("InteractionComponent — menu action callbacks", () => {
       screen.getByTestId("child-content").parentElement,
     ).not.toHaveTextContent("Unable to start this conversation");
 
-    await user.click(screen.getByText("Cancel"));
+    await user.click(screen.getByTestId("modal-close"));
 
     expect(mockClearLaunchError).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("discuss-modal")).not.toBeInTheDocument();

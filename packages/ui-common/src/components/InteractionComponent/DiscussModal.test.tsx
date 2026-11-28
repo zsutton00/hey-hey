@@ -868,7 +868,7 @@ describe("DiscussModal submit and close behavior", () => {
         <DiscussModal {...props} open />
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByText("Cancel"));
+    await userEvent.click(screen.getByTestId("modal-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -1056,6 +1056,47 @@ describe("DiscussModal submit and close behavior", () => {
     await userEvent.click(screen.getByTestId("discuss-modal-ask"));
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
     expect(props.onSubmit.mock.calls[0][0]).not.toHaveProperty("serviceId");
+  });
+
+  it("has no Cancel button and blocks closing while a conversation starts", async () => {
+    const onClose = vi.fn();
+    const { props, rerender } = renderModal({ onClose });
+
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <DiscussModal {...props} isLoading />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByTestId("modal-close"));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shortens both launch labels on narrow screens and keeps their full names", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width:899"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+
+    renderModal();
+
+    const quick = screen.getByRole("button", { name: "Quick Question" });
+    expect(quick).toHaveTextContent(/^Quick$/);
+    expect(within(quick).getByTestId("HelpOutlineIcon")).toBeInTheDocument();
+
+    const start = screen.getByRole("button", { name: "Start Conversation" });
+    expect(start).toHaveTextContent(/^Start$/);
+    expect(start.querySelector("svg")).not.toBeNull();
+
+    vi.unstubAllGlobals();
   });
 
   it("shows the pending spinner in Quick Question and restores both labels after failure", async () => {
@@ -1251,7 +1292,7 @@ describe("DiscussModal submit and close behavior", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByText("Cancel"));
+    await user.click(screen.getByTestId("modal-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClearSubmitError).toHaveBeenCalledTimes(1);
 

@@ -16,7 +16,6 @@ import {
   Alert,
   AlertTitle,
   Box,
-  Button,
   CircularProgress,
   Checkbox,
   DialogContent,
@@ -71,6 +70,8 @@ import { useWorkItem } from "../../data/hooks/useWorkItem";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 import { getInputBorderSx } from "../../contexts/ThemeContext";
+import { EntityActionButton } from "../EntityActionButton";
+import { TERMS } from "../../i18n/terminology";
 
 export type DiscussModalSubmitInput = GraphConversationLaunchInput;
 
@@ -129,6 +130,21 @@ const DEFAULT_PLACEHOLDER =
 const NOOP_CLEAR_SUBMIT_ERROR = () => {};
 type DiscussLaunchAction = "quickQuestion" | "startConversation";
 const CLEARED_EDITOR = { key: 0, value: "" } as const;
+const PENDING_SPINNER_NAME = "Starting conversation";
+
+/** On phones the dialog and footer give up margin so the footer fits one line. */
+const PHONE_FOOTER_SX = {
+  "& .MuiDialog-paper": {
+    m: { xs: 2, sm: 4 },
+    width: { xs: "calc(100% - 32px)", sm: "calc(100% - 64px)" },
+  },
+  "& .MuiDialogActions-root": { px: { xs: 2, sm: 3 } },
+  "& .MuiDialogActions-root .MuiButton-root": { px: { xs: 1, sm: 2 } },
+  "& .MuiDialogActions-root .MuiButton-startIcon": {
+    ml: { xs: 0, sm: -0.5 },
+    mr: { xs: 0.5, sm: 1 },
+  },
+} as const;
 
 const DiscussSubmitError: React.FC<{
   error: EntityConversationLaunchError | null;
@@ -483,6 +499,17 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
     ? `Discuss ${entityTypeLabel ? `${entityTypeLabel}: ` : ""}${entityTitle}`
     : "Discuss";
 
+  const launchDisabled =
+    isLoading ||
+    !canSubmitPrompt ||
+    !selectedMachineId ||
+    !selection ||
+    attachments.blocked ||
+    placesUnavailable ||
+    nameOpen;
+  const quickQuestionPending = pendingAction === "quickQuestion" && isLoading;
+  const startPending = pendingAction === "startConversation" && isLoading;
+
   return (
     <Dialog
       workTitle={workTitle}
@@ -499,14 +526,15 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       data-testid="discuss-modal"
       onKeyDown={(e) => e.stopPropagation()}
       disablePortal={disablePortal}
-      sx={
+      sx={[
+        PHONE_FOOTER_SX,
         disablePortal
           ? {
               position: "absolute",
               "& .MuiBackdrop-root": { position: "absolute" },
             }
-          : undefined
-      }
+          : {},
+      ]}
     >
       <DialogTitle>
         Discuss
@@ -790,7 +818,19 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
           ) : null}
         </Box>
       </DialogContent>
+      {stagedBrowser.failure ? (
+        <Typography
+          variant="caption"
+          color="error.main"
+          role="alert"
+          data-testid="discuss-open-browser-error"
+          sx={{ px: { xs: 2, sm: 3 }, pt: 1 }}
+        >
+          {stagedBrowser.failure.reason}
+        </Typography>
+      ) : null}
       <ModalActions
+        disableSpacing
         contextualActions={
           <Box
             data-testid="discuss-launch-tools"
@@ -860,85 +900,46 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                 </IconButton>
               </span>
             </Tooltip>
-            {stagedBrowser.failure ? (
-              <Typography
-                variant="caption"
-                color="error.main"
-                role="alert"
-                data-testid="discuss-open-browser-error"
-              >
-                {stagedBrowser.failure.reason}
-              </Typography>
-            ) : null}
           </Box>
         }
       >
-        <Button onClick={handleClose} disabled={isLoading}>
-          Cancel
-        </Button>
-        <Button
+        <EntityActionButton
           variant="outlined"
+          verb="quick"
+          noun={TERMS.Question}
+          loading={quickQuestionPending}
+          loadingSpinnerName={PENDING_SPINNER_NAME}
           onClick={() =>
             void handleSubmit(PROJECT_ASSISTANT_DISABLED, "quickQuestion")
           }
-          disabled={
-            isLoading ||
-            !canSubmitPrompt ||
-            !selectedMachineId ||
-            !selection ||
-            attachments.blocked ||
-            placesUnavailable ||
-            nameOpen
-          }
+          disabled={launchDisabled}
           data-testid="discuss-modal-ask"
           aria-label={
-            pendingAction === "quickQuestion" && isLoading
-              ? "Quick Question, starting conversation"
-              : "Quick Question"
+            quickQuestionPending
+              ? `Quick ${TERMS.Question}, starting conversation`
+              : undefined
           }
-          aria-busy={pendingAction === "quickQuestion" && isLoading}
-        >
-          {pendingAction === "quickQuestion" && isLoading ? (
-            <CircularProgress
-              size={18}
-              color="inherit"
-              aria-label="Starting conversation"
-            />
-          ) : (
-            "Quick Question"
-          )}
-        </Button>
-        <Button
+          aria-busy={quickQuestionPending}
+        />
+        <EntityActionButton
           variant="contained"
+          verb="start"
+          noun={TERMS.Conversation}
+          entityType="conversation"
+          startIcon={null}
+          loading={startPending}
+          loadingSpinnerName={PENDING_SPINNER_NAME}
           ref={walkthrough.startTargetRef}
           onClick={() => void handleSubmit(undefined, "startConversation")}
-          disabled={
-            isLoading ||
-            !canSubmitPrompt ||
-            !selectedMachineId ||
-            !selection ||
-            attachments.blocked ||
-            placesUnavailable ||
-            nameOpen
-          }
+          disabled={launchDisabled}
           data-testid="discuss-modal-submit"
           aria-label={
-            pendingAction === "startConversation" && isLoading
-              ? "Start Conversation, starting conversation"
-              : "Start Conversation"
+            startPending
+              ? `Start ${TERMS.Conversation}, starting conversation`
+              : undefined
           }
-          aria-busy={pendingAction === "startConversation" && isLoading}
-        >
-          {pendingAction === "startConversation" && isLoading ? (
-            <CircularProgress
-              size={18}
-              color="inherit"
-              aria-label="Starting conversation"
-            />
-          ) : (
-            "Start Conversation"
-          )}
-        </Button>
+          aria-busy={startPending}
+        />
       </ModalActions>
     </Dialog>
   );

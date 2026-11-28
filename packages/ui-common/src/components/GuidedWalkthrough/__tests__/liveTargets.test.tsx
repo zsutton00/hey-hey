@@ -346,7 +346,7 @@ describe("Discuss button and modal targets", () => {
       session.guidanceContainer,
     );
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByTestId("modal-close"));
     await waitFor(() => expect(runtime.discussSessions.current()).toBeNull());
     expect(runtime.targets.lookup(editorAddress)).toBeNull();
     expect(runtime.targets.lookup(startAddress)).toBeNull();

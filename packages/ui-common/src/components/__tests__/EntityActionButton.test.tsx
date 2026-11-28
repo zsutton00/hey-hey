@@ -58,6 +58,20 @@ describe("EntityActionButton", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
+  it.each([
+    { compact: false, text: /^Quick Question$/, icons: 0 },
+    { compact: true, text: /^Quick$/, icons: 1 },
+  ])(
+    "labels a quick ask with a question mark only at md and below",
+    ({ compact, text, icons }) => {
+      mockUseMediaQuery.mockReturnValue(compact);
+      render(<EntityActionButton verb="quick" noun="Question" />);
+      const button = screen.getByRole("button", { name: "Quick Question" });
+      expect(button).toHaveTextContent(text);
+      expect(screen.queryAllByTestId("HelpOutlineIcon")).toHaveLength(icons);
+    },
+  );
+
   it("withholds the type icon for a work-item type without a definition", () => {
     mockUseMediaQuery.mockReturnValue(true);
     renderButton({
